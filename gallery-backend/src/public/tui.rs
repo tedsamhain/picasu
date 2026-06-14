@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use arrayvec::ArrayString;
-use atomic_float::AtomicF64;
 use crossbeam_queue::ArrayQueue;
 use dashmap::DashMap;
 use std::{
@@ -179,7 +178,7 @@ pub struct Dashboard {
     completed: ArrayQueue<TaskRow>,
     handled: AtomicU64,
     pending: AtomicU64,
-    total_duration: AtomicF64,
+    total_duration: AtomicU64,
 }
 
 pub static LOGGER_TX: OnceLock<UnboundedSender<String>> = OnceLock::new();
@@ -192,7 +191,7 @@ impl Dashboard {
             completed: ArrayQueue::new(*CURRENT_NUM_THREADS * 4),
             handled: AtomicU64::new(0),
             pending: AtomicU64::new(0),
-            total_duration: AtomicF64::new(0.0),
+            total_duration: AtomicU64::new(0),
         }
     }
 
@@ -254,7 +253,9 @@ impl Dashboard {
 
     /// Move to `completed` and update statistics
     fn move_to_completed(&self, row: TaskRow, duration: f64) {
-        self.total_duration.fetch_add(duration, Ordering::Relaxed);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let micros = (duration * 1_000_000.0) as u64;
+        self.total_duration.fetch_add(micros, Ordering::Relaxed);
         self.push_to_completed(row);
         self.handled.fetch_add(1, Ordering::Relaxed);
     }
@@ -281,7 +282,9 @@ impl Dashboard {
     }
     #[inline]
     fn total_duration(&self) -> f64 {
-        self.total_duration.load(Ordering::Relaxed)
+        #[allow(clippy::cast_precision_loss)]
+        let secs = self.total_duration.load(Ordering::Relaxed) as f64 / 1_000_000.0;
+        secs
     }
 }
 

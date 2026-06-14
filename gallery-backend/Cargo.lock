@@ -190,12 +190,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "atomic_float"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "628d228f918ac3b82fe590352cc719d30664a0c13ca3a60266fe02c7132d480a"
-
-[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3007,15 +3001,6 @@ dependencies = [
 
 [[package]]
 name = "redb"
-version = "2.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8eca1e9d98d5a7e9002d0013e18d5a9b000aee942eb134883a82f06ebffb6c01"
-dependencies = [
- "libc",
-]
-
-[[package]]
-name = "redb"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e925444704b5f17d32bf42f5b6e2df050bceebc3dcd6e71cc73dafe8092e839"
@@ -4328,7 +4313,6 @@ version = "2.1.0"
 dependencies = [
  "anyhow",
  "arrayvec",
- "atomic_float",
  "base64 0.22.1",
  "bitcode",
  "blake3",
@@ -4353,8 +4337,7 @@ dependencies = [
  "path-clean",
  "rand 0.10.1",
  "rayon",
- "redb 2.6.3",
- "redb 4.1.0",
+ "redb",
  "regex",
  "rocket",
  "rocket_seek_stream",
