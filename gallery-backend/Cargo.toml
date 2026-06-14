@@ -27,7 +27,6 @@ arrayvec = { version = "0.7.6", features = ["serde"] }
 atomic_float = "1.1.0"
 bitcode = { version = "0.6.9", features = ["arrayvec"] }
 blake3 = "1.8.5"
-bytesize = "2.3.1"
 chrono = "0.4.44"
 console = "0.16.3"
 crossbeam-queue = "0.3.12"
@@ -44,7 +43,6 @@ kamadak-exif = "0.6.1"
 log = { version = "0.4.29", features = ["kv"] }
 mini_executor = "2.0.3"
 notify = "8.2.0"
-num_cpus = "1.17.0"
 path-clean = "1.0.1"
 rand = "0.10.1"
 rayon = "1.12.0"
@@ -73,7 +71,6 @@ uuid = { version = "1.23.1", features = ["v4"] }
 walkdir = "2.5.0"
 base64 = "0.22.1"
 directories = "6.0.0"
-zip = "8.6.0"
 webbrowser = { version = "1.2.1", optional = true }
 rust-embed = "8.11.0"
 mime_guess = "2.0.5"
