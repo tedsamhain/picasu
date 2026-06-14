@@ -60,10 +60,10 @@ frontend-format-fix:
 frontend-check:
     cd gallery-frontend && npx vue-tsc --noEmit && npx eslint .
 
-# (pending: add vitest)
+# vitest run
 [group('frontend')]
 frontend-test:
-    @echo "[ frontend-test ] no tests yet — add vitest"
+    cd gallery-frontend && npm test
 
 # npm run build (npm ci + vue-tsc + vite build)
 [group('frontend')]
@@ -92,6 +92,11 @@ check: backend-check frontend-check
 # Run tests (backend + frontend)
 [group('global')]
 test: backend-test frontend-test
+
+# Install cargo dev tools (cargo-nextest, cargo-deny, cargo-audit)
+[group('global')]
+install-dev:
+    cargo install cargo-nextest cargo-deny cargo-audit
 
 # Build frontend then backend with embedded assets (release)
 [group('global')]
