@@ -207,3 +207,37 @@ fn write_album_to_db(dir_path: &Path) -> Result<ArrayString<64>> {
 
     Ok(album_id)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn separators_become_spaces_and_words_are_capitalised() {
+        assert_eq!(prettify_dir_name("vacation_2023"), "Vacation 2023");
+        assert_eq!(prettify_dir_name("my-holiday.photos"), "My Holiday Photos");
+        assert_eq!(prettify_dir_name("road_trip-2022"), "Road Trip 2022");
+    }
+
+    #[test]
+    fn already_capitalised_words_are_preserved() {
+        assert_eq!(prettify_dir_name("Paris"), "Paris");
+        assert_eq!(prettify_dir_name("NYC_2024"), "NYC 2024");
+    }
+
+    #[test]
+    fn consecutive_separators_collapse() {
+        assert_eq!(prettify_dir_name("a__b"), "A B");
+        assert_eq!(prettify_dir_name("a--b"), "A B");
+    }
+
+    #[test]
+    fn empty_input_returns_empty() {
+        assert_eq!(prettify_dir_name(""), "");
+    }
+
+    #[test]
+    fn unicode_first_char_is_uppercased() {
+        assert_eq!(prettify_dir_name("été_photos"), "Été Photos");
+    }
+}

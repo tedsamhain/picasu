@@ -136,3 +136,100 @@ impl AlbumCombined {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::path::Path;
+
+    use arrayvec::ArrayString;
+
+    use crate::public::structure::common::FileModify;
+
+    // Mirrors the belongs_to_album closure in self_update.
+    fn belongs_to_album(
+        alias: &[FileModify],
+        albums: &HashSet<ArrayString<64>>,
+        dir_path: Option<&str>,
+        album_id: ArrayString<64>,
+    ) -> bool {
+        if let Some(dir) = dir_path {
+            alias.iter().any(|a| Path::new(&a.file).starts_with(dir))
+        } else {
+            albums.contains(&album_id)
+        }
+    }
+
+    fn alias(paths: &[&str]) -> Vec<FileModify> {
+        paths
+            .iter()
+            .map(|p| FileModify {
+                file: p.to_string(),
+                modified: 0,
+                scan_time: 0,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn dir_album_matches_file_inside_dir() {
+        let a = alias(&["/photos/vacation/img.jpg"]);
+        assert!(belongs_to_album(
+            &a,
+            &HashSet::new(),
+            Some("/photos/vacation"),
+            ArrayString::new()
+        ));
+    }
+
+    #[test]
+    fn dir_album_matches_file_in_subdirectory() {
+        let a = alias(&["/photos/vacation/day1/img.jpg"]);
+        assert!(belongs_to_album(
+            &a,
+            &HashSet::new(),
+            Some("/photos/vacation"),
+            ArrayString::new()
+        ));
+    }
+
+    #[test]
+    fn dir_album_does_not_match_sibling_dir() {
+        let a = alias(&["/photos/other/img.jpg"]);
+        assert!(!belongs_to_album(
+            &a,
+            &HashSet::new(),
+            Some("/photos/vacation"),
+            ArrayString::new()
+        ));
+    }
+
+    #[test]
+    fn dir_album_does_not_match_partial_name_prefix() {
+        // "/photos/vacation2" must not match dir "/photos/vacation"
+        let a = alias(&["/photos/vacation2/img.jpg"]);
+        assert!(!belongs_to_album(
+            &a,
+            &HashSet::new(),
+            Some("/photos/vacation"),
+            ArrayString::new()
+        ));
+    }
+
+    #[test]
+    fn manual_album_matches_stored_id() {
+        let id = ArrayString::from("abc").unwrap();
+        let mut albums = HashSet::new();
+        albums.insert(id);
+        assert!(belongs_to_album(&alias(&[]), &albums, None, id));
+    }
+
+    #[test]
+    fn manual_album_does_not_match_different_id() {
+        let id = ArrayString::from("abc").unwrap();
+        let other = ArrayString::from("xyz").unwrap();
+        let mut albums = HashSet::new();
+        albums.insert(other);
+        assert!(!belongs_to_album(&alias(&[]), &albums, None, id));
+    }
+}

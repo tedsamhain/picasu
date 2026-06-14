@@ -580,3 +580,95 @@ impl From<AlbumCombined> for AbstractData {
         AbstractData::Album(album)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::public::structure::object::ObjectType;
+
+    fn img_with_alias(files: &[(&str, i64, i64)]) -> AbstractData {
+        let id = ArrayString::from("test").unwrap();
+        let mut metadata = ImageMetadata::new(id, 0, 0, 0, "jpg".to_string());
+        for (file, modified, scan_time) in files {
+            metadata.alias.push(FileModify {
+                file: file.to_string(),
+                modified: *modified,
+                scan_time: *scan_time,
+            });
+        }
+        AbstractData::Image(ImageCombined {
+            object: ObjectSchema::new(id, ObjectType::Image),
+            metadata,
+        })
+    }
+
+    fn img_with_exif(key: &str, value: &str) -> AbstractData {
+        let id = ArrayString::from("test").unwrap();
+        let mut metadata = ImageMetadata::new(id, 0, 0, 0, "jpg".to_string());
+        metadata.exif_vec.insert(key.to_string(), value.to_string());
+        AbstractData::Image(ImageCombined {
+            object: ObjectSchema::new(id, ObjectType::Image),
+            metadata,
+        })
+    }
+
+    #[test]
+    fn scan_time_returns_max_alias_scan_time() {
+        let data = img_with_alias(&[("/a.jpg", 100, 1000), ("/b.jpg", 200, 2000)]);
+        assert_eq!(data.compute_timestamp(&["scan_time"]), 2000);
+    }
+
+    #[test]
+    fn modified_returns_modified_of_latest_scan_time_alias() {
+        let data = img_with_alias(&[("/a.jpg", 100, 1000), ("/b.jpg", 999, 2000)]);
+        assert_eq!(data.compute_timestamp(&["modified"]), 999);
+    }
+
+    #[test]
+    fn exif_datetime_original_is_parsed_and_returned() {
+        let data = img_with_exif("DateTimeOriginal", "2020-06-15 12:30:00");
+        let ts = data.compute_timestamp(&["DateTimeOriginal"]);
+        assert!(ts > 0, "expected a positive timestamp from EXIF");
+    }
+
+    #[test]
+    fn invalid_exif_datetime_falls_through_to_next_priority() {
+        let data = img_with_alias(&[("/img.jpg", 42, 1234)]);
+        // DateTimeOriginal is missing; should fall through to modified
+        assert_eq!(
+            data.compute_timestamp(&["DateTimeOriginal", "modified"]),
+            42
+        );
+    }
+
+    #[test]
+    fn filename_timestamp_is_parsed() {
+        // Timestamp must end at a word boundary; the regex uses \b after the last digit group.
+        // "20190704_153000.jpg" works: the dot after "00" is a non-word char.
+        let data = img_with_alias(&[("/Photos/20190704_153000.jpg", 0, 1)]);
+        let ts = data.compute_timestamp(&["filename"]);
+        assert!(ts > 0, "expected a positive timestamp parsed from filename");
+    }
+
+    #[test]
+    fn priority_list_order_is_respected() {
+        let mut data = img_with_alias(&[("/a.jpg", 55, 999)]);
+        if let AbstractData::Image(ref mut img) = data {
+            img.metadata.exif_vec.insert(
+                "DateTimeOriginal".to_string(),
+                "2021-01-01 00:00:00".to_string(),
+            );
+        }
+        let exif_ts = data.compute_timestamp(&["DateTimeOriginal"]);
+        let scan_ts = data.compute_timestamp(&["scan_time"]);
+        let combined_ts = data.compute_timestamp(&["DateTimeOriginal", "scan_time"]);
+        assert_eq!(combined_ts, exif_ts);
+        assert_ne!(combined_ts, scan_ts);
+    }
+
+    #[test]
+    fn empty_alias_scan_time_returns_zero() {
+        let data = img_with_alias(&[]);
+        assert_eq!(data.compute_timestamp(&["scan_time"]), 0);
+    }
+}
