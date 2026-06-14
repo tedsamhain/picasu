@@ -20,7 +20,7 @@ pub fn start_folder_import_handler(
     req: Json<StartFolderImportRequest>,
 ) -> AppResult<Status> {
     let _ = read_only?;
-    start_folder_import(req.into_inner().path)?;
+    start_folder_import(&req.into_inner().path)?;
     Ok(Status::Accepted)
 }
 

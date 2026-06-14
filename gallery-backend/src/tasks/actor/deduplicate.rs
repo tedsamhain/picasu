@@ -53,19 +53,19 @@ fn deduplicate_task(task: &DeduplicateTask) -> Result<Option<AbstractData>> {
                 exist_alias.push(file_modify);
             }
         }
-        if let Some(album_id) = task.presigned_album_id {
-            if let Some(albums) = data_exist.albums_mut() {
-                albums.insert(album_id);
-            }
+        if let Some(album_id) = task.presigned_album_id
+            && let Some(albums) = data_exist.albums_mut()
+        {
+            albums.insert(album_id);
         }
         BATCH_COORDINATOR.execute_batch_detached(FlushTreeTask::insert(vec![data_exist]));
         warn!("File already exists in the database:\n{:#?}", abstract_data);
         Ok(None)
     } else {
-        if let Some(album_id) = task.presigned_album_id {
-            if let Some(albums) = abstract_data.albums_mut() {
-                albums.insert(album_id);
-            }
+        if let Some(album_id) = task.presigned_album_id
+            && let Some(albums) = abstract_data.albums_mut()
+        {
+            albums.insert(album_id);
         }
         Ok(Some(abstract_data))
     }

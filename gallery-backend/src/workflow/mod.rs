@@ -112,7 +112,11 @@ pub async fn index_for_watch(
     };
 
     let abstract_data_opt = INDEX_COORDINATOR
-        .execute_waiting(DeduplicateTask::new(path.clone(), hash, presigned_album_id_opt))
+        .execute_waiting(DeduplicateTask::new(
+            path.clone(),
+            hash,
+            presigned_album_id_opt,
+        ))
         .await??;
 
     // If the file is already in the database, we can skip further processing.

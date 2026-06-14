@@ -172,8 +172,7 @@ impl Expression {
                     // rather than stored in img.metadata.albums.  Look up the
                     // dir_path from the cache (separate Mutex from the in-memory
                     // tree, so no deadlock even when called inside filter_items).
-                    let dir_path =
-                        crate::operations::dir_album::get_dir_path_for_album(album_id);
+                    let dir_path = crate::operations::dir_album::get_dir_path_for_album(album_id);
                     if let Some(dir) = dir_path {
                         let dir_str = dir.to_string_lossy().into_owned();
                         Box::new(move |abstract_data: &AbstractData| match abstract_data {

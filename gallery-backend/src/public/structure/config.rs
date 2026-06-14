@@ -119,13 +119,7 @@ impl AppConfig {
             }
         }
 
-        if config
-            .private
-            .auth_key
-            .as_ref()
-            .filter(|k| !k.is_empty())
-            .is_none()
-        {
+        if config.private.auth_key.as_deref().is_none_or(str::is_empty) {
             config.private.auth_key = None;
             FALLBACK_SECRET_KEY.get_or_init(generate_secret_key);
         }
@@ -176,9 +170,8 @@ impl AppConfig {
         if new_config
             .private
             .auth_key
-            .as_ref()
-            .filter(|k| !k.is_empty())
-            .is_none()
+            .as_deref()
+            .is_none_or(str::is_empty)
         {
             new_config.private.auth_key = None;
         }

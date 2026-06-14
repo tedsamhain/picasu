@@ -63,12 +63,11 @@ fn extract_limit(app_config: &AppConfig, key: &str, default_val: &str) -> ByteUn
         .public
         .limits
         .get(key)
-        .map(|s| s.as_str())
-        .unwrap_or(default_val);
+        .map_or(default_val, String::as_str);
 
     let bytes = raw_val
         .parse::<HumanBytes>()
-        .unwrap_or_else(|_| panic!("Invalid limit format for key '{}': {}", key, raw_val))
+        .unwrap_or_else(|_| panic!("Invalid limit format for key '{key}': {raw_val}"))
         .as_u64();
 
     ByteUnit::from(bytes)

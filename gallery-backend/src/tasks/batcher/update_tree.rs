@@ -42,9 +42,7 @@ impl BatchTask for UpdateTreeTask {
         let pending = drain_pending_album_updates();
         if !pending.is_empty() {
             for album_id in pending {
-                if let Err(e) =
-                    tokio::task::spawn_blocking(move || album_task(album_id)).await
-                {
+                if let Err(e) = tokio::task::spawn_blocking(move || album_task(album_id)).await {
                     warn!("Album self-update task panicked for {album_id}: {e}");
                 }
             }

@@ -63,37 +63,39 @@ impl AlbumCombined {
 
         let mut data_in_album: Vec<MediaItemInfo> = ref_data
             .par_iter()
-            .filter_map(|database_timestamp| match &database_timestamp.abstract_data {
-                AbstractData::Image(img) => {
-                    if !img.object.is_trashed
-                        && belongs_to_album(&img.metadata.alias, &img.metadata.albums)
-                    {
-                        Some(MediaItemInfo {
-                            hash: img.object.id,
-                            size: img.metadata.size,
-                            thumbhash: img.object.thumbhash.clone(),
-                            timestamp: database_timestamp.timestamp,
-                        })
-                    } else {
-                        None
+            .filter_map(
+                |database_timestamp| match &database_timestamp.abstract_data {
+                    AbstractData::Image(img) => {
+                        if !img.object.is_trashed
+                            && belongs_to_album(&img.metadata.alias, &img.metadata.albums)
+                        {
+                            Some(MediaItemInfo {
+                                hash: img.object.id,
+                                size: img.metadata.size,
+                                thumbhash: img.object.thumbhash.clone(),
+                                timestamp: database_timestamp.timestamp,
+                            })
+                        } else {
+                            None
+                        }
                     }
-                }
-                AbstractData::Video(vid) => {
-                    if !vid.object.is_trashed
-                        && belongs_to_album(&vid.metadata.alias, &vid.metadata.albums)
-                    {
-                        Some(MediaItemInfo {
-                            hash: vid.object.id,
-                            size: vid.metadata.size,
-                            thumbhash: vid.object.thumbhash.clone(),
-                            timestamp: database_timestamp.timestamp,
-                        })
-                    } else {
-                        None
+                    AbstractData::Video(vid) => {
+                        if !vid.object.is_trashed
+                            && belongs_to_album(&vid.metadata.alias, &vid.metadata.albums)
+                        {
+                            Some(MediaItemInfo {
+                                hash: vid.object.id,
+                                size: vid.metadata.size,
+                                thumbhash: vid.object.thumbhash.clone(),
+                                timestamp: database_timestamp.timestamp,
+                            })
+                        } else {
+                            None
+                        }
                     }
-                }
-                AbstractData::Album(_) => None,
-            })
+                    AbstractData::Album(_) => None,
+                },
+            )
             .collect();
 
         // If there are no items in the album, there's nothing to set
@@ -108,7 +110,7 @@ impl AlbumCombined {
         }
 
         // Sort by timestamp descending (newest first)
-        data_in_album.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        data_in_album.sort_by_key(|info| std::cmp::Reverse(info.timestamp));
 
         // Set metadata from the sorted list
         self.metadata.start_time = data_in_album.last().map(|info| info.timestamp);

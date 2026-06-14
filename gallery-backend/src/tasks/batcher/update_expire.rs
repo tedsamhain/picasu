@@ -22,7 +22,7 @@ fn update_expire_task() {
     if last_timestamp > 0 {
         let expire_write_txn = EXPIRE.in_disk.begin_write().unwrap();
         let new_expire_time = current_timestamp
-            .saturating_add(i64::try_from(Duration::from_secs(60 * 60).as_millis()).unwrap());
+            .saturating_add(i64::try_from(Duration::from_hours(1).as_millis()).unwrap());
         {
             let mut expire_table = expire_write_txn
                 .open_table(EXPIRE_TABLE_DEFINITION)

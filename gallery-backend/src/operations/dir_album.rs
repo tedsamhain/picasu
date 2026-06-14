@@ -10,7 +10,6 @@ use log::info;
 use crate::operations::hash::generate_random_hash;
 use crate::operations::open_db::open_data_table;
 use crate::public::constant::redb::DATA_TABLE;
-use redb::ReadableTable;
 use crate::public::db::tree::TREE;
 use crate::public::structure::abstract_data::AbstractData;
 use crate::public::structure::album::combined::AlbumCombined;
@@ -19,6 +18,7 @@ use crate::public::structure::config::APP_CONFIG;
 use crate::public::structure::object::{ObjectSchema, ObjectType};
 use crate::tasks::BATCH_COORDINATOR;
 use crate::tasks::batcher::update_tree::UpdateTreeTask;
+use redb::ReadableTable;
 
 /// In-memory cache: canonical dir path → album ID.
 /// The mutex is held for the full duration of `get_or_create_dir_album` to
@@ -41,10 +41,10 @@ pub fn init_dir_album_cache() {
 
     for entry in data_table.iter().unwrap().flatten() {
         let (_, guard) = entry;
-        if let AbstractData::Album(album) = guard.value() {
-            if let Some(ref dir) = album.metadata.dir_path {
-                cache.insert(PathBuf::from(dir), album.metadata.id);
-            }
+        if let AbstractData::Album(album) = guard.value()
+            && let Some(ref dir) = album.metadata.dir_path
+        {
+            cache.insert(PathBuf::from(dir), album.metadata.id);
         }
     }
 
@@ -100,7 +100,13 @@ pub fn get_dir_path_for_album(album_id: ArrayString<64>) -> Option<PathBuf> {
         .lock()
         .unwrap()
         .iter()
-        .find_map(|(path, &id)| if id == album_id { Some(path.clone()) } else { None })
+        .find_map(|(path, &id)| {
+            if id == album_id {
+                Some(path.clone())
+            } else {
+                None
+            }
+        })
 }
 
 /// Mark every directory album whose path is a prefix of `file_path` for a
