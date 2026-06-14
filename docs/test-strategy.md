@@ -20,12 +20,12 @@ In practice this means:
 | Backend format | `cargo fmt --check` | ✅ in precommit |
 | Backend lint | `cargo clippy -- -D warnings` | ✅ in precommit |
 | Unsafe code | `#![deny(unsafe_code)]` in `main.rs` | ✅ enforced at compile time |
-| Backend tests | `cargo test` (4 tests in `router/builder.rs`) | ✅ in precommit — minimal coverage |
+| Backend tests | `cargo nextest run` (24 tests) | ✅ in precommit |
 | Frontend format | `prettier --check` | ✅ in precommit |
 | Frontend types | `vue-tsc --noEmit` | ✅ in precommit |
 | Frontend lint | `eslint` (strictTypeChecked + vue strongly-recommended) | ✅ in precommit |
 | Frontend tests | — | ❌ none |
-| Security audit | — | ❌ not wired up |
+| Security audit | `cargo deny check` (licenses + advisories) | ✅ in `just audit` |
 | E2E | — | ❌ not started |
 
 ---
@@ -62,12 +62,10 @@ Priority flows:
 
 ### Tooling gaps
 
-- **cargo nextest**: drop-in replacement for `cargo test`; faster parallel execution,
-  better output. Replace `cargo test` in the `justfile` once installed.
 - **cargo audit**: CVE scan of the dependency tree. Run locally and in CI.
-- **cargo deny**: policy enforcement for licenses, duplicate deps, and CVEs via `deny.toml`.
-- **clippy `unwrap_used`**: currently allowed everywhere. Promote to `warn` outside test
-  modules to surface latent panics.
+- **clippy `unwrap_used`**: set to `warn` in `Cargo.toml` (visible in IDEs and plain
+  `cargo clippy`); excluded from the precommit `-D warnings` flag until the ~140 existing
+  call sites are addressed.
 - **cargo geiger**: counts unsafe blocks in the crate and all dependencies. Not suitable
   for precommit (slow, requires full build); include in periodic release/audit reports to
   track the unsafe surface area of the dependency tree.

@@ -21,12 +21,17 @@ backend-format-fix:
 # cargo clippy -- -D warnings
 [group('backend')]
 backend-check:
-    cd gallery-backend && cargo clippy -- -D warnings
+    cd gallery-backend && cargo clippy -- -D warnings -A clippy::unwrap_used
 
-# cargo test
+# cargo nextest run
 [group('backend')]
 backend-test:
-    cd gallery-backend && cargo test --quiet
+    cd gallery-backend && cargo nextest run
+
+# cargo deny check
+[group('backend')]
+backend-deny:
+    cd gallery-backend && cargo deny check
 
 # cargo audit
 [group('backend')]
@@ -80,7 +85,7 @@ test: backend-test frontend-test
 
 # Run security audits (backend + frontend)
 [group('global')]
-audit: backend-audit frontend-audit
+audit: backend-audit backend-deny frontend-audit
 
 # Pre-commit check: format + check + test for each modified component
 [group('global')]

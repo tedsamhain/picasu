@@ -2,6 +2,7 @@
 name = "urocissa"
 version = "2.1.0"
 edition = "2024"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -31,7 +32,6 @@ chrono = "0.4.44"
 console = "0.16.3"
 crossbeam-queue = "0.3.12"
 dashmap = { version = "6.1.0", features = ["rayon"] }
-dotenv = "0.15.0"
 env_logger = { version = "0.11.10", features = ["humantime", "color"] }
 envy = "0.4.2"
 filetime = "0.2.29"
@@ -86,4 +86,6 @@ auto-open-browser = ["dep:webbrowser"]
 [lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
-unwrap_used = { level = "allow", priority = 0 }
+# unwrap_used is set to warn so IDEs surface call sites; precommit allows it
+# via -A to avoid blocking on the ~140 existing call sites until they are addressed
+unwrap_used = { level = "warn", priority = 0 }
