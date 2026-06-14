@@ -1,5 +1,11 @@
 # Agent Guidelines
 
+## Communication Style
+
+- Stick to facts and established best practice. Do not editorialize or try to be persuasive.
+- In assessments and commit messages, reflect uncertainty where it exists. Avoid asserting things as definitive when the evidence is incomplete.
+- Skip superlatives and filler ("Clean.", "Perfect.", "This is the right call."). State what happened or what is true and move on.
+
 ## Development Workflow
 
 - Take a step back and consider best-practice solutions before diving in.
