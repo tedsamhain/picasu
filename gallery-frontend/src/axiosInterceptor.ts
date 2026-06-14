@@ -56,8 +56,13 @@ function handleShareError(error: AxiosError, stores: ReturnType<typeof getStores
     const currentPassword = shareStore.password
 
     // Check for "Zombie" requests (stale password sent vs current store state)
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (currentPassword !== null && currentPassword !== undefined && sentPassword !== currentPassword) {
+    /* eslint-disable @typescript-eslint/no-unnecessary-condition */
+    if (
+      currentPassword !== null &&
+      currentPassword !== undefined &&
+      sentPassword !== currentPassword
+    ) {
+      /* eslint-enable @typescript-eslint/no-unnecessary-condition */
       return // Ignore stale request
     }
 
@@ -124,10 +129,13 @@ async function handleAxiosResponseError(error: AxiosError) {
   if (!error.response) return Promise.reject(error)
 
   const stores = getStores()
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  const isSharePage = stores.shareStore.albumId !== null && stores.shareStore.albumId !== undefined &&
-                      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-                      stores.shareStore.shareId !== null && stores.shareStore.shareId !== undefined
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
+  const isSharePage =
+    stores.shareStore.albumId !== null &&
+    stores.shareStore.albumId !== undefined &&
+    stores.shareStore.shareId !== null &&
+    stores.shareStore.shareId !== undefined
+  /* eslint-enable @typescript-eslint/no-unnecessary-condition */
 
   if (isSharePage) {
     handleShareError(error, stores)
@@ -150,8 +158,13 @@ export function setupMainAxiosInterceptor() {
       config.headers.set(HEADERS.ALBUM_ID, shareStore.albumId)
       config.headers.set(HEADERS.SHARE_ID, shareStore.shareId)
 
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (shareStore.password !== null && shareStore.password !== undefined && shareStore.password !== '') {
+      /* eslint-disable @typescript-eslint/no-unnecessary-condition */
+      if (
+        shareStore.password !== null &&
+        shareStore.password !== undefined &&
+        shareStore.password !== ''
+      ) {
+        /* eslint-enable @typescript-eslint/no-unnecessary-condition */
         config.headers.set(HEADERS.SHARE_PASSWORD, shareStore.password)
       }
     }
@@ -162,5 +175,3 @@ export function setupMainAxiosInterceptor() {
   // Response Interceptor
   axios.interceptors.response.use((response) => response, handleAxiosResponseError)
 }
-
-

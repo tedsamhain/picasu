@@ -66,7 +66,6 @@ import ShareSettingsForm from '@/components/Modal/ShareSettingsForm.vue'
 import { ShareFormData } from '@type/types'
 import { useMessageStore } from '@/store/messageStore'
 
-
 const props = withDefaults(
   defineProps<{
     title: string
@@ -95,7 +94,7 @@ const messageStore = useMessageStore('mainId')
 
 const lastSavedState = ref('')
 
-  watch(
+watch(
   () => props.shareLink,
   (newLink) => {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -105,18 +104,29 @@ const lastSavedState = ref('')
   }
 )
 
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-const showLinkDisplay = computed(() => props.shareLink !== null && props.shareLink !== undefined && props.shareLink !== '')
+/* eslint-disable @typescript-eslint/no-unnecessary-condition */
+const showLinkDisplay = computed(
+  () => props.shareLink !== null && props.shareLink !== undefined && props.shareLink !== ''
+)
+/* eslint-enable @typescript-eslint/no-unnecessary-condition */
 
 const isFormValid = computed(() => {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (formState.value.passwordRequired && (formState.value.password === null || formState.value.password === undefined || formState.value.password === '')) return false
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
+  if (
+    formState.value.passwordRequired &&
+    (formState.value.password === null ||
+      formState.value.password === undefined ||
+      formState.value.password === '')
+  )
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
+    return false
   return true
 })
 
 const hasChanges = computed(() => {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (props.shareLink === null || props.shareLink === undefined || props.shareLink === '') return true
+  if (props.shareLink === null || props.shareLink === undefined || props.shareLink === '')
+    return true
   return JSON.stringify(formState.value) !== lastSavedState.value
 })
 
@@ -125,7 +135,8 @@ const buttonLabel = computed(() => {
     return 'Save Changes'
   }
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (props.shareLink === null || props.shareLink === undefined || props.shareLink === '') return 'Create Link'
+  if (props.shareLink === null || props.shareLink === undefined || props.shareLink === '')
+    return 'Create Link'
   if (hasChanges.value) return 'Save Changes'
   return copied.value ? 'Copied!' : 'Copy'
 })

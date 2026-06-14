@@ -9,6 +9,7 @@
     "build:only": "vue-tsc --noEmit && vite build",
     "check": "npx vue-tsc --noEmit",
     "lint": "eslint .",
+    "format:check": "prettier --check .",
     "generateLexer": "ts-node-esm ./src/script/lexer/generateCstDts.ts"
   },
   "dependencies": {

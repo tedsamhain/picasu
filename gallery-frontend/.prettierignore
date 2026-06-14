@@ -1,0 +1,5 @@
+dist/
+dev-dist/
+node_modules/
+src/type/MyParserCst.d.ts
+src/script/lexer/MyParserCst.d.ts
