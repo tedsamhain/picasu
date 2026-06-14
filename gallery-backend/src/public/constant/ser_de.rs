@@ -360,3 +360,146 @@ impl Value for Prefetch {
         TypeName::new("Prefetch")
     }
 }
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::public::structure::{
+        image::{combined::ImageCombined, metadata::ImageMetadata},
+        object::ObjectType,
+    };
+    use redb::{Database, ReadableDatabase, TableDefinition};
+    use std::collections::HashMap;
+
+    // Proxy Value impl that stores raw bytes under the same type_name as
+    // AbstractData.  This lets integration tests inject hand-crafted v1 (or
+    // legacy) records into a redb table that is subsequently read via the real
+    // AbstractData codec, exercising the full from_bytes migration path.
+    #[derive(Debug)]
+    struct RawRecord(Vec<u8>);
+
+    impl Value for RawRecord {
+        type SelfType<'a>
+            = Self
+        where
+            Self: 'a;
+        type AsBytes<'a>
+            = Vec<u8>
+        where
+            Self: 'a;
+
+        fn fixed_width() -> Option<usize> {
+            None
+        }
+
+        fn from_bytes<'a>(data: &'a [u8]) -> Self
+        where
+            Self: 'a,
+        {
+            RawRecord(data.to_vec())
+        }
+
+        fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Vec<u8> {
+            value.0.clone()
+        }
+
+        fn type_name() -> TypeName {
+            TypeName::new("AbstractData")
+        }
+    }
+
+    const RAW_TABLE: TableDefinition<&str, RawRecord> = TableDefinition::new("data");
+    const TYPED_TABLE: TableDefinition<&str, AbstractData> = TableDefinition::new("data");
+
+    fn make_v1_album_bytes() -> Vec<u8> {
+        let id = ArrayString::from("alb").unwrap();
+        let v1 = AbstractDataV1::Album(AlbumCombinedV1 {
+            object: ObjectSchema::new(id, ObjectType::Album),
+            metadata: AlbumMetadataV1 {
+                id,
+                title: Some("Holiday".to_string()),
+                created_time: 1000,
+                start_time: Some(500),
+                end_time: Some(2000),
+                last_modified_time: 1500,
+                cover: None,
+                item_count: 3,
+                item_size: 9000,
+                share_list: HashMap::new(),
+            },
+        });
+        let mut bytes = vec![0xFF, 1u8];
+        bytes.extend(bitcode::encode(&v1));
+        bytes
+    }
+
+    #[test]
+    fn v1_album_migrates_through_redb() {
+        let v1_bytes = make_v1_album_bytes();
+
+        // Sanity: verify the fixture is well-formed before injecting it into redb.
+        // If this fails, the fixture is broken — not the migration path.
+        assert_eq!(v1_bytes[0], 0xFF, "fixture must start with magic marker");
+        assert_eq!(v1_bytes[1], 1u8, "fixture must carry version byte 1");
+        let fixture_v1 = bitcode::decode::<AbstractDataV1>(&v1_bytes[2..])
+            .expect("fixture payload must decode as valid AbstractDataV1");
+        match &fixture_v1 {
+            AbstractDataV1::Album(alb) => {
+                assert_eq!(alb.metadata.title, Some("Holiday".to_string()));
+                assert_eq!(alb.metadata.item_count, 3);
+            }
+            _ => panic!("fixture must produce AbstractDataV1::Album"),
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::create(dir.path().join("test.redb")).unwrap();
+
+        {
+            let txn = db.begin_write().unwrap();
+            let mut table = txn.open_table(RAW_TABLE).unwrap();
+            table.insert("alb", RawRecord(v1_bytes)).unwrap();
+            drop(table);
+            txn.commit().unwrap();
+        }
+
+        let txn = db.begin_read().unwrap();
+        let table = txn.open_table(TYPED_TABLE).unwrap();
+        let guard = table.get("alb").unwrap().unwrap();
+        match guard.value() {
+            AbstractData::Album(alb) => {
+                assert_eq!(alb.metadata.title, Some("Holiday".to_string()));
+                assert_eq!(alb.metadata.item_count, 3);
+                assert_eq!(alb.metadata.dir_path, None);
+            }
+            _ => panic!("expected Album variant after v1 migration through redb"),
+        }
+    }
+
+    #[test]
+    fn v2_image_round_trips_through_redb() {
+        let id = ArrayString::from("img").unwrap();
+        let original = AbstractData::Image(ImageCombined {
+            object: ObjectSchema::new(id, ObjectType::Image),
+            metadata: ImageMetadata::new(id, 1024, 800, 600, "jpg".to_string()),
+        });
+
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::create(dir.path().join("test.redb")).unwrap();
+
+        {
+            let txn = db.begin_write().unwrap();
+            let mut table = txn.open_table(TYPED_TABLE).unwrap();
+            table.insert("img", original).unwrap();
+            drop(table);
+            txn.commit().unwrap();
+        }
+
+        let txn = db.begin_read().unwrap();
+        let table = txn.open_table(TYPED_TABLE).unwrap();
+        let guard = table.get("img").unwrap().unwrap();
+        match guard.value() {
+            AbstractData::Image(img) => assert_eq!(img.metadata.ext, "jpg"),
+            _ => panic!("expected Image variant"),
+        }
+    }
+}

@@ -4345,6 +4345,7 @@ dependencies = [
  "serde",
  "serde_json",
  "superconsole",
+ "tempfile",
  "terminal_size",
  "thumbhash",
  "tokio",
