@@ -19,6 +19,7 @@ In practice this means:
 |---|---|---|
 | Backend format | `cargo fmt --check` | ✅ in precommit |
 | Backend lint | `cargo clippy -- -D warnings` | ✅ in precommit |
+| Unsafe code | `#![deny(unsafe_code)]` in `main.rs` | ✅ enforced at compile time |
 | Backend tests | `cargo test` (4 tests in `router/builder.rs`) | ✅ in precommit — minimal coverage |
 | Frontend format | `prettier --check` | ✅ in precommit |
 | Frontend types | `vue-tsc --noEmit` | ✅ in precommit |
@@ -67,6 +68,9 @@ Priority flows:
 - **cargo deny**: policy enforcement for licenses, duplicate deps, and CVEs via `deny.toml`.
 - **clippy `unwrap_used`**: currently allowed everywhere. Promote to `warn` outside test
   modules to surface latent panics.
+- **cargo geiger**: counts unsafe blocks in the crate and all dependencies. Not suitable
+  for precommit (slow, requires full build); include in periodic release/audit reports to
+  track the unsafe surface area of the dependency tree.
 
 ---
 

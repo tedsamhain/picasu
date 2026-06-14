@@ -1,3 +1,4 @@
+#![deny(unsafe_code)]
 #[macro_use]
 extern crate rocket;
 use redb::{ReadableTable, ReadableTableMetadata};
