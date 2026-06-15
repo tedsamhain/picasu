@@ -26,10 +26,11 @@ Only document here what cannot be derived from the code itself.
 
 ## Non-obvious invariants
 
-- **Two independent album systems.** Manual albums store membership in `HashSet` on each media item (`img.metadata.albums`). Filesystem-hierarchy albums compute membership at query time via path-prefix — they never write to `img.metadata.albums`. The discriminator is `AlbumMetadata.dir_path`: `None` = manual, `Some(abs_path)` = filesystem album.
+- **Album = directory.** Each media item has exactly one album (`metadata.album: Option<ArrayString<64>>`), corresponding to the directory it lives in. Albums are not stored separately — `DIR_ALBUM_CACHE` maps directory paths to album IDs at runtime, rebuilt from the filesystem on every startup. Moving a file to a different album via the API moves the physical file on disk. See `docs/design.md` § Albums.
 - **`DIR_ALBUM_CACHE` is a separate `Mutex`.** The album content filter (`generate_filter.rs`) is called while `TREE.in_memory` is already read-locked. Looking up a dir album's path through the tree would deadlock; `DIR_ALBUM_CACHE` avoids this.
 - **bitcode encodes struct fields positionally.** Field order in any `Encode`/`Decode` struct is part of the on-disk schema. Adding or reordering fields without a schema version bump silently corrupts existing records.
-- **Schema versioning prefix.** Each `AbstractData` record on disk starts with `[0xFF, version]`. `0xFF` is safe because bitcode encodes the 3-variant enum discriminant in bits [1:0] of the first byte (values 0–2); `0xFF` (bits [1:0] = 11) is structurally invalid for the enum and unambiguous as a version marker. Legacy unversioned records (no prefix) are decoded as v1.
+- **Schema versioning prefix.** Each `AbstractData` record on disk starts with `[0xFF, version]`. `0xFF` is safe because bitcode encodes the 3-variant enum discriminant in bits [1:0] of the first byte (values 0–2); `0xFF` (bits [1:0] = 11) is structurally invalid for the enum and unambiguous as a version marker. Legacy unversioned records (no prefix) are decoded as v1. Schema migration is append-only — never remove a migration wrapper.
+- **HTTP error codes must not collide with framework codes.** Rocket returns 404 for unregistered routes. A domain-level "entity not found" must use `ErrorKind::InvalidInput` (→ 400) rather than `ErrorKind::NotFound` (→ 404) to remain distinguishable from routing failures. Reserve `ErrorKind::NotFound` only for cases where a routing-404 is genuinely indistinguishable from the domain error.
 
 
 # Your skepticism is well-placed. The value of AGENTS.md is often oversold. Let me break it down:
