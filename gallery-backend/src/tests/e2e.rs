@@ -454,7 +454,6 @@ mod tests {
         // Read from redb directly — background UpdateTreeTask only writes to
         // TREE.in_memory, not to the on-disk DB, so redb is race-free here.
         {
-            use redb::ReadableTable;
             let txn = TREE.in_disk.begin_read().expect("begin read");
             let table = txn.open_table(DATA_TABLE).expect("open table");
             let guard = table
