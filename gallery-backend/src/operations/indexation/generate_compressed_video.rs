@@ -1,12 +1,11 @@
 use super::video_ffprobe::video_duration;
 use crate::{
     operations::indexation::generate_ffmpeg::create_silent_ffmpeg_command,
-    process::info::process_image_info,
-    public::{structure::abstract_data::AbstractData, tui::DASHBOARD},
+    process::info::process_image_info, public::structure::abstract_data::AbstractData,
 };
 use anyhow::Context;
 use anyhow::Result;
-use log::info;
+use log::{debug, info};
 use regex::Regex;
 use std::{
     cmp,
@@ -92,7 +91,7 @@ pub fn generate_compressed_video(abstract_data: &mut AbstractData) -> Result<()>
             // We only proceed if the captured value can be parsed as a number.
             if let Ok(microseconds) = caps[1].parse::<f64>() {
                 let percentage = (microseconds / 1_000_000.0 / duration) * 100.0;
-                DASHBOARD.update_progress(abstract_data.hash(), percentage);
+                debug!("transcoding {}: {percentage:.1}%", abstract_data.hash());
             }
         }
     }

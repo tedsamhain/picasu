@@ -18,8 +18,6 @@ use crate::process::initialization::initialize;
 use crate::public::constant::runtime::{INDEX_RUNTIME, ROCKET_RUNTIME};
 use crate::public::constant::storage::get_data_path;
 
-use crate::public::error_data::handle_error;
-use crate::public::tui::{DASHBOARD, tui_task};
 use crate::tasks::BATCH_COORDINATOR;
 use crate::tasks::batcher::start_watcher::StartWatcherTask;
 use crate::tasks::batcher::update_tree::UpdateTreeTask;
@@ -101,19 +99,6 @@ fn main() {
             BATCH_COORDINATOR.execute_batch_detached(StartWatcherTask);
             BATCH_COORDINATOR.execute_batch_detached(UpdateTreeTask);
             start_expire_check_loop();
-
-            if let Some(console) = superconsole::SuperConsole::new() {
-                INDEX_RUNTIME.spawn(async move {
-                    if let Err(e) = tui_task(console, DASHBOARD.clone())
-                        .await
-                        .map_err(|error| handle_error(error.context("TUI error.")))
-                    {
-                        panic!("TUI error: {e:?}");
-                    }
-                });
-            } else {
-                error!("Superconsole disabled (no TTY)");
-            }
 
             if let Err(e) = tokio::signal::ctrl_c().await {
                 error!("Failed to listen for ctrl-c in worker: {}", e);
