@@ -93,6 +93,14 @@ pub fn drain_pending_album_updates() -> Vec<ArrayString<64>> {
     PENDING_ALBUM_UPDATES.lock().unwrap().drain().collect()
 }
 
+/// Return the album ID whose `dir_path` is the direct parent of `dir_path`,
+/// or `None` if no such album exists in the cache (i.e. `dir_path` is a
+/// top-level dir album directly under a sync root).
+pub fn get_parent_album_id(dir_path: &Path) -> Option<ArrayString<64>> {
+    let parent = dir_path.parent()?;
+    DIR_ALBUM_CACHE.lock().unwrap().get(parent).copied()
+}
+
 /// Return the directory path corresponding to `album_id`, or `None` if it is
 /// not a filesystem-hierarchy album (or has not been loaded into the cache yet).
 pub fn get_dir_path_for_album(album_id: ArrayString<64>) -> Option<PathBuf> {

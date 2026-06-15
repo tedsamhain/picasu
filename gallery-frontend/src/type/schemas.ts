@@ -188,13 +188,17 @@ export const albumInfoSchema = z
   .object({
     albumId: z.string(),
     albumName: z.string().nullable(),
-    shareList: z.record(z.string(), ShareSchema)
+    shareList: z.record(z.string(), ShareSchema),
+    dirPath: z.string().nullable().optional(),
+    parentAlbumId: z.string().nullable().optional()
   })
   .transform((albumData) => ({
     albumId: albumData.albumId,
     albumName: albumData.albumName,
     shareList: new Map(Object.entries(albumData.shareList)),
-    displayName: albumData.albumName ?? 'Untitled'
+    displayName: albumData.albumName ?? 'Untitled',
+    dirPath: albumData.dirPath ?? null,
+    parentAlbumId: albumData.parentAlbumId ?? null
   }))
 
 export const databaseTimestampSchema = z.object({

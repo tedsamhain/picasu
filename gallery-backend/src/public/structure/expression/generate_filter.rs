@@ -174,18 +174,15 @@ impl Expression {
                     // tree, so no deadlock even when called inside filter_items).
                     let dir_path = crate::operations::dir_album::get_dir_path_for_album(album_id);
                     if let Some(dir) = dir_path {
-                        let dir_str = dir.to_string_lossy().into_owned();
+                        // Only files whose immediate parent equals this album's directory.
+                        // Files in sub-directories belong to the corresponding child album.
                         Box::new(move |abstract_data: &AbstractData| match abstract_data {
-                            AbstractData::Image(img) => img
-                                .metadata
-                                .alias
-                                .iter()
-                                .any(|a| std::path::Path::new(&a.file).starts_with(&dir_str)),
-                            AbstractData::Video(vid) => vid
-                                .metadata
-                                .alias
-                                .iter()
-                                .any(|a| std::path::Path::new(&a.file).starts_with(&dir_str)),
+                            AbstractData::Image(img) => img.metadata.alias.iter().any(|a| {
+                                std::path::Path::new(&a.file).parent() == Some(dir.as_path())
+                            }),
+                            AbstractData::Video(vid) => vid.metadata.alias.iter().any(|a| {
+                                std::path::Path::new(&a.file).parent() == Some(dir.as_path())
+                            }),
                             AbstractData::Album(_) => false,
                         })
                     } else {

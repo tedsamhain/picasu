@@ -50,11 +50,13 @@ impl AlbumCombined {
                                      albums: &std::collections::HashSet<ArrayString<64>>|
               -> bool {
             if let Some(ref dir) = dir_path {
-                // Directory album: membership is path-based — at least one source
-                // file must live under the album's directory.
+                // Directory album: a file belongs to this album only when its
+                // immediate parent directory equals the album's directory.
+                // Files in sub-directories belong to the corresponding child album.
+                let dir_path = Path::new(dir.as_str());
                 alias
                     .iter()
-                    .any(|a| Path::new(&a.file).starts_with(dir.as_str()))
+                    .any(|a| Path::new(&a.file).parent() == Some(dir_path))
             } else {
                 // Manual album: membership is stored on the media item.
                 albums.contains(&album_id)
@@ -154,7 +156,10 @@ mod tests {
         album_id: ArrayString<64>,
     ) -> bool {
         if let Some(dir) = dir_path {
-            alias.iter().any(|a| Path::new(&a.file).starts_with(dir))
+            let dir_path = Path::new(dir);
+            alias
+                .iter()
+                .any(|a| Path::new(&a.file).parent() == Some(dir_path))
         } else {
             albums.contains(&album_id)
         }
@@ -183,12 +188,24 @@ mod tests {
     }
 
     #[test]
-    fn dir_album_matches_file_in_subdirectory() {
+    fn dir_album_does_not_match_file_in_subdirectory() {
+        // Files in sub-directories belong to the child album, not the parent.
+        let a = alias(&["/photos/vacation/day1/img.jpg"]);
+        assert!(!belongs_to_album(
+            &a,
+            &HashSet::new(),
+            Some("/photos/vacation"),
+            ArrayString::new()
+        ));
+    }
+
+    #[test]
+    fn child_dir_album_matches_its_own_direct_file() {
         let a = alias(&["/photos/vacation/day1/img.jpg"]);
         assert!(belongs_to_album(
             &a,
             &HashSet::new(),
-            Some("/photos/vacation"),
+            Some("/photos/vacation/day1"),
             ArrayString::new()
         ));
     }
