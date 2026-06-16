@@ -1055,16 +1055,19 @@ mod tests {
         );
     }
 
-    // ─── Scenario N: tags are not discovered from embedded XMP keywords at
+    // ─── Scenario N: tags are discovered from embedded XMP keywords at
     // index time ───────────────────────────────────────────────────────────
 
-    /// KNOWN GAP (TODO.md "tags discovered at index time"): tags are
-    /// currently only ever set by `PUT /put/edit_tag` — nothing in the
-    /// indexing pipeline extracts keyword metadata (IPTC/XMP
-    /// `dc:subject`) embedded by photo tools like Lightroom/digiKam.
-    /// `extract_keywords_from_xmp` (extract_keywords.rs) is wired into
-    /// `process_image_info` but is a stub that always returns an empty
-    /// set. RED until it's implemented.
+    /// Regression test for a fixed gap (see TODO.md "tags discovered at
+    /// index time"): tags used to be settable only via `PUT /put/edit_tag`
+    /// — nothing in the indexing pipeline extracted keyword metadata
+    /// (IPTC/XMP `dc:subject`) embedded by photo tools like
+    /// Lightroom/digiKam. `extract_keywords_from_xmp`
+    /// (extract_keywords.rs) now scans for an embedded `<dc:subject>` XMP
+    /// element and adds its `<rdf:li>` entries as tags. Limitations (PNG
+    /// `zTXt` compression, MP4/MOV `uuid` boxes, binary IPTC IIM) are
+    /// noted on that function and tracked separately for per-format
+    /// coverage.
     #[test]
     fn scenario_n_tags_not_discovered_from_xmp_keywords_at_index_time() {
         let data = {

@@ -7,17 +7,65 @@ use std::path::Path;
 ///
 /// XMP packets are self-delimited, contiguous, plain-UTF8 XML wrapped in
 /// `<x:xmpmeta ...> … </x:xmpmeta>` regardless of container format (JPEG
-/// `APPn` segment, PNG `iTXt` chunk, raw sidecar, …), so a packet can be
-/// located by a plain substring scan of the raw bytes without parsing the
-/// container.
+/// `APPn` segment, PNG `iTXt` chunk, raw sidecar, …), so the packet can be
+/// located by a plain byte-level substring scan without parsing the
+/// container — this function only looks for the `<dc:subject>` element
+/// itself, since that's all `extract_keywords_from_file` needs.
 ///
-/// NOT YET IMPLEMENTED — always returns an empty set. Tracked as a known
-/// gap in TODO.md ("tags discovered at index time"); the e2e scenarios in
-/// `tests/e2e.rs` (`scenario_n_*`) and the unit tests below define the
-/// contract this function must satisfy once implemented.
+/// Limitations (see TODO.md "Enable metadata-extraction tests for all
+/// supported file formats"): this only handles the common case of an
+/// uncompressed, contiguous XMP packet. It will miss keywords stored as
+/// compressed PNG `zTXt` text, in an MP4/MOV `uuid` box that splits the
+/// packet across multiple boxes, or written via the older binary IPTC IIM
+/// mechanism instead of XMP.
 pub fn extract_keywords_from_xmp(bytes: &[u8]) -> HashSet<String> {
-    let _ = bytes;
-    HashSet::new()
+    const SUBJECT_OPEN: &[u8] = b"<dc:subject>";
+    const SUBJECT_CLOSE: &[u8] = b"</dc:subject>";
+
+    let mut keywords = HashSet::new();
+
+    let Some(open_pos) = find_subslice(bytes, SUBJECT_OPEN) else {
+        return keywords;
+    };
+    let content_start = open_pos + SUBJECT_OPEN.len();
+    let Some(close_offset) = find_subslice(&bytes[content_start..], SUBJECT_CLOSE) else {
+        return keywords;
+    };
+    let inner = &bytes[content_start..content_start + close_offset];
+    let Ok(inner_text) = std::str::from_utf8(inner) else {
+        return keywords;
+    };
+
+    // Pull out every <rdf:li>...</rdf:li> entry inside the dc:subject
+    // element (normally wrapped in an rdf:Bag, but we don't care which
+    // container tag it's in — just the leaf items).
+    let mut rest = inner_text;
+    while let Some(li_start) = rest.find("<rdf:li") {
+        let from_li = &rest[li_start..];
+        let Some(tag_end) = from_li.find('>') else {
+            break;
+        };
+        let content = &from_li[tag_end + 1..];
+        let Some(li_end) = content.find("</rdf:li>") else {
+            break;
+        };
+        let keyword = content[..li_end].trim();
+        if !keyword.is_empty() {
+            keywords.insert(keyword.to_string());
+        }
+        rest = &content[li_end + "</rdf:li>".len()..];
+    }
+
+    keywords
+}
+
+/// Find the first occurrence of `needle` in `haystack`, treating both as
+/// raw bytes (not UTF-8) since `haystack` may be a whole binary file.
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 /// Convenience wrapper that reads `path` and delegates to
