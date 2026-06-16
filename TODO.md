@@ -73,6 +73,122 @@ The current setup has two pieces: `docker/Dockerfile` for building and `run_uroc
 
 ---
 
+## Robustness: FS/DB consistency reporting (planning — not yet implemented)
+
+Status: **plan only**. No code changes yet. Once agreed, implementation should add a
+"Robustness strategy" section to `docs/design.md` documenting the pattern below (not
+the survey/rationale — that stays here), and extend `docs/test-strategy.md`'s
+regression matrix with rows for the hook points listed.
+
+### Problem
+
+`gallery-backend` treats the filesystem and redb as two systems that are supposed to
+stay in sync (file paths recorded in `alias`/`dir_path` vs. what's actually on disk),
+but nothing currently watches for them drifting apart except the narrow fixes already
+made for `alias` pruning (see "Known bugs", now fixed). Drift happens for ordinary
+reasons — files edited/moved/deleted outside the app, races between the watcher's
+debounce window and a concurrent edit, directories removed while their dir-album
+record still exists — and today the system's response to each is inconsistent: some
+cases self-heal silently, some panic, some become an opaque 500 with no indication
+that the *cause* was a consistency problem rather than a generic bug, and none of them
+are visible to the user in a way that distinguishes "this still worked, but you should
+know X" from "this failed because of X."
+
+### Survey of concrete situations
+
+| # | Location | Scenario | Today | Should be |
+|---|---|---|---|---|
+| 1 | `deduplicate_task` (`tasks/actor/deduplicate.rs`) | Rediscovering a hash at a path that doesn't match any *other* existing record, but that record's `alias` already had dead entries pruned this run (just-fixed behavior) | Silent (now correct, but no log line distinguishes "pruned a stale entry" from "nothing to prune") | `info!` log noting how many dead aliases were dropped — expected/self-healing, not Discord-noised |
+| 2 | `deduplicate_task` | A file's content changes *in place* at an already-tracked path (new hash discovered at a path some *other* existing record's `alias` still references) — that other record now has a dangling alias nobody prunes, since pruning only happens on the *same* hash's own re-discovery | Not handled at all — silent DB drift, two records can claim the same physical path | New: cross-record stale-alias detection when indexing a brand-new hash; `warn!` + prune the stale reference in the old record |
+| 3 | `assign_album.rs` | `get_dir_path_for_album` returns `None` because the target album's directory was deleted externally after the album record was created (stale `DIR_ALBUM_CACHE` entry — already flagged above) | Generic `ErrorKind::InvalidInput` 400, "Album not found in dir cache" | Distinguish "never was a dir album" (genuine bad request) from "was one, directory now missing" (consistency problem) — different message, `warn!` logged server-side either way |
+| 4 | `assign_album.rs` | `fs::rename` fails for a reason other than the already-checked "source missing" (e.g. `EXDEV` cross-device, permission denied, destination collision) | Generic `ErrorKind::Internal` 500 | Classify by `io::ErrorKind`; cross-device/permission issues are operator-fixable, not "internal bug" — should be 4xx-ish with an actionable message |
+| 5 | `workflow::index_for_watch` → `OpenFileTask` | File is deleted between the watcher's `Create` event firing and the (debounced + queued) indexing attempt running — a normal race for *any* filesystem watcher, not a bug | After 3 retries, hard error → `handle_error` → Discord webhook noise | Recognize `ErrorKind::NotFound`-shaped IO errors here specifically and downgrade to `info!`/`debug!`, no Discord notification — this is expected, not exceptional |
+| 6 | `tasks/actor/album.rs::album_task` | A dir-album's `dir_path` directory is deleted externally; the album record has no live members but is never cleaned up, and `DIR_ALBUM_CACHE` keeps pointing at a dead path forever (same root cause as #3) | Silent — album just sits at `item_count: 0` indefinitely | `warn!` once detected (e.g. during `album_task` or a periodic sweep) that a dir-album's directory no longer exists; surface in `/get/get-albums` as a flag the frontend can badge, rather than only failing later when something tries to use it (#3) |
+| 7 | `router/put/reindex.rs:50` | `reduced_data_vec.get_hash(*index).unwrap()` — panics if `index` is out of range for the snapshot (e.g. the snapshot is stale relative to a concurrent delete) | `.unwrap()` panic — Rocket likely converts it to a generic 500 with no structured logging at all | Convert to `or_raise(ErrorKind::Conflict, ...)` ("snapshot is stale, re-fetch and retry") — ties into the broader effort to retire `.unwrap()` call sites (see "Backend tooling" below) |
+| 8 | Any two concurrent read-modify-write handlers on the same hash (e.g. `edit_tag` + `rotate_image` + the watcher's own re-index, all racing) | Each handler reads the full `AbstractData`, mutates one part, writes the whole thing back — classic lost-update: B's write can silently discard A's concurrent change | Not detected at all; redb's transaction isolation prevents *corruption* but not *lost updates* | Out of scope for the immediate pattern (bigger change — would need optimistic concurrency, e.g. an `updated_at`/version check on write, or per-hash locking extended from indexing's existing `IN_PROGRESS` guard to API handlers). Flag here so it isn't forgotten; not a "warning to surface," a correctness gap. |
+| 9 | `get_prefetch.rs` / `expire_check.rs` (the snapshot-expiry bug, "Known bugs" above) | A `prefetch` snapshot is deleted within milliseconds instead of living ~1 hour, so the next `/get/get-data` 500s with "Failed to open tree snapshot table" | Hard 500, `ErrorKind::Database`, no indication this is a known/transient consistency issue vs an unrelated DB problem | Good first real consumer of this pattern once it exists: reclassify as a distinct, recoverable kind the frontend can react to by silently retrying (it already knows how — `prefetch` is idempotent), rather than just displaying a raw error |
+| 10 | General | ~140 existing `clippy::unwrap_used` call sites across the backend (tracked separately under "Backend tooling") | Each is a potential ungraceful panic on exactly this kind of unexpected state | Treat consistency-pattern adoption and `unwrap_used` cleanup as overlapping efforts — most of the call sites worth fixing first are the ones touching redb lookups / filesystem state, i.e. exactly this list |
+
+### Classification
+
+Every situation above falls into one of three buckets; the pattern needs to make the
+bucket explicit in code, not just in a comment:
+
+1. **Expected, self-healing** (#1, and the alias-pruning/dead-watcher-race fixes already
+   shipped) — the operation completes normally; log at `info!`/`debug!` for
+   observability, never surfaced to the user, never Discord-noised.
+2. **Unexpected but recoverable** (#2, #3 "was a dir album", #6, #9) — the operation
+   either completes with a caveat or fails in a way the user can act on (re-index,
+   re-pick a target, retry). Needs both a structured server-side log (`warn!`,
+   Discord-noised — this is the kind of thing that indicates real drift worth a human
+   noticing) *and* a way for the relevant API response to say "warning: X" rather than
+   either silent success or an opaque error.
+3. **Unexpected and blocking** (#4, #5 non-NotFound branch, #7) — the operation cannot
+   complete. Already representable via `AppError`/`ErrorKind`; the gap is precision
+   (today these mostly collapse into `Internal`) and consistent logging discipline
+   (some go through `handle_error`, some don't, with no obvious rule for which).
+
+### Proposed backend pattern
+
+- Add `ErrorKind::Inconsistency` for bucket 3 cases that are specifically *FS/DB
+  drift*, not generic bugs — lets the frontend branch on `kind` to show a different
+  message/icon than for, say, `ErrorKind::InvalidInput`. Maps to a 409 or 500
+  depending on the case; decide per call site.
+- For bucket 2, the open design question (flag for review, don't decide unilaterally
+  here): either (a) extend success responses with an optional sibling field —
+  e.g. wrap relevant endpoints' `AppResult<Json<T>>` in a small
+  `Json<WithWarnings<T>> { data: T, warnings: Vec<String> }` envelope only where
+  needed, keeping today's plain `T` for everything else — or (b) keep responses as
+  today and rely purely on server-side logging + a *separate* lightweight polling/log
+  surface for admins, accepting that end users won't see bucket-2 warnings inline.
+  (a) is more work but is what "the user dialog should also report this" in practice
+  requires for the album/tag-assignment flows specifically called out below.
+- A single logging helper (next to `handle_error`/`handle_app_error` in
+  `public/error_data.rs`) — e.g. `log_consistency(severity, context: &str, detail:
+  impl Display)` — so every hook point uses the same call shape and the
+  Discord-webhook-or-not decision lives in one place (mirroring the existing
+  `handle_app_error` filter-by-`ErrorKind` logic), instead of each call site deciding
+  ad hoc.
+
+### Proposed frontend pattern
+
+- Add `'warning'` to `MessageColor`/`messageStore.ts` (currently `error` / `success` /
+  `info` only) and a `messageStore.warning(text)` action — Vuetify already has a
+  `warning` theme color, so this is additive, not a new design.
+- For the two flows the request calls out by name — `AssignAlbumModal.vue` (album
+  assignment) and the tag editor (`PUT /put/edit_tag` call sites) — branch on the
+  response: hard failure → `messageStore.error` (already happens); success with a
+  `warnings` array (once the backend envelope from the bullet above exists) →
+  `messageStore.warning` for each entry, *in addition to* showing the operation as
+  completed (don't suppress the success state, since bucket 2 means it *did* succeed).
+- Longer term, the same envelope/branching should apply to any other mutating call
+  site that can hit a bucket-2 situation (reindex, delete, rotate) — start with
+  album/tag assignment since that's what surfaced this need, generalize once the
+  pattern is proven there.
+
+### Sequencing (for whenever this gets implemented — not now)
+
+1. Backend: add `ErrorKind::Inconsistency`, the `log_consistency` helper, and the
+   `WithWarnings<T>` envelope (or the chosen alternative from the open question above).
+2. Wire hooks #1–#3, #5, #6, #9 from the survey table (the ones that are pure
+   classification/logging changes, no new detection logic needed).
+3. Add the cross-record stale-alias detection for #2 (the one genuinely new piece of
+   logic).
+4. Frontend: add the `warning` message color/action; wire `AssignAlbumModal.vue` and
+   the tag editor to surface `warnings` from responses that carry them.
+5. Document the resulting pattern in `docs/design.md` (a new "Robustness" subsection,
+   alongside "Keep it robust, low footprint, modular") and add the corresponding rows
+   to `docs/test-strategy.md`'s regression matrix, with one `scenario_*` test per hook
+   point in the survey table (most can reuse the existing fixture techniques — delete
+   a file mid-flow, point a dir-album at a missing directory, etc.).
+6. Re-fix #9 (the snapshot-expiry bug) using the new pattern as the worked example,
+   instead of the current hard 500.
+7. #8 (lost updates under concurrent writes) is explicitly *not* in this sequence —
+   it needs its own design discussion (optimistic concurrency vs. locking) and
+   shouldn't block the consistency-reporting pattern above.
+
+---
+
 ## Testing — best value items
 
 ### Backend unit tests (low effort, no DB needed)
@@ -108,10 +224,10 @@ The current setup has two pieces: `docker/Dockerfile` for building and `run_uroc
 
 ### Known bugs
 - [ ] **Grey placeholders on initial load** — `useElementSize` reports width 0 on first render; `usePrefetch` skips the fetch (guard: `windowWidth > 0`); the Home.vue watch then fires a row fetch before `prefetch()` sets the correct timestamp, so rows arrive stale and are discarded. A zoom or resize re-triggers the cycle cleanly and images appear. Root: `useElementSize` ResizeObserver fires after the first render tick, too late for the initial fetch path. Fix: ensure `prefetchStore.windowWidth` is set before the first `fetchRowInWorker` call, or delay the Home.vue watch fetch until after `processPrefetchChain` completes.
-- [ ] **Info sidepane always shows "No album" until manually (re-)assigned** — the explicit per-photo `album` field (`img.metadata.album`, read by `ItemAlbum.vue` and `AssignAlbumModal`'s "current album" badge) is only ever set by `PUT /put/assign_album`. Normal indexing — including the filesystem-watcher path (`workflow::index_for_watch` → `process_image_info`) — never sets it for directory-hierarchy albums, even though `generate_filter.rs` correctly counts the file via path-based membership. Red test: `gallery-backend/src/tests/e2e.rs::scenario_l_dir_album_membership_not_set_at_index_time`. Fix: have indexing resolve and set the explicit field too (or make the sidepane/modal resolve "current album" via the same path-based rule `generate_filter.rs` uses, instead of reading the raw field).
-- [ ] **Alias entry duplicates on every `assign_album` reassignment** — `assign_album` renames the file on disk, which the filesystem watcher observes as a `Create` event and re-indexes via `index_for_watch(path, None)`. Since the hash already exists, `DeduplicateTask` (`deduplicate.rs`) pushes another alias entry for the *same* path instead of recognising it already matches the current alias, so `alias` grows by one entry per reassignment. Red test: `scenario_m_watcher_reindex_after_assign_duplicates_alias`. Fix: skip the push in `deduplicate_task` when the incoming path already equals an existing alias entry.
-- [ ] **Tags are never discovered at index time** — unlike the `album` field, this is a missing feature rather than a regression: nothing in the indexing pipeline extracts keyword metadata (IPTC/XMP `dc:subject`) embedded by tools like Lightroom/digiKam; tags are only ever set via `PUT /put/edit_tag`. `extract_keywords_from_xmp` (`operations/indexation/extract_keywords.rs`) is wired into both `process_image_info` and `process_video_info` but is a stub that always returns an empty set — implement XMP packet scanning there. Red tests: `extract_keywords::tests::*` (pure parser contract) and `scenario_n_tags_not_discovered_from_xmp_keywords_at_index_time` (full image pipeline; no equivalent video-pipeline test yet, see format-coverage item below). The parts of the tag feature that already work are locked in by green regression tests `scenario_o_tags_visible_via_get_data_sidebar_path` and `scenario_p_tags_modifiable_via_edit_tag_api`; `scenario_q_album_visible_via_get_data_after_assign` and `scenario_s_reindex_preserves_album_and_tags` lock in the equivalent already-working parts of the album feature (API-set field survives both a sidebar read and a full reindex) for contrast.
-- [ ] **Stale alias entries accumulate when a tracked file is moved outside the app** — generalises the bug above: `DeduplicateTask` (`deduplicate.rs`) only ever *pushes* a new alias entry when it rediscovers a known hash at a new path; it never prunes entries whose `file` no longer exists on disk. Moving a tracked file with a file manager (not via `assign_album`) leaves the old, now-dead path in `alias` forever, and repeated moves grow the list unboundedly. Red test: `scenario_r_externally_moved_file_keeps_dead_alias_entry`. Fix: when discovering a hash with a new path, drop any existing alias entries whose `file` no longer exists.
+- [x] **Info sidepane always shows "No album" until manually (re-)assigned** — fixed. `workflow::index_for_watch` now resolves the file's parent directory's dir-album (`get_album_id_for_dir`, falling back to `ensure_dir_albums`'s sync-root walk for brand-new directories) and passes it through as the indexed item's explicit `album` field, the same way `presigned_album_id` already did for direct uploads. Test: `scenario_l_dir_album_membership_not_set_at_index_time` (now green).
+- [x] **Alias entry duplicates on every `assign_album` reassignment** — fixed. `deduplicate_task` now prunes alias entries whose file no longer exists on disk and skips pushing a path that's already present. Test: `scenario_m_watcher_reindex_after_assign_duplicates_alias` (now green).
+- [x] **Stale alias entries accumulate when a tracked file is moved outside the app** — fixed by the same change as above. Test: `scenario_r_externally_moved_file_keeps_dead_alias_entry` (now green).
+- [x] **Tags are never discovered at index time** — fixed for the common case. `extract_keywords_from_xmp` (`operations/indexation/extract_keywords.rs`) now scans for an embedded `<dc:subject>` XMP element and adds its `<rdf:li>` entries as tags; wired into both `process_image_info` and `process_video_info`. Tests: `extract_keywords::tests::*` and `scenario_n_tags_not_discovered_from_xmp_keywords_at_index_time` (now green). Still only handles uncompressed/contiguous XMP — see the format-coverage item below for what's not handled yet (compressed PNG `zTXt`, MP4/MOV `uuid` boxes, binary IPTC IIM, video-pipeline test coverage).
 - [ ] **`prefetch` snapshots can be deleted almost immediately instead of living for 1 hour** — found while stabilising the new e2e tests (was causing real, intermittent 500s on `/get/get-data` right after `/get/prefetch`, not just test flakiness). `Expire::expired_check` (`public/db/expire/expired_check.rs:77`, `None => true`) cannot distinguish "this timestamp was never recorded" from "this is the *current* `VERSION_COUNT_TIMESTAMP`, whose expiry hasn't been scheduled yet" (`update_expire_task` inserts `expire_table[current_timestamp] = None` deliberately, as a placeholder). Both collapse to the same `None` arm. Since `flush_query_snapshot_task` names each on-disk `QUERY_SNAPSHOT` table after the *current* `VERSION_COUNT_TIMESTAMP` at flush time, the very next version bump anywhere in the process (any concurrent indexing/edit/reindex) makes `expire_check_task` see `VERSION_COUNT_TIMESTAMP > that_table's_timestamp` and call `expired_check` on it — which returns `true` immediately via the `None` arm instead of waiting ~1 hour, deleting the query snapshot table and cascading (via the `RemoveTask` it schedules for every `Prefetch.timestamp` row inside) to delete the just-created `TREE_SNAPSHOT` table too. Net effect: under any concurrent write activity, a freshly-`prefetch`'d snapshot can vanish within milliseconds, and the next `/get/get-data`/`/get/get-rows` call against it 500s with "Failed to open tree snapshot table". Worked around in tests via `read_current_abstract_data` (re-prefetch-and-retry instead of reusing a timestamp); not worked around in the frontend. Fix: distinguish "unrecorded" from "active, not yet scheduled" — e.g. store expiry as a tri-state, or only ever insert the *current* version's row once its *own* successor exists, or check `entry.is_none()` separately from "row absent" before defaulting to "expired".
 - [ ] **Enable metadata-extraction tests for all supported file formats** — `extract_keywords_from_xmp`'s current (stub) substring-scan approach is format-agnostic by construction, but only `scenario_n` (JPEG, hand-spliced APP1/XMP segment) exercises it end-to-end. Supported extensions today (`public/constant/mod.rs`): images `jpg, jpeg, jfif, jpe, png, tif, tiff, webp, bmp`; videos `gif, mp4, webm, mkv, mov, avi, flv, wmv, mpeg`. XMP/IPTC packet location and encoding differ by container — PNG can store text in compressed `zTXt` chunks (the naive scan would miss it), MP4/MOV embed XMP in a `uuid` box, TIFF has no `APPn` segment concept, and IPTC IIM (the older, non-XMP keyword mechanism some tools still write) is a separate binary format entirely. Once real extraction is implemented, extend coverage with one `scenario_n`-style test per representative container (at least: PNG with an uncompressed `iTXt` XMP packet, PNG with a compressed `zTXt` one, MP4 with a `uuid` XMP box, and a plain IPTC-IIM-only JPEG) rather than assuming the JPEG case generalises. Video-pipeline coverage additionally needs `ffmpeg`/`ffprobe` available in the test environment (process_video_info shells out to both), which `scenario_n`'s image-only path avoids.
 
