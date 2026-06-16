@@ -9,9 +9,16 @@
 - add android app 
 - review code module by module
 
-- 'just build' uses embed-frontend feature, raising different warnings from the default make check / make test
-  - the default build/test should all use the same build configurations
-  - CI should be expanded to test all supported configurations on PR and release
+## CI
+
+- [x] resolved: 'just build'/'just run'/'just test' now use a debug build without embed-frontend
+  (the developer default, matching check/test); 'just build-release' is the production
+  configuration (release + embed-frontend), matching CI's release workflow and the installer
+  scripts. See `docs/test-strategy.md` "Build configurations: developer vs. production".
+- [ ] CI should be expanded to test all supported configurations on PR and release:
+  - PR/merge CI: developer config (debug, no embed-frontend) — matches local precommit
+  - release CI: production config (release + embed-frontend) — already done in
+    `.github/workflows/release.yml`, but not yet gated as a required PR check before release
 
 - tags assigned via api should be merged into DB as well as image repository on disk (idea borrowed from Immich)
   1. use xmp sidecar files to store all extracted data without modifying originals
@@ -49,6 +56,29 @@ The current setup has two pieces: `docker/Dockerfile` for building and `run_uroc
 - [ ] Move `docker/Dockerfile` to repo root; keep `docker/` for compose, `.dockerignore`, and CI helpers only.
 - [ ] Add a systemd `.service` file in `deploy/` or `contrib/` for users running the binary directly (non-Docker).
 - [ ] Publish to `ghcr.io/codesam/urocissa` (GitHub Container Registry) — free for public images, co-located with source; complement or replace Docker Hub `hsa00000/urocissa`.
+- [ ] Env var rename + config simplification done on the Rust side (2026-06-16):
+  - `syncPaths` (array) → `imagePath` (single optional string); multiple physical libraries are
+    now expected to be aggregated under one root at the filesystem layer (bind mounts/symlinks),
+    not configured as a list. Frontend `StorageAndSync.vue` UI updated to match (single
+    choose/clear path instead of an add/remove list).
+  - the image-root base var is now `UROCISSA_IMAGE_HOME` (was `UROCISSA_PATH`, then briefly
+    `UROCISSA_PHOTOS_HOME`); also single-directory only now (dropped the colon-separated
+    multi-base list). Defaults to `<data dir>/images`, not cwd.
+  - storage location is split into `UROCISSA_CONFIG_HOME`/`UROCISSA_DATA_HOME` (was
+    `UROCISSA_DATA_PATH`).
+  - `docker/Dockerfile`'s entrypoint and `run_urocissa_docker.sh` still reference the old
+    `UROCISSA_PATH` for the mv-into-place pattern, and the shell script's `syncPaths` JSON
+    scraping is now scraping a field that no longer exists — when the compose rewrite above
+    happens, drop the mv pattern and bind-mount fixed in-image paths instead (e.g. `/data` →
+    `UROCISSA_DATA_HOME`, `/images` → `UROCISSA_IMAGE_HOME`), set via compose env, not scraped
+    from config.json by shell.
+- [ ] `UROCISSA_STATE_HOME`: `UROCISSA_DATA_HOME` currently holds both irreplaceable data
+  (`db/index_v5.redb`, `object/imported/`) and genuinely disposable cache/staging files
+  (`db/cache_db.redb`, `db/temp_db.redb`, `db/expire_db.redb`, `upload/`). Splitting the latter
+  into a proper state directory would make "what's safe to delete on reset" explicit instead of
+  implicit in file names. Bigger change than the env var rename — touches each redb file's path
+  individually (`tree_snapshot/new.rs`, `query_snapshot/new.rs`, `expire/new.rs`,
+  `folder_import.rs`, `post_upload.rs`). Not done yet.
 
 ---
 
