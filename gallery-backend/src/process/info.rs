@@ -1,5 +1,6 @@
 use std::fs::metadata;
 
+use crate::operations::indexation::extract_keywords::extract_keywords_from_file;
 use crate::operations::indexation::fix_orientation::{
     fix_image_orientation, fix_image_width_height, fix_video_width_height,
 };
@@ -25,6 +26,12 @@ pub fn process_image_info(abstract_data: &mut AbstractData) -> Result<()> {
     if let Some(exif_vec) = abstract_data.exif_vec_mut() {
         *exif_vec = exif_data;
     }
+
+    // Discover keyword tags embedded in the file's XMP packet (non‑fallible;
+    // extract_keywords_from_xmp is not yet implemented, so this is a no-op
+    // today — see TODO.md "tags discovered at index time").
+    let discovered_tags = extract_keywords_from_file(&abstract_data.source_path());
+    abstract_data.tag_mut().extend(discovered_tags);
 
     // Decode image to DynamicImage
     let mut dynamic_image = generate_dynamic_image(abstract_data)

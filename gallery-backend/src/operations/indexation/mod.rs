@@ -1,3 +1,4 @@
+pub mod extract_keywords;
 pub mod fix_orientation;
 pub mod generate_compressed_video;
 pub mod generate_dynamic_image;

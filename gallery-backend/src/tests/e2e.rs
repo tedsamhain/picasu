@@ -13,6 +13,7 @@ mod tests {
     use std::sync::{LazyLock, RwLock};
 
     use arrayvec::ArrayString;
+    use image::{Rgb, RgbImage};
     use redb::{ReadableDatabase, ReadableTable};
     use rocket::http::{ContentType, Cookie, Status};
     use rocket::local::blocking::Client;
@@ -32,7 +33,10 @@ mod tests {
     use crate::public::structure::object::{ObjectSchema, ObjectType};
     use crate::public::structure::response::database_timestamp::DatabaseTimestamp;
     use crate::router::builder::build_rocket_with_config;
+    use crate::tasks::BATCH_COORDINATOR;
     use crate::tasks::actor::album::album_task;
+    use crate::tasks::batcher::flush_tree::FlushTreeTask;
+    use crate::workflow::index_for_watch;
 
     // ─── One-time test environment ────────────────────────────────────────────
 
@@ -153,6 +157,51 @@ mod tests {
         let r = client.get(path).cookie(cookie).dispatch();
         assert_eq!(r.status(), Status::Ok, "GET {path} failed");
         serde_json::from_str(&r.into_string().unwrap()).expect("valid JSON")
+    }
+
+    /// Run the same prefetch flow the frontend uses before fetching row data:
+    /// POST /get/prefetch?locate=<hash>, returning (timestamp, index, bearer
+    /// token) for the matching item so the caller can hit /get/get-data or
+    /// /put/edit_tag exactly like a real client would.
+    fn prefetch_locate(client: &Client, hash: &str) -> (i64, usize, String) {
+        let cookie = auth_cookie(client);
+        let resp = client
+            .post(format!("/get/prefetch?locate={hash}"))
+            .cookie(cookie)
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(resp.status(), Status::Ok, "prefetch must succeed");
+        let body: Value = serde_json::from_str(&resp.into_string().unwrap()).expect("valid JSON");
+        let timestamp = body["prefetch"]["timestamp"]
+            .as_i64()
+            .expect("prefetch.timestamp");
+        let index = usize::try_from(
+            body["prefetch"]["locateTo"]
+                .as_u64()
+                .expect("prefetch.locateTo must be present for a known hash"),
+        )
+        .expect("index fits in usize");
+        let token = body["token"].as_str().expect("token").to_owned();
+        (timestamp, index, token)
+    }
+
+    /// GET /get/get-data for a single index, authenticated the way the
+    /// frontend does (Bearer timestamp token from prefetch), and return its
+    /// `abstractData` object — exactly what the sidepane reads from.
+    fn get_data_item(client: &Client, timestamp: i64, index: usize, token: &str) -> Value {
+        let resp = client
+            .get(format!(
+                "/get/get-data?timestamp={timestamp}&start={index}&end={}",
+                index + 1
+            ))
+            .header(rocket::http::Header::new(
+                "Authorization",
+                format!("Bearer {token}"),
+            ))
+            .dispatch();
+        assert_eq!(resp.status(), Status::Ok, "get-data must succeed");
+        let body: Value = serde_json::from_str(&resp.into_string().unwrap()).expect("valid JSON");
+        body.as_array().expect("array")[0]["abstractData"].clone()
     }
 
     /// Minimal photo fixture: fake file path, tags, optional EXIF date string.
@@ -478,6 +527,86 @@ mod tests {
         hash
     }
 
+    /// Block until every `FlushTreeTask` queued before this call has been
+    /// written to disk. `index_task`/`video_task` enqueue their writes via
+    /// `execute_batch_detached`, which returns immediately; submitting an
+    /// empty flush with `execute_batch_waiting` guarantees (per
+    /// `mini_executor`'s ordering contract) that everything submitted
+    /// earlier on the same queue has already run by the time this resolves.
+    async fn wait_for_flush() {
+        BATCH_COORDINATOR
+            .execute_batch_waiting(FlushTreeTask::insert(Vec::new()))
+            .await
+            .expect("flush sync");
+    }
+
+    /// Write a tiny real (decodable) JPEG to `path` — needed for tests that
+    /// exercise the real indexing pipeline (`process_image_info` decodes
+    /// pixels), unlike the `b"\xff\xd8\xff fake jpeg"` fixtures used by
+    /// tests that only exercise `assign_album` (no decode involved).
+    fn write_real_jpeg(path: &Path, color: [u8; 3]) {
+        let img = RgbImage::from_pixel(4, 4, Rgb(color));
+        img.save(path).expect("encode real jpeg");
+    }
+
+    /// Write a real decodable JPEG with an embedded XMP packet declaring
+    /// `dc:subject` keywords, as Lightroom/digiKam/exiftool would write
+    /// them. The packet is spliced into an APP1 segment right after the
+    /// SOI marker; JPEG decoders skip unrecognised APPn segments, so the
+    /// image still decodes normally.
+    fn write_real_jpeg_with_xmp_keywords(path: &Path, color: [u8; 3], keywords: &[&str]) {
+        let img = RgbImage::from_pixel(4, 4, Rgb(color));
+        let mut jpeg_bytes: Vec<u8> = Vec::new();
+        img.write_to(
+            &mut std::io::Cursor::new(&mut jpeg_bytes),
+            image::ImageFormat::Jpeg,
+        )
+        .expect("encode jpeg to memory");
+
+        let items: String = keywords
+            .iter()
+            .map(|k| format!("<rdf:li>{k}</rdf:li>"))
+            .collect();
+        let xmp_packet = format!(
+            r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:subject><rdf:Bag>{items}</rdf:Bag></dc:subject></rdf:Description></rdf:RDF></x:xmpmeta>"#
+        );
+
+        let mut segment: Vec<u8> = b"http://ns.adobe.com/xap/1.0/\0".to_vec();
+        segment.extend_from_slice(xmp_packet.as_bytes());
+        let segment_len = u16::try_from(segment.len() + 2).expect("xmp segment too large");
+        let mut app1: Vec<u8> = vec![0xFF, 0xE1];
+        app1.extend_from_slice(&segment_len.to_be_bytes());
+        app1.extend_from_slice(&segment);
+
+        // jpeg_bytes[0..2] is the SOI marker (FF D8); splice APP1 right after it.
+        let mut spliced = jpeg_bytes[..2].to_vec();
+        spliced.extend_from_slice(&app1);
+        spliced.extend_from_slice(&jpeg_bytes[2..]);
+
+        std::fs::write(path, &spliced).expect("write spliced jpeg");
+    }
+
+    /// Scan `DATA_TABLE` for the record whose first alias entry is `path`.
+    /// Used after running the real indexing pipeline, where the hash is
+    /// content-derived (blake3) and not known to the test ahead of time.
+    fn find_hash_by_alias_path(path: &Path) -> ArrayString<64> {
+        let target = path.to_string_lossy().into_owned();
+        let txn = TREE.in_disk.begin_read().expect("begin read");
+        let table = txn.open_table(DATA_TABLE).expect("open table");
+        table
+            .iter()
+            .expect("iter")
+            .flatten()
+            .find_map(|(_, v)| {
+                let data = v.value();
+                data.alias()
+                    .iter()
+                    .any(|a| a.file == target)
+                    .then(|| data.hash())
+            })
+            .unwrap_or_else(|| panic!("no indexed record found with alias path {target}"))
+    }
+
     // ─── Scenario G: PUT /put/assign_album endpoint registered ───────────────
 
     /// The new assign_album endpoint must be registered.
@@ -750,6 +879,311 @@ mod tests {
             resp.status(),
             Status::NotFound,
             "POST /post/create_empty_album must be removed (currently returns 200)"
+        );
+    }
+
+    // ─── Scenario L: dir-album membership is not reflected in the explicit
+    // `album` field at index time ───────────────────────────────────────────
+
+    /// KNOWN BUG (see TODO.md "Known bugs"): the explicit per-photo `album`
+    /// field — the one the info sidepane and `AssignAlbumModal`'s "current
+    /// album" badge read — is only ever set by `PUT /put/assign_album`.
+    /// Normal indexing (including the filesystem-watcher path exercised
+    /// here through `index_for_watch`) never sets it for directory-
+    /// hierarchy albums, even though the file is physically inside the
+    /// album's directory and IS correctly counted by path-based album
+    /// membership (`generate_filter.rs`). This is why the sidepane always
+    /// shows "No album" until a photo is manually (re-)assigned.
+    /// RED until indexing sets the explicit field too.
+    // Note: these scenarios use a plain `#[test]` plus a throwaway Tokio
+    // runtime for just the `index_for_watch` call, rather than
+    // `#[tokio::test]`. `TEST_ENV`'s lazy initialiser drives a
+    // `rocket::local::blocking::Client`, which internally does its own
+    // `block_on`; if that first run happened inside a `#[tokio::test]`'s
+    // own runtime, it would panic with "Cannot start a runtime from within
+    // a runtime". Touching `TEST_ENV` here, before entering our own
+    // runtime, keeps that blocking-client init outside of any async
+    // context.
+    #[test]
+    fn scenario_l_dir_album_membership_not_set_at_index_time() {
+        let data = {
+            let _ = &*TEST_ENV;
+            DATA_PATH.get().expect("DATA_PATH initialised")
+        };
+
+        let album_dir = data.join("e2e_l_album");
+        std::fs::create_dir_all(&album_dir).expect("create album dir");
+        let album_id = make_dir_album(&album_dir);
+
+        let photo_path = album_dir.join("e2e_l_photo.jpg");
+        write_real_jpeg(&photo_path, [120, 130, 140]);
+
+        let rt = tokio::runtime::Runtime::new().expect("build runtime");
+        rt.block_on(async {
+            index_for_watch(photo_path.clone(), None)
+                .await
+                .expect("index_for_watch must succeed");
+            wait_for_flush().await;
+        });
+
+        let hash = find_hash_by_alias_path(&photo_path);
+        let txn = TREE.in_disk.begin_read().expect("begin read");
+        let table = txn.open_table(DATA_TABLE).expect("open table");
+        let guard = table
+            .get(hash.as_str())
+            .expect("redb get")
+            .expect("indexed record must be in redb");
+        let abstract_data = guard.value();
+
+        assert_eq!(
+            abstract_data.album(),
+            Some(album_id),
+            "a photo indexed inside a dir-album's directory must have its \
+             explicit `album` field set to that album (currently never set \
+             by indexing — this is the sidepane \"No album\" bug)"
+        );
+    }
+
+    // ─── Scenario M: watcher re-indexing after assign_album duplicates the
+    // alias entry ──────────────────────────────────────────────────────────
+
+    /// KNOWN BUG: `assign_album` renames the file on disk, which the
+    /// filesystem watcher (`start_watcher.rs`) observes as a `Create` event
+    /// at the destination path and re-indexes via
+    /// `index_for_watch(path, None)`. Since the hash already exists,
+    /// `DeduplicateTask` (`deduplicate.rs`) pushes another alias entry for
+    /// the *same* path instead of recognising it already matches the
+    /// current alias, so the alias list grows by one entry on every
+    /// reassignment. RED until that's fixed.
+    #[test]
+    fn scenario_m_watcher_reindex_after_assign_duplicates_alias() {
+        let data = {
+            let _ = &*TEST_ENV;
+            DATA_PATH.get().expect("DATA_PATH initialised")
+        };
+
+        let import_dir = data.join("e2e_m_import");
+        std::fs::create_dir_all(&import_dir).expect("create import dir");
+        let src = import_dir.join("e2e_m_photo.jpg");
+        write_real_jpeg(&src, [10, 20, 30]);
+
+        let album_dir = data.join("e2e_m_album");
+        std::fs::create_dir_all(&album_dir).expect("create album dir");
+        let album_id = make_dir_album(&album_dir);
+
+        let rt = tokio::runtime::Runtime::new().expect("build runtime");
+        rt.block_on(async {
+            index_for_watch(src.clone(), None)
+                .await
+                .expect("initial index_for_watch must succeed");
+            wait_for_flush().await;
+        });
+        let hash = find_hash_by_alias_path(&src);
+
+        let client = make_client();
+        let resp = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(format!(r#"{{"hash":"{hash}","albumId":"{album_id}"}}"#))
+            .dispatch();
+        assert_eq!(resp.status(), Status::Ok, "assign_album must return 200");
+
+        let dest_path = album_dir.join("e2e_m_photo.jpg");
+        assert!(dest_path.exists(), "file must have been moved to album dir");
+
+        // Simulate the filesystem watcher observing the Create event at the
+        // new path and re-indexing it, as start_watcher.rs does.
+        rt.block_on(async {
+            index_for_watch(dest_path.clone(), None)
+                .await
+                .expect("watcher-triggered reindex must succeed");
+            wait_for_flush().await;
+        });
+
+        let txn = TREE.in_disk.begin_read().expect("begin read");
+        let table = txn.open_table(DATA_TABLE).expect("open table");
+        let guard = table
+            .get(hash.as_str())
+            .expect("redb get")
+            .expect("still in redb");
+        let AbstractData::Image(img) = guard.value() else {
+            panic!("not an image")
+        };
+        assert_eq!(
+            img.metadata.alias.len(),
+            1,
+            "re-discovering the same file at its already-recorded path must \
+             not duplicate the alias entry (got {:?})",
+            img.metadata.alias
+        );
+    }
+
+    // ─── Scenario N: tags are not discovered from embedded XMP keywords at
+    // index time ───────────────────────────────────────────────────────────
+
+    /// KNOWN GAP (TODO.md "tags discovered at index time"): tags are
+    /// currently only ever set by `PUT /put/edit_tag` — nothing in the
+    /// indexing pipeline extracts keyword metadata (IPTC/XMP
+    /// `dc:subject`) embedded by photo tools like Lightroom/digiKam.
+    /// `extract_keywords_from_xmp` (extract_keywords.rs) is wired into
+    /// `process_image_info` but is a stub that always returns an empty
+    /// set. RED until it's implemented.
+    #[test]
+    fn scenario_n_tags_not_discovered_from_xmp_keywords_at_index_time() {
+        let data = {
+            let _ = &*TEST_ENV;
+            DATA_PATH.get().expect("DATA_PATH initialised")
+        };
+
+        let import_dir = data.join("e2e_n_import");
+        std::fs::create_dir_all(&import_dir).expect("create import dir");
+        let photo_path = import_dir.join("e2e_n_photo.jpg");
+        write_real_jpeg_with_xmp_keywords(
+            &photo_path,
+            [50, 60, 70],
+            &["e2e_n_family", "e2e_n_vacation"],
+        );
+
+        let rt = tokio::runtime::Runtime::new().expect("build runtime");
+        rt.block_on(async {
+            index_for_watch(photo_path.clone(), None)
+                .await
+                .expect("index_for_watch must succeed");
+            wait_for_flush().await;
+        });
+
+        let hash = find_hash_by_alias_path(&photo_path);
+        let txn = TREE.in_disk.begin_read().expect("begin read");
+        let table = txn.open_table(DATA_TABLE).expect("open table");
+        let guard = table
+            .get(hash.as_str())
+            .expect("redb get")
+            .expect("indexed record must be in redb");
+        let abstract_data = guard.value();
+        let tags = abstract_data.tag();
+
+        assert!(
+            tags.contains("e2e_n_family") && tags.contains("e2e_n_vacation"),
+            "keywords embedded in the file's XMP packet must be discovered \
+             and added to tags at index time (got {tags:?})"
+        );
+    }
+
+    // ─── Scenario O: tags set during indexing are visible via GET
+    // /get/get-data (the same field the sidebar reads) ─────────────────────
+
+    /// Regression lock: unlike the per-photo `album` field (Scenario L),
+    /// tags ARE already populated through a single, consistently-read
+    /// field, so this is expected to pass today. Exercises the real
+    /// prefetch -> get-data flow the frontend uses, not just a direct redb
+    /// read.
+    #[test]
+    fn scenario_o_tags_visible_via_get_data_sidebar_path() {
+        insert_photos(&[PhotoSpec {
+            path: "/e2e_o/tagged.jpg",
+            tags: &["e2e_o_family", "e2e_o_vacation"],
+            exif_date: None,
+        }]);
+        let hash = find_hash_by_alias_path(Path::new("/e2e_o/tagged.jpg"));
+
+        let client = make_client();
+        let (timestamp, index, token) = prefetch_locate(&client, hash.as_str());
+        let abstract_data = get_data_item(&client, timestamp, index, &token);
+
+        let tags: Vec<String> = abstract_data["tags"]
+            .as_array()
+            .expect("tags array")
+            .iter()
+            .map(|t| t.as_str().expect("tag string").to_owned())
+            .collect();
+
+        assert!(tags.contains(&"e2e_o_family".to_string()), "got {tags:?}");
+        assert!(tags.contains(&"e2e_o_vacation".to_string()), "got {tags:?}");
+    }
+
+    // ─── Scenario P: tags are modifiable via PUT /put/edit_tag ─────────────
+
+    /// Regression lock for the full prefetch -> edit_tag -> get-data round
+    /// trip a real client performs when editing tags from the sidepane.
+    #[test]
+    fn scenario_p_tags_modifiable_via_edit_tag_api() {
+        insert_photos(&[PhotoSpec {
+            path: "/e2e_p/photo.jpg",
+            tags: &[],
+            exif_date: None,
+        }]);
+        let hash = find_hash_by_alias_path(Path::new("/e2e_p/photo.jpg"));
+
+        let client = make_client();
+        let (timestamp, index, token) = prefetch_locate(&client, hash.as_str());
+
+        let resp = client
+            .put("/put/edit_tag")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(format!(
+                r#"{{"indexArray":[{index}],"addTagsArray":["e2e_p_added"],"removeTagsArray":[],"timestamp":{timestamp}}}"#
+            ))
+            .dispatch();
+        assert_eq!(resp.status(), Status::Ok, "edit_tag must succeed");
+
+        let abstract_data = get_data_item(&client, timestamp, index, &token);
+        let tags: Vec<String> = abstract_data["tags"]
+            .as_array()
+            .expect("tags array")
+            .iter()
+            .map(|t| t.as_str().expect("tag string").to_owned())
+            .collect();
+        assert!(
+            tags.contains(&"e2e_p_added".to_string()),
+            "tag added via PUT /put/edit_tag must be visible afterwards: {tags:?}"
+        );
+    }
+
+    // ─── Scenario Q: the album assigned via the API is visible via GET
+    // /get/get-data (the same field the sidebar reads) ─────────────────────
+
+    /// Regression lock: confirms the part of the album feature that DOES
+    /// work today — once `assign_album` has set the explicit field, the
+    /// sidebar's actual data path (prefetch -> get-data) reflects it
+    /// immediately. Contrast with Scenario L, where indexing alone never
+    /// sets this field in the first place.
+    #[test]
+    fn scenario_q_album_visible_via_get_data_after_assign() {
+        let data = {
+            let _ = &*TEST_ENV;
+            DATA_PATH.get().expect("DATA_PATH initialised")
+        };
+
+        let import_dir = data.join("e2e_q_import");
+        std::fs::create_dir_all(&import_dir).expect("create import dir");
+        let src = import_dir.join("e2e_q_photo.jpg");
+        std::fs::write(&src, b"\xff\xd8\xff fake jpeg").expect("write source file");
+
+        let album_dir = data.join("e2e_q_album");
+        std::fs::create_dir_all(&album_dir).expect("create album dir");
+        let album_id = make_dir_album(&album_dir);
+
+        let hash = insert_photo_with_real_file(&src);
+
+        let client = make_client();
+        let resp = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(format!(r#"{{"hash":"{hash}","albumId":"{album_id}"}}"#))
+            .dispatch();
+        assert_eq!(resp.status(), Status::Ok, "assign_album must return 200");
+
+        let (timestamp, index, token) = prefetch_locate(&client, hash.as_str());
+        let abstract_data = get_data_item(&client, timestamp, index, &token);
+
+        assert_eq!(
+            abstract_data["album"].as_str(),
+            Some(album_id.as_str()),
+            "GET /get/get-data (the sidebar's actual data source) must \
+             reflect the album assigned via PUT /put/assign_album"
         );
     }
 }
