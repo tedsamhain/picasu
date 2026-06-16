@@ -30,7 +30,7 @@
 
 ### How albums work
 
-Each image or video belongs to exactly one album, which corresponds to the directory it lives in on disk. The album hierarchy is the filesystem directory tree under each configured `sync_path`. Albums are not stored as separate records in the database — they are derived at runtime from the filesystem via `DIR_ALBUM_CACHE` (a path → albumId map, rebuilt on startup).
+Each image or video belongs to exactly one album, which corresponds to the directory it lives in on disk. The album hierarchy is the filesystem directory tree under the single configured `imagePath` root. Albums are not stored as separate records in the database — they are derived at runtime from the filesystem via `DIR_ALBUM_CACHE` (a path → albumId map, rebuilt on startup).
 
 Consequence: moving a file to a different album moves it on disk. Refreshing the frontend after a filesystem move reflects the change without re-indexing.
 
@@ -38,13 +38,13 @@ Consequence: moving a file to a different album moves it on disk. Refreshing the
 
 Albums are created by creating subdirectories. From the UI: open "Move to Album" on any item, select a parent album, enter a name, and press the folder-plus button. This creates a physical subdirectory on disk and registers it as a new album.
 
-Top-level albums correspond to `sync_path` entries in the server config and cannot be created from the UI — they are added by configuring a new sync root and restarting the backend.
+The single top-level album is the `imagePath` root itself and cannot be created from the UI — it's set once via the server config (see `docs/CONFIG.md`). Multiple physical libraries are expected to be aggregated under that one root at the filesystem level (bind mounts/symlinks), not configured as separate top-level albums.
 
 ### Album invariants
 
 - One file → one album → one directory. Multi-album membership does not exist.
 - Moving a file to a different album via the API/UI moves the physical file on disk.
-- Top-level albums = sync root directories; sub-albums = subdirectories.
+- The top-level album is the `imagePath` root directory; sub-albums are its subdirectories.
 - `DIR_ALBUM_CACHE` is ephemeral. It is rebuilt from the filesystem on every startup and is not persisted in the database.
 - Album membership is singular and authoritative: the database record stores `album: Option<ArrayString<64>>`, not a set.
 

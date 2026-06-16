@@ -1,4 +1,4 @@
-use crate::operations::utils::sync_paths::resolve_sync_paths;
+use crate::operations::utils::image_path::resolve_image_path;
 use crate::public::constant::runtime::INDEX_RUNTIME;
 use crate::public::media::is_valid_media_file;
 use crate::public::structure::config::APP_CONFIG;
@@ -38,7 +38,7 @@ impl BatchTask for StartWatcherTask {
     }
 }
 
-/// Reload watcher with new paths from config
+/// Reload watcher with the new path from config
 pub fn reload_watcher() {
     info!("Reloading watcher...");
 
@@ -61,35 +61,33 @@ fn start_watcher_task_internal() -> Result<()> {
         return Ok(());
     }
 
-    // Get raw paths from config system
-    let raw_sync_paths = APP_CONFIG
+    // Get the raw path from config system
+    let raw_image_path = APP_CONFIG
         .get()
         .unwrap()
         .read()
         .unwrap()
         .public
-        .sync_paths
+        .image_path
         .clone();
 
-    if raw_sync_paths.is_empty() {
-        info!("No paths to watch");
+    let Some(raw_image_path) = raw_image_path else {
+        info!("No path to watch");
         return Ok(());
-    }
+    };
 
-    // Resolve paths to absolute paths before watching
-    let sync_paths = resolve_sync_paths(raw_sync_paths);
+    // Resolve to an absolute path before watching
+    let image_path = resolve_image_path(Some(raw_image_path)).expect("path was Some");
 
     // Build the watcher.
     let mut watcher = new_watcher()?;
-    for path in &sync_paths {
-        if path.exists() {
-            watcher
-                .watch(path, RecursiveMode::Recursive)
-                .map_err(|e| anyhow::anyhow!("Failed to watch path {}: {e}", path.display()))?;
-            info!("Watching path {}", path.display());
-        } else {
-            error!("Path not found, skipped: {}", path.display());
-        }
+    if image_path.exists() {
+        watcher
+            .watch(&image_path, RecursiveMode::Recursive)
+            .map_err(|e| anyhow::anyhow!("Failed to watch path {}: {e}", image_path.display()))?;
+        info!("Watching path {}", image_path.display());
+    } else {
+        error!("Path not found, skipped: {}", image_path.display());
     }
 
     // Store it globally to keep it alive.

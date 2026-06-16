@@ -38,9 +38,14 @@ backend-deny:
 backend-audit:
     cd gallery-backend && cargo audit
 
-# cargo build --release --features embed-frontend
+# cargo build (debug, no embedded frontend) — developer default; matches check/test
 [group('backend')]
 backend-build:
+    cd gallery-backend && cargo build
+
+# cargo build --release --features embed-frontend — production build (CI/deployment)
+[group('backend')]
+backend-build-release:
     cd gallery-backend && cargo build --release --features embed-frontend
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
@@ -98,9 +103,30 @@ test: backend-test frontend-test
 install-dev:
     cargo install cargo-nextest cargo-deny cargo-audit sccache
 
-# Build frontend then backend with embedded assets (release)
+# Build frontend then backend (debug, no embedded frontend) — developer default
 [group('global')]
 build: frontend-build backend-build
+
+# Build frontend then backend with embedded assets (release) — production build (CI/deployment)
+[group('global')]
+build-release: frontend-build backend-build-release
+
+# Remove the dev sandbox's generated app state (sandbox/data); leaves sandbox/images alone
+[group('global')]
+clean:
+    rm -rf sandbox/data
+
+# Build (debug, no embedded frontend) and launch a clean instance against sandbox/{data,images}
+[group('global')]
+run: clean build
+    #!/usr/bin/env sh
+    set -e
+    mkdir -p sandbox/images
+    cd gallery-backend && \
+        UROCISSA_CONFIG_HOME="{{justfile_directory()}}/sandbox/data" \
+        UROCISSA_DATA_HOME="{{justfile_directory()}}/sandbox/data" \
+        UROCISSA_IMAGE_HOME="{{justfile_directory()}}/sandbox/images" \
+        cargo run
 
 # Run security audits (backend + frontend)
 [group('global')]

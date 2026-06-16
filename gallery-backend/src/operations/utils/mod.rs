@@ -1,2 +1,2 @@
+pub mod image_path;
 pub mod resize;
-pub mod sync_paths;

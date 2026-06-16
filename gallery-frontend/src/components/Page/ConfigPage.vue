@@ -15,7 +15,7 @@
 
         <div class="config-block">
           <v-row class="ma-0">
-            <StorageAndSync v-model:sync-paths="localSettings.syncPaths" />
+            <StorageAndSync v-model:image-path="localSettings.imagePath" />
           </v-row>
         </div>
 
@@ -69,7 +69,7 @@ const localSettings = reactive<AppConfig>({
   hasDiscordHook: false,
   authKey: '',
   discordHookUrl: '',
-  syncPaths: [],
+  imagePath: null,
   address: '',
 
   port: 0,

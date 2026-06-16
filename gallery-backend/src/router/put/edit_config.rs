@@ -6,7 +6,7 @@ use rocket::put;
 use rocket::serde::json::Json;
 use tokio::task::spawn_blocking;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 // Import PublicConfig
@@ -23,7 +23,8 @@ pub struct PartialUpdateConfigRequest {
     pub address: Option<String>,
     pub port: Option<u16>,
     pub limits: Option<HashMap<String, String>>,
-    pub sync_paths: Option<HashSet<PathBuf>>,
+    /// `None` = don't touch; `Some("")` = clear; `Some(path)` = set.
+    pub image_path: Option<String>,
     pub read_only_mode: Option<bool>,
     pub disable_img: Option<bool>,
     pub auth_key: Option<String>,
@@ -56,8 +57,13 @@ pub async fn update_config_handler(
         if let Some(limits) = req_data.limits {
             current_config.public.limits = limits;
         }
-        if let Some(sync_paths) = req_data.sync_paths {
-            current_config.public.sync_paths = sync_paths;
+        if let Some(image_path) = req_data.image_path {
+            let trimmed = image_path.trim();
+            current_config.public.image_path = if trimmed.is_empty() {
+                None
+            } else {
+                Some(PathBuf::from(trimmed))
+            };
         }
         if let Some(read_only_mode) = req_data.read_only_mode {
             current_config.public.read_only_mode = read_only_mode;

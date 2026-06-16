@@ -5,55 +5,93 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 
 pub static DATA_PATH: OnceLock<PathBuf> = OnceLock::new();
+pub static CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 const CONFIG_FILE_NAME: &str = "config.json";
 
-/// Returns the path to the config file based on the current mode (portable or installed).
-/// In portable mode, returns "./config.json".
-/// In installed mode, returns `<data_path>/config.json`.
-pub fn get_config_path() -> PathBuf {
-    get_data_path().join(CONFIG_FILE_NAME)
-}
+/// Resolves a root directory using a fixed precedence:
+/// 1. `env_var`, if set — explicit override (e.g. `UROCISSA_DATA_HOME`).
+/// 2. The legacy single-folder layout: if `./config.json` already exists in
+///    the working directory, pre-dates the split between config/data
+///    locations below and must keep working unchanged.
+/// 3. The OS-standard directory for `kind` (XDG on Linux, equivalent
+///    conventions on Windows/macOS via the `directories` crate — which
+///    itself honors `$XDG_CONFIG_HOME`/`$XDG_DATA_HOME` if set).
+/// 4. The working directory, as a last resort if the OS directory can't be
+///    determined at all.
+fn resolve_root(
+    env_var: &str,
+    kind: &str,
+    os_dir: impl FnOnce(&ProjectDirs) -> PathBuf,
+) -> PathBuf {
+    if let Ok(p) = std::env::var(env_var) {
+        let dir = PathBuf::from(p);
+        if let Err(e) = std::fs::create_dir_all(&dir) {
+            error!(
+                "Failed to create {env_var} directory {}: {e}",
+                dir.display()
+            );
+        }
+        info!(
+            "{env_var} override detected. Using {kind} directory: {}",
+            dir.display()
+        );
+        return dir;
+    }
 
-pub fn get_data_path() -> &'static PathBuf {
-    DATA_PATH.get_or_init(|| {
-        // 1. Check for portable marker or existing directories
-        // The user said: "first check portable db and object"
+    // Legacy back-compat: every pre-existing install (from before config and
+    // data locations were split) has `config.json` sitting next to its
+    // `db`/`object`/`upload` folders in the working directory. Detecting
+    // that file is a more precise signal than the old "does ./db or
+    // ./object exist" sniff, and covers both roots with one check.
+    if Path::new(CONFIG_FILE_NAME).exists() {
+        info!("Legacy single-folder layout detected (./config.json) — using cwd for {kind}");
+        return PathBuf::from(".");
+    }
 
-        let portable_db = Path::new("db");
-        let portable_object = Path::new("object");
+    if let Some(proj_dirs) = ProjectDirs::from("com", "urocissa", "urocissa") {
+        let dir = os_dir(&proj_dirs);
 
-        // If "db" or "object" folder exists in current directory, assume portable mode
-        if portable_db.exists() || portable_object.exists() {
-            info!("Portable mode detected (found ./db or ./object)");
+        if !dir.exists()
+            && let Err(e) = std::fs::create_dir_all(&dir)
+        {
+            error!("Failed to create {kind} directory {}: {e}", dir.display());
             return PathBuf::from(".");
         }
 
-        // 2. Fallback to installed mode (AppData/XDG_DATA_HOME)
-        if let Some(proj_dirs) = ProjectDirs::from("com", "urocissa", "urocissa") {
-            let data_dir = proj_dirs.data_dir().to_path_buf();
+        info!("Using OS-standard {kind} directory: {}", dir.display());
+        return dir;
+    }
 
-            // Create the directory if it doesn't exist
-            if !data_dir.exists()
-                && let Err(e) = std::fs::create_dir_all(&data_dir)
-            {
-                error!(
-                    "Failed to create data directory {}: {e}",
-                    data_dir.display()
-                );
-                // Fallback to local if we can't write to AppData
-                return PathBuf::from(".");
-            }
+    info!("Could not determine system {kind} directory. Defaulting to cwd.");
+    PathBuf::from(".")
+}
 
-            info!(
-                "Installed mode detected. Using data directory: {}",
-                data_dir.display()
-            );
-            return data_dir;
-        }
+/// Returns the path to `config.json`. See [`get_config_dir`] for how the
+/// containing directory is resolved.
+pub fn get_config_path() -> PathBuf {
+    get_config_dir().join(CONFIG_FILE_NAME)
+}
 
-        // 3. Fallback to current directory if ProjectDirs fails
-        info!("Could not determine system data directory. Defaulting to portable mode.");
-        PathBuf::from(".")
+/// Directory holding `config.json`. Override with `UROCISSA_CONFIG_HOME`;
+/// otherwise resolved independently of [`get_data_path`] (see [`resolve_root`]).
+pub fn get_config_dir() -> &'static PathBuf {
+    CONFIG_DIR.get_or_init(|| {
+        resolve_root("UROCISSA_CONFIG_HOME", "config", |p| {
+            p.config_dir().to_path_buf()
+        })
     })
+}
+
+/// Directory holding `db/`, `object/`, and `upload/`. Override with
+/// `UROCISSA_DATA_HOME`. This is real, back-up-worthy user data — not all of
+/// it is disposable: `db/index_v5.redb` is the only store of record for
+/// tags/album-assignments/flags on synced (non-uploaded) media, and
+/// `object/imported/` holds the actual bytes for uploaded media. (A handful
+/// of files under `db/` — `cache_db.redb`, `temp_db.redb`, `expire_db.redb`
+/// — plus `upload/` *are* safely disposable; splitting those into a
+/// dedicated `UROCISSA_STATE_HOME` is a possible follow-up, not yet done.)
+pub fn get_data_path() -> &'static PathBuf {
+    DATA_PATH
+        .get_or_init(|| resolve_root("UROCISSA_DATA_HOME", "data", |p| p.data_dir().to_path_buf()))
 }

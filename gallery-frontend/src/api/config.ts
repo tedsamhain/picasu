@@ -15,7 +15,7 @@ export interface AppConfig {
   hasPassword: boolean
   hasDiscordHook: boolean
   discordHookUrl: string | null
-  syncPaths: string[]
+  imagePath: string | null
 }
 
 export const getConfig = async (): Promise<AppConfig> => {

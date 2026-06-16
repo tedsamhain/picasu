@@ -20,6 +20,9 @@ gallery-backend/test
 gallery-backend/db
 gallery-backend/object
 
+# `just run`'s dev sandbox (data dir + test galleries, see docs/CONFIG.md)
+/sandbox/
+
 docker/docker-compose.override.yml
 
 # Ignore installer executables

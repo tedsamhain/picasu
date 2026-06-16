@@ -1,50 +1,47 @@
 <template>
   <v-col cols="12">
     <v-card border flat>
-      <v-card-title class="font-weight-bold">Paths</v-card-title>
+      <v-card-title class="font-weight-bold">Image Path</v-card-title>
       <v-divider thickness="4" variant="double"></v-divider>
 
       <v-list-item
-        title="Monitored Paths"
-        subtitle="Automatically scan changed files"
+        title="Monitored Path"
+        subtitle="Automatically scan changed files under this directory"
         prepend-icon="mdi-folder-network-outline"
         lines="two"
       >
         <template #append>
           <v-btn
             variant="tonal"
-            prepend-icon="mdi-plus"
+            prepend-icon="mdi-folder-edit-outline"
             class="text-none font-weight-medium"
             @click="showFilePicker = true"
           >
-            Add Path
+            {{ imagePath ? 'Change Path' : 'Choose Path' }}
           </v-btn>
         </template>
       </v-list-item>
 
       <v-divider></v-divider>
-      <v-list v-if="syncPaths.length > 0" lines="one">
-        <template v-for="(path, index) in syncPaths" :key="index">
-          <v-list-item :title="path">
-            <template #append>
-              <v-btn
-                icon="mdi-delete-outline"
-                variant="text"
-                density="comfortable"
-                @click="removePath(path)"
-                title="Remove path"
-              ></v-btn>
-            </template>
-          </v-list-item>
-          <v-divider v-if="index !== syncPaths.length - 1"></v-divider>
-        </template>
+      <v-list v-if="imagePath" lines="one">
+        <v-list-item :title="imagePath">
+          <template #append>
+            <v-btn
+              icon="mdi-delete-outline"
+              variant="text"
+              density="comfortable"
+              @click="clearPath"
+              title="Clear path"
+            ></v-btn>
+          </template>
+        </v-list-item>
       </v-list>
 
       <v-empty-state
         v-else
         icon="mdi-folder-open-outline"
-        title="No sync paths"
-        text="Add a path to start monitoring your files."
+        title="No image path set"
+        text="Choose a directory to start monitoring your files. Aggregate multiple libraries under one root at the filesystem level (bind mounts or symlinks) rather than configuring several paths here."
       ></v-empty-state>
 
       <v-card-actions class="justify-end px-4 pb-4">
@@ -63,31 +60,29 @@ import ServerFilePicker from './ServerFilePicker.vue'
 import { useConfigStore } from '@/store/configStore'
 import { useMessageStore } from '@/store/messageStore'
 
-const syncPaths = defineModel<string[]>('syncPaths', { required: true })
+const imagePath = defineModel<string | null>('imagePath', { required: true })
 const configStore = useConfigStore('mainId')
 const messageStore = useMessageStore('mainId')
 
 const showFilePicker = ref(false)
 const loading = ref(false)
 
-const removePath = (path: string) => {
-  syncPaths.value = syncPaths.value.filter((p) => p !== path)
+const clearPath = () => {
+  imagePath.value = null
 }
 
 const onFilePickerSelect = (path: string) => {
-  if (path && !syncPaths.value.includes(path)) {
-    syncPaths.value = [...syncPaths.value, path]
-  }
+  imagePath.value = path || null
 }
 
 const save = async () => {
   loading.value = true
   const success = await configStore.updateConfig({
-    syncPaths: syncPaths.value
+    imagePath: imagePath.value
   })
 
   if (success === true) {
-    messageStore.success('Paths saved successfully')
+    messageStore.success('Path saved successfully')
   }
   loading.value = false
 }

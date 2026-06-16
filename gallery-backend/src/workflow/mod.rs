@@ -1,5 +1,5 @@
 use crate::operations::dir_album::{get_album_id_for_dir, get_or_create_dir_album};
-use crate::operations::utils::sync_paths::get_resolved_sync_paths;
+use crate::operations::utils::image_path::get_resolved_image_path;
 use crate::tasks::{
     INDEX_COORDINATOR,
     actor::{
@@ -31,28 +31,28 @@ fn try_acquire(hash: ArrayString<64>) -> Option<ProcessingGuard> {
     }
 }
 
-/// Ensure directory albums exist for every directory level between the nearest
-/// sync root and the file's parent, returning the deepest one (i.e. the
-/// album for the file's immediate parent directory), or `None` if the file
-/// isn't under any configured sync root or sits directly in a sync root
+/// Ensure directory albums exist for every directory level between the
+/// configured image root and the file's parent, returning the deepest one
+/// (i.e. the album for the file's immediate parent directory), or `None` if
+/// the file isn't under the configured image root or sits directly in it
 /// (no sub-directory to album-map).
 async fn ensure_dir_albums(file_path: &std::path::Path) -> Option<ArrayString<64>> {
-    let sync_paths = get_resolved_sync_paths();
+    let image_root = get_resolved_image_path()?;
 
     let file_dir = file_path.parent()?;
 
-    let sync_root = sync_paths
-        .iter()
-        .find(|root| file_dir.starts_with(root.as_path()))?;
-
-    // Files directly in the sync root have no sub-directory to album-map.
-    if file_dir == sync_root.as_path() {
+    if !file_dir.starts_with(&image_root) {
         return None;
     }
 
-    let relative = file_dir.strip_prefix(sync_root.as_path()).ok()?;
+    // Files directly in the image root have no sub-directory to album-map.
+    if file_dir == image_root {
+        return None;
+    }
 
-    let mut current = sync_root.clone();
+    let relative = file_dir.strip_prefix(&image_root).ok()?;
+
+    let mut current = image_root.clone();
     let mut deepest_album_id = None;
     for component in relative.components() {
         current.push(component);

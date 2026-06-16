@@ -5,7 +5,7 @@ use base64::{Engine as _, engine::general_purpose};
 use log::{info, warn};
 use rand::{TryRng, rngs::SysRng};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
@@ -49,7 +49,13 @@ pub struct PublicConfig {
     pub address: String,
     pub port: u16,
     pub limits: HashMap<String, String>,
-    pub sync_paths: HashSet<PathBuf>,
+    /// Single root directory to watch for new/changed media. `None` means
+    /// the watcher is inert. Resolved against `UROCISSA_IMAGE_HOME` if
+    /// relative — see `operations::utils::image_path`. Multiple physical
+    /// libraries are expected to be aggregated at the filesystem layer
+    /// (bind mounts/symlinks under this one root) rather than configured
+    /// here as a list.
+    pub image_path: Option<PathBuf>,
     pub read_only_mode: bool,
     pub disable_img: bool,
 }
@@ -81,7 +87,7 @@ impl Default for AppConfig {
                 address: "0.0.0.0".to_string(),
                 port: 5673,
                 limits,
-                sync_paths: HashSet::new(),
+                image_path: None,
                 read_only_mode: false,
                 disable_img: false,
             },
@@ -174,15 +180,17 @@ impl AppConfig {
 
         info!("Updating configuration...");
 
-        // Sanitize paths: only remove quotes and spaces, do not resolve paths
-        let sanitized_paths: HashSet<PathBuf> = new_config
-            .public
-            .sync_paths
-            .iter()
-            .map(|p| PathBuf::from(p.to_string_lossy().trim().trim_matches('"')))
-            .collect();
-
-        new_config.public.sync_paths = sanitized_paths;
+        // Sanitize: only remove quotes and spaces, do not resolve the path.
+        // An empty string after trimming means "unset" (sentinel used by the
+        // edit_config request to clear the path).
+        new_config.public.image_path = new_config.public.image_path.and_then(|p| {
+            let cleaned = p.to_string_lossy().trim().trim_matches('"').to_string();
+            if cleaned.is_empty() {
+                None
+            } else {
+                Some(PathBuf::from(cleaned))
+            }
+        });
 
         if new_config
             .private

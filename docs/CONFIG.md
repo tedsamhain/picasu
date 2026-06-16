@@ -18,7 +18,7 @@ The configuration is divided into `public` and `private` sections.
       "json": "10MiB",
       "data-form": "10GiB"
     },
-    "syncPaths": [],
+    "imagePath": null,
     "readOnlyMode": false,
     "disableImg": false
   },
@@ -41,7 +41,7 @@ These settings control the server's public-facing behavior.
 | `limits.file`      | string         | `"10GiB"`    | Maximum size for a single file upload. Accepts human-readable sizes: `"1GiB"`, `"512MiB"`, etc.                                                                     |
 | `limits.json`      | string         | `"10MiB"`    | Maximum size for JSON request bodies.                                                                                                                                |
 | `limits.data-form` | string         | `"10GiB"`    | Maximum size for multipart form submissions (used for photo/video import).                                                                                           |
-| `syncPaths`        | array          | `[]`         | Local directory paths to watch for new or changed media files. Example: `["/mnt/photos", "C:\\Users\\Photos"]`                                                      |
+| `imagePath`        | string \| null | `null`       | Single root directory to watch for new or changed media files. Example: `"/mnt/photos"`. If relative, resolved against `UROCISSA_IMAGE_HOME`. Aggregate multiple physical libraries under this one root at the filesystem level (bind mounts/symlinks) rather than configuring several paths — the OS already handles that. |
 | `readOnlyMode`     | boolean        | `false`      | If `true`, the gallery runs in read-only mode — uploads, edits, and deletions are disabled.                                                                          |
 | `disableImg`       | boolean        | `false`      | If `true`, disables image processing in the frontend. **Intended for debugging only; do not use in production.**                                                     |
 
@@ -54,6 +54,61 @@ These settings handle sensitive security and authentication data.
 | `password`       | string \| null | `null`  | The password required to log in to the web interface. If `null`, no password is set and you will need to configure one.                                                                                                                                                                                                                         |
 | `authKey`        | string \| null | `null`  | The secret key used for signing authentication tokens (JWT). <br> - If `null`, a random key is generated on every startup, which invalidates existing login sessions upon restart.<br> - Set this to a random string to persist sessions across server restarts.<br> **If you are unsure what this does, keeping it as `null` is recommended.** |
 | `discordHookUrl` | string \| null | `null`  | Optional Discord Webhook URL for receiving error notifications.                                                                                                                                                                                                                                                                                 |
+
+## Storage locations
+
+Urocissa resolves three independent root directories, each with the same
+precedence: **environment variable > legacy single-folder layout > OS-standard
+directory > working directory (last resort)**.
+
+| Root | Env var | Holds | Default when unset |
+|---|---|---|---|
+| Config | `UROCISSA_CONFIG_HOME` | `config.json` | platform config dir (e.g. `~/.config/urocissa` on Linux) |
+| Data | `UROCISSA_DATA_HOME` | `db/`, `object/`, `upload/` | platform data dir (e.g. `~/.local/share/urocissa` on Linux) |
+| Image | `UROCISSA_IMAGE_HOME` | base for resolving a relative `imagePath` | `<data dir>/images` |
+
+The platform config/data dirs come from the `directories` crate, which
+already honors `$XDG_CONFIG_HOME`/`$XDG_DATA_HOME` on Linux and the platform
+equivalents on Windows/macOS — no separate XDG handling needed.
+
+`UROCISSA_IMAGE_HOME`'s default is deliberately *not* the working
+directory: the cwd is arbitrary depending on how the binary was launched
+(systemd unit, Docker `WORKDIR`, a desktop shortcut), so it isn't a reliable
+place to expect media to already exist. Defaulting to a subdirectory of the
+already-resolved, stable data dir means a fresh install has a discoverable,
+predictable place to drop files into with zero configuration.
+
+```sh
+UROCISSA_CONFIG_HOME=/etc/urocissa UROCISSA_DATA_HOME=/var/lib/urocissa UROCISSA_IMAGE_HOME=/mnt/photos ./urocissa
+```
+
+**Legacy single-folder layout:** if `./config.json` already exists in the
+working directory (true for any install that pre-dates the config/data
+split), both the config and data roots fall back to the working directory,
+so existing installs keep working unchanged without needing to set
+anything.
+
+**Single root only:** `imagePath` and `UROCISSA_IMAGE_HOME` each take exactly
+one directory. Aggregate multiple physical photo/video libraries under that
+one root at the filesystem level (bind mounts or symlinks) rather than
+configuring a list — the OS already handles that well.
+
+`just run` uses `UROCISSA_CONFIG_HOME`/`UROCISSA_DATA_HOME` to point a
+manually-launched dev instance at a throwaway sandbox directory
+(`sandbox/data`) instead of a real install's data, and
+`UROCISSA_IMAGE_HOME=sandbox/images` as a place to drop test galleries.
+
+The Docker image (`Dockerfile` at repo root) sets these to fixed in-image
+paths (`/config`, `/data`, `/images`); `docker-compose.yml` bind-mounts host
+directories onto them. See the README's Docker quick-setup section.
+
+> **Note:** the data directory holds real, back-up-worthy data, not disposable
+> cache — `db/index_v5.redb` is the only store of record for tags/album
+> assignments/flags on synced media, and `object/imported/` holds the actual
+> bytes for uploaded media. A handful of files (`cache_db.redb`,
+> `temp_db.redb`, `expire_db.redb`, `upload/`) *are* safely disposable;
+> splitting those into a dedicated state directory is a possible future
+> change, not yet done (see `TODO.md`).
 
 ## Advanced: Rocket Web Server Configuration
 

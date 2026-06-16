@@ -9,4 +9,11 @@ pub fn initialize_folder() {
     std::fs::create_dir_all(root.join("object/imported")).unwrap();
     std::fs::create_dir_all(root.join("object/compressed")).unwrap();
     std::fs::create_dir_all(root.join("upload")).unwrap();
+
+    // Pre-create the default UROCISSA_IMAGE_HOME (see operations::utils::image_path)
+    // so it's discoverable with zero configuration, even before `imagePath` is set.
+    // Skipped if the env var points elsewhere — nothing to create here in that case.
+    if std::env::var("UROCISSA_IMAGE_HOME").is_err() {
+        std::fs::create_dir_all(root.join("images")).unwrap();
+    }
 }

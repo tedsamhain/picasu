@@ -13,6 +13,26 @@ In practice this means:
 
 ---
 
+## Build configurations: developer vs. production
+
+`just build`/`just run`/`just test` use a **debug build without the
+`embed-frontend` feature** — this is the developer default, fast to iterate on
+and what `just precommit`'s checks run against. `just build-release` uses a
+**release build with `embed-frontend`** — this is the production
+configuration: a single self-contained binary, exactly what CI's release
+workflow (`.github/workflows/release.yml`) and the installer scripts build,
+and what gets deployed.
+
+The two configurations can diverge (different `cfg` branches, different
+clippy/warning surfaces under `--release`). CI is the place that must catch
+that divergence: PR/merge CI should build and test the developer
+configuration (matching local precommit), and release CI must additionally
+build the production configuration before cutting a release. Local dev
+workflows should not need to build the production configuration to get fast
+feedback — see `just run` in the justfile, which uses `UROCISSA_CONFIG_HOME`/
+`UROCISSA_DATA_HOME` to launch a disposable instance against the throwaway
+`sandbox/data` dir (see `docs/CONFIG.md`).
+
 ## Current state
 
 | Layer | Tool | Status |
@@ -50,7 +70,7 @@ regression-matrix sections below.
 
 | Path / trigger | Handler | Mutates | Guards |
 |---|---|---|---|
-| Filesystem watcher `Create`/`Modify` event under a configured `sync_paths` entry | `start_watcher.rs` → debounced → `workflow::index_for_watch(path, None)` | `DATA_TABLE` (new or merged record), dir-album `DATA_TABLE` entries via `ensure_dir_albums` | none (background task, not a route) |
+| Filesystem watcher `Create`/`Modify` event under the configured `imagePath` root | `start_watcher.rs` → debounced → `workflow::index_for_watch(path, None)` | `DATA_TABLE` (new or merged record), dir-album `DATA_TABLE` entries via `ensure_dir_albums` | none (background task, not a route) |
 | `POST /post/import/folder` | `import_folder.rs` → `tasks/actor/folder_import.rs` → walks dir, calls `index_for_watch` per file | same as above, batched | `GuardAuth` + `GuardReadOnlyMode` |
 | `POST /post/import/folder/cancel` | `import_folder.rs::cancel_folder_import_handler` | cancels in-flight folder import | `GuardAuth` |
 | `GET /get/import/folder/status` | `get_import.rs` | read-only (progress poll) | `GuardAuth` |
@@ -63,7 +83,7 @@ regression-matrix sections below.
 
 | Path / trigger | Handler | Mutates | Guards |
 |---|---|---|---|
-| Indexing under a multi-level `sync_paths` subdirectory | `workflow::ensure_dir_albums` (called from `index_for_watch`) | creates `Album` `AbstractData` records per directory level (`get_or_create_dir_album`); **does not** set the photo's own `album` field (`scenario_l`, red) | n/a |
+| Indexing under a multi-level `imagePath` subdirectory | `workflow::ensure_dir_albums` (called from `index_for_watch`) | creates `Album` `AbstractData` records per directory level (`get_or_create_dir_album`); **does not** set the photo's own `album` field (`scenario_l`, red) | n/a |
 | `POST /post/create_dir_album` | `create_dir_album.rs` | creates a subdirectory on disk + an `Album` record under an existing dir-album | `GuardAuth` + `GuardReadOnlyMode` |
 | `PUT /put/assign_album` | `assign_album.rs` | renames the file on disk into the target album's directory, updates `alias`, sets explicit `album` field, marks old+new album for stats refresh | `GuardAuth` + `GuardReadOnlyMode` |
 | `PUT /put/set_album_cover` | `edit_album.rs` | `Album.metadata.cover` | `GuardAuth` + `GuardReadOnlyMode` |
@@ -110,7 +130,7 @@ regression-matrix sections below.
 | `POST /post/authenticate` | `authenticate.rs` | Password → JWT cookie. No-password mode auto-succeeds (what the test harness relies on). |
 | `POST /post/renew-hash-token` | `guard_hash.rs` | Mints a `ClaimsHash` token scoped to one hash, from a valid `ClaimsTimestamp`. |
 | `POST /post/renew-timestamp-token` | `guard_timestamp.rs` | Renews a timestamp-scoped token, even if expired (`VALIDATION_ALLOW_EXPIRED`) — intentional, for long-lived browser sessions. |
-| `PUT /put/config`, `PUT /put/config/password` | `edit_config.rs` | `sync_paths`, `read_only_mode`, `disable_img`, port/limits, password. Changing `sync_paths` reloads the watcher (`reload_watcher`). |
+| `PUT /put/config`, `PUT /put/config/password` | `edit_config.rs` | `imagePath`, `read_only_mode`, `disable_img`, port/limits, password. Changing `imagePath` reloads the watcher (`reload_watcher`). |
 | `GET /get/config`, `GET /get/config/export`, `POST /post/config/import` | `get_config.rs`, `import_config.rs` | Config introspection/backup. |
 
 ### Static / page routes
@@ -136,7 +156,7 @@ relevant modes, not input paths alone.
 | **Hash-scoped media token** | valid `ClaimsHash` for *this* hash / valid for a *different* hash / missing | `GuardHash` (`guard_hash.rs`) — gates `/object/*` independently of `GuardShare` |
 | **Timestamp-scoped token** | valid `ClaimsTimestamp` matching the query's `timestamp` / mismatched / expired (renewal allowed) | `GuardTimestamp` (`guard_timestamp.rs`) |
 | **Read-only mode** | `read_only_mode: true/false` in config | `GuardReadOnlyMode` — gates *every* mutating route; flips to `405` |
-| **`sync_paths` configured** | empty (dir-albums feature inert) / non-empty (dir-albums created implicitly on indexing) | `ensure_dir_albums`, `start_watcher.rs` |
+| **`imagePath` configured** | unset (dir-albums feature inert) / set (dir-albums created implicitly on indexing) | `ensure_dir_albums`, `start_watcher.rs` |
 | **Presigned album on ingestion** | `None` (watcher/folder-import path — album field never set, `scenario_l`) / `Some(id)` (upload-to-album path — album field *is* set) | `DeduplicateTask::presigned_album_id` |
 | **Hash already known** | brand-new content (full `IndexTask` pipeline runs) / hash already in `DATA_TABLE` (short-circuits to `DeduplicateTask`'s merge branch, no re-decode) | `deduplicate_task` (`deduplicate.rs`) |
 | **File still at its recorded alias path** | exists (assign/move proceeds) / missing (`assign_album` 4xxs, `scenario_j`) | `assign_album.rs` |
