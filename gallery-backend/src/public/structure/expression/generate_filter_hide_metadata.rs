@@ -59,9 +59,10 @@ impl Expression {
             },
 
             /* ---------- Supplementary conditions that must be invalid ---------- */
-            Expression::Tag(_) | Expression::Path(_) | Expression::RootAlbum(_) => {
-                Box::new(|_| false)
-            }
+            Expression::Tag(_)
+            | Expression::Path(_)
+            | Expression::RootAlbum(_)
+            | Expression::ParentAlbum(_) => Box::new(|_| false),
 
             /* ---------- Boolean field filters ---------- */
             Expression::Favorite(value) => Box::new(move |data: &AbstractData| match data {

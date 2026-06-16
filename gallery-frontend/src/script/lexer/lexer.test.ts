@@ -73,6 +73,12 @@ describe('path', () => {
   })
 })
 
+describe('parent_album', () => {
+  test('string id', () => {
+    expect(parse('parent_album:"abc123"')).toEqual({ ParentAlbum: 'abc123' })
+  })
+})
+
 describe('any', () => {
   test('any value', () => {
     expect(parse('any:"keyword"')).toEqual({ Any: 'keyword' })

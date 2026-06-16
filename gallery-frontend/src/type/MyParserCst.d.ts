@@ -56,6 +56,7 @@ export type AtomicExpressionCstChildren = {
   archivedExpression?: ArchivedExpressionCstNode[];
   trashedExpression?: TrashedExpressionCstNode[];
   rootAlbumExpression?: RootAlbumExpressionCstNode[];
+  parentAlbumExpression?: ParentAlbumExpressionCstNode[];
 };
 
 export interface NotExpressionCstNode extends CstNode {
@@ -194,6 +195,16 @@ export type RootAlbumExpressionCstChildren = {
   BooleanValue: IToken[];
 };
 
+export interface ParentAlbumExpressionCstNode extends CstNode {
+  name: "parentAlbumExpression";
+  children: ParentAlbumExpressionCstChildren;
+}
+
+export type ParentAlbumExpressionCstChildren = {
+  ParentAlbum: IToken[];
+  Identifier: IToken[];
+};
+
 export interface ICstNodeVisitor<IN, OUT> extends ICstVisitor<IN, OUT> {
   expression(children: ExpressionCstChildren, param?: IN): OUT;
   orExpression(children: OrExpressionCstChildren, param?: IN): OUT;
@@ -212,4 +223,5 @@ export interface ICstNodeVisitor<IN, OUT> extends ICstVisitor<IN, OUT> {
   archivedExpression(children: ArchivedExpressionCstChildren, param?: IN): OUT;
   trashedExpression(children: TrashedExpressionCstChildren, param?: IN): OUT;
   rootAlbumExpression(children: RootAlbumExpressionCstChildren, param?: IN): OUT;
+  parentAlbumExpression(children: ParentAlbumExpressionCstChildren, param?: IN): OUT;
 }

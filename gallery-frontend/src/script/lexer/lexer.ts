@@ -12,6 +12,7 @@ import {
   ModelExpressionCstChildren,
   NotExpressionCstChildren,
   OrExpressionCstChildren,
+  ParentAlbumExpressionCstChildren,
   PathExpressionCstChildren,
   RootAlbumExpressionCstChildren,
   TagExpressionCstChildren,
@@ -43,6 +44,7 @@ const Favorite: TokenType = createToken({ name: 'Favorite', pattern: /favorite:/
 const Archived: TokenType = createToken({ name: 'Archived', pattern: /archived:/ })
 const Trashed: TokenType = createToken({ name: 'Trashed', pattern: /trashed:/ })
 const RootAlbum: TokenType = createToken({ name: 'RootAlbum', pattern: /root_album:/ })
+const ParentAlbum: TokenType = createToken({ name: 'ParentAlbum', pattern: /parent_album:/ })
 const Comma: TokenType = createToken({ name: 'Comma', pattern: /,/ })
 
 const BooleanValue: TokenType = createToken({
@@ -80,6 +82,7 @@ const allTokens: TokenType[] = [
   Archived,
   Trashed,
   RootAlbum,
+  ParentAlbum,
   Comma,
   BooleanValue,
   Identifier
@@ -137,7 +140,8 @@ export class MyParser extends CstParser {
       { ALT: () => this.SUBRULE(this.favoriteExpression) },
       { ALT: () => this.SUBRULE(this.archivedExpression) },
       { ALT: () => this.SUBRULE(this.trashedExpression) },
-      { ALT: () => this.SUBRULE(this.rootAlbumExpression) }
+      { ALT: () => this.SUBRULE(this.rootAlbumExpression) },
+      { ALT: () => this.SUBRULE(this.parentAlbumExpression) }
     ])
   })
 
@@ -196,6 +200,10 @@ export class MyParser extends CstParser {
   public rootAlbumExpression = this.RULE('rootAlbumExpression', () => {
     this.CONSUME1(RootAlbum)
     this.CONSUME2(BooleanValue)
+  })
+  public parentAlbumExpression = this.RULE('parentAlbumExpression', () => {
+    this.CONSUME1(ParentAlbum)
+    this.CONSUME2(Identifier)
   })
 }
 
@@ -278,6 +286,9 @@ export class MyVisitor extends BaseVisitor {
     if (children.rootAlbumExpression) {
       return this.visit(children.rootAlbumExpression)
     }
+    if (children.parentAlbumExpression) {
+      return this.visit(children.parentAlbumExpression)
+    }
   }
 
   // Visit a tagExpression node
@@ -338,5 +349,8 @@ export class MyVisitor extends BaseVisitor {
   }
   rootAlbumExpression(children: RootAlbumExpressionCstChildren) {
     return { RootAlbum: getArrayValue(children.BooleanValue, 0).image === 'true' }
+  }
+  parentAlbumExpression(children: ParentAlbumExpressionCstChildren) {
+    return { ParentAlbum: unescapeAndUnwrap(getArrayValue(children.Identifier, 0).image) }
   }
 }
