@@ -194,25 +194,6 @@ mod tests {
         (timestamp, index, token)
     }
 
-    /// GET /get/get-data for a single index, authenticated the way the
-    /// frontend does (Bearer timestamp token from prefetch), and return its
-    /// `abstractData` object — exactly what the sidepane reads from.
-    fn get_data_item(client: &Client, timestamp: i64, index: usize, token: &str) -> Value {
-        let resp = client
-            .get(format!(
-                "/get/get-data?timestamp={timestamp}&start={index}&end={}",
-                index + 1
-            ))
-            .header(rocket::http::Header::new(
-                "Authorization",
-                format!("Bearer {token}"),
-            ))
-            .dispatch();
-        assert_eq!(resp.status(), Status::Ok, "get-data must succeed");
-        let body: Value = serde_json::from_str(&resp.into_string().unwrap()).expect("valid JSON");
-        body.as_array().expect("array")[0]["abstractData"].clone()
-    }
-
     /// `prefetch_locate` + `get_data_item`, with a fresh re-prefetch on
     /// failure rather than blindly re-requesting the same (now possibly
     /// invalid) timestamp.
@@ -934,19 +915,21 @@ mod tests {
         );
     }
 
-    // ─── Scenario L: dir-album membership is not reflected in the explicit
+    // ─── Scenario L: dir-album membership is reflected in the explicit
     // `album` field at index time ───────────────────────────────────────────
 
-    /// KNOWN BUG (see TODO.md "Known bugs"): the explicit per-photo `album`
-    /// field — the one the info sidepane and `AssignAlbumModal`'s "current
-    /// album" badge read — is only ever set by `PUT /put/assign_album`.
-    /// Normal indexing (including the filesystem-watcher path exercised
-    /// here through `index_for_watch`) never sets it for directory-
-    /// hierarchy albums, even though the file is physically inside the
-    /// album's directory and IS correctly counted by path-based album
-    /// membership (`generate_filter.rs`). This is why the sidepane always
-    /// shows "No album" until a photo is manually (re-)assigned.
-    /// RED until indexing sets the explicit field too.
+    /// Regression test for a fixed bug (see TODO.md "Known bugs"): the
+    /// explicit per-photo `album` field — the one the info sidepane and
+    /// `AssignAlbumModal`'s "current album" badge read — used to be set
+    /// only by `PUT /put/assign_album`. Normal indexing (including the
+    /// filesystem-watcher path exercised here through `index_for_watch`)
+    /// never set it for directory-hierarchy albums, even though the file
+    /// was physically inside the album's directory and correctly counted
+    /// by path-based album membership (`generate_filter.rs`) — causing the
+    /// sidepane to always show "No album" until a photo was manually
+    /// (re-)assigned. Fixed by resolving the file's parent directory's
+    /// dir-album (`workflow::ensure_dir_albums` / `get_album_id_for_dir`)
+    /// and passing it through as the indexed item's album.
     // Note: these scenarios use a plain `#[test]` plus a throwaway Tokio
     // runtime for just the `index_for_watch` call, rather than
     // `#[tokio::test]`. `TEST_ENV`'s lazy initialiser drives a
@@ -996,17 +979,18 @@ mod tests {
         );
     }
 
-    // ─── Scenario M: watcher re-indexing after assign_album duplicates the
-    // alias entry ──────────────────────────────────────────────────────────
+    // ─── Scenario M: watcher re-indexing after assign_album does not
+    // duplicate the alias entry ─────────────────────────────────────────────
 
-    /// KNOWN BUG: `assign_album` renames the file on disk, which the
-    /// filesystem watcher (`start_watcher.rs`) observes as a `Create` event
-    /// at the destination path and re-indexes via
+    /// Regression test for a fixed bug: `assign_album` renames the file on
+    /// disk, which the filesystem watcher (`start_watcher.rs`) observes as
+    /// a `Create` event at the destination path and re-indexes via
     /// `index_for_watch(path, None)`. Since the hash already exists,
-    /// `DeduplicateTask` (`deduplicate.rs`) pushes another alias entry for
-    /// the *same* path instead of recognising it already matches the
-    /// current alias, so the alias list grows by one entry on every
-    /// reassignment. RED until that's fixed.
+    /// `DeduplicateTask` (`deduplicate.rs`) used to push another alias
+    /// entry for the *same* path instead of recognising it already
+    /// matched the current alias, so the alias list grew by one entry on
+    /// every reassignment. Fixed by pruning dead aliases and skipping the
+    /// push when the path is already present.
     #[test]
     fn scenario_m_watcher_reindex_after_assign_duplicates_alias() {
         let data = {
@@ -1197,11 +1181,10 @@ mod tests {
     // ─── Scenario Q: the album assigned via the API is visible via GET
     // /get/get-data (the same field the sidebar reads) ─────────────────────
 
-    /// Regression lock: confirms the part of the album feature that DOES
-    /// work today — once `assign_album` has set the explicit field, the
-    /// sidebar's actual data path (prefetch -> get-data) reflects it
-    /// immediately. Contrast with Scenario L, where indexing alone never
-    /// sets this field in the first place.
+    /// Regression lock: once `assign_album` has set the explicit field,
+    /// the sidebar's actual data path (prefetch -> get-data) reflects it
+    /// immediately. Complements Scenario L, which locks in that indexing
+    /// itself also sets this field.
     #[test]
     fn scenario_q_album_visible_via_get_data_after_assign() {
         let _serial = PREFETCH_SERIAL_GUARD.lock().unwrap();
@@ -1241,16 +1224,16 @@ mod tests {
     }
 
     // ─── Scenario R: a file moved externally (no assign_album involved)
-    // accumulates a permanently dead alias entry ───────────────────────────
+    // does not keep a dead alias entry ──────────────────────────────────────
 
-    /// KNOWN BUG, generalising Scenario M: `DeduplicateTask` (deduplicate.rs)
-    /// only ever *pushes* a new alias entry when it re-discovers a known
-    /// hash at a different path — it never prunes entries whose `file` no
-    /// longer exists on disk. If a user moves a tracked file with a file
-    /// manager (not through `assign_album`), the watcher re-indexes it at
-    /// the new path, and the old, now-nonexistent path stays in `alias`
-    /// forever. RED until dead aliases are pruned (or replaced) on
-    /// rediscovery.
+    /// Regression test for a fixed bug, generalising Scenario M:
+    /// `DeduplicateTask` (deduplicate.rs) used to only ever *push* a new
+    /// alias entry when it re-discovered a known hash at a different
+    /// path — it never pruned entries whose `file` no longer existed on
+    /// disk. If a user moved a tracked file with a file manager (not
+    /// through `assign_album`), the watcher would re-index it at the new
+    /// path, and the old, now-nonexistent path would stay in `alias`
+    /// forever. Fixed by the same dead-alias pruning as Scenario M.
     #[test]
     fn scenario_r_externally_moved_file_keeps_dead_alias_entry() {
         let data = {

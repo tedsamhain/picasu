@@ -1,4 +1,4 @@
-use crate::operations::dir_album::get_or_create_dir_album;
+use crate::operations::dir_album::{get_album_id_for_dir, get_or_create_dir_album};
 use crate::operations::utils::sync_paths::get_resolved_sync_paths;
 use crate::tasks::{
     INDEX_COORDINATOR,
@@ -32,40 +32,38 @@ fn try_acquire(hash: ArrayString<64>) -> Option<ProcessingGuard> {
 }
 
 /// Ensure directory albums exist for every directory level between the nearest
-/// sync root and the file's parent.
-async fn ensure_dir_albums(file_path: &std::path::Path) {
+/// sync root and the file's parent, returning the deepest one (i.e. the
+/// album for the file's immediate parent directory), or `None` if the file
+/// isn't under any configured sync root or sits directly in a sync root
+/// (no sub-directory to album-map).
+async fn ensure_dir_albums(file_path: &std::path::Path) -> Option<ArrayString<64>> {
     let sync_paths = get_resolved_sync_paths();
 
-    let Some(file_dir) = file_path.parent() else {
-        return;
-    };
+    let file_dir = file_path.parent()?;
 
-    let Some(sync_root) = sync_paths
+    let sync_root = sync_paths
         .iter()
-        .find(|root| file_dir.starts_with(root.as_path()))
-    else {
-        return;
-    };
+        .find(|root| file_dir.starts_with(root.as_path()))?;
 
     // Files directly in the sync root have no sub-directory to album-map.
     if file_dir == sync_root.as_path() {
-        return;
+        return None;
     }
 
-    let Ok(relative) = file_dir.strip_prefix(sync_root.as_path()) else {
-        return;
-    };
+    let relative = file_dir.strip_prefix(sync_root.as_path()).ok()?;
 
     let mut current = sync_root.clone();
+    let mut deepest_album_id = None;
     for component in relative.components() {
         current.push(component);
         let dir_for_closure = current.clone();
         match tokio::task::spawn_blocking(move || get_or_create_dir_album(dir_for_closure)).await {
-            Ok(Ok(_)) => {}
+            Ok(Ok(id)) => deepest_album_id = Some(id),
             Ok(Err(e)) => warn!("Failed to ensure dir album for {}: {e}", current.display()),
             Err(e) => warn!("spawn_blocking failed in ensure_dir_albums: {e}"),
         }
     }
+    deepest_album_id
 }
 
 pub async fn index_for_watch(
@@ -74,9 +72,19 @@ pub async fn index_for_watch(
 ) -> Result<()> {
     let path = path.clean();
 
-    // Ensure filesystem-hierarchy albums exist for this file's directory chain.
-    // Album membership is path-based; no IDs are passed to DeduplicateTask.
-    ensure_dir_albums(&path).await;
+    // Resolve the dir-album for the file's immediate parent directory —
+    // unless an explicit (presigned) album was given, e.g. by an upload
+    // targeting a specific album, which takes priority. Check the cache
+    // first (the directory may already be a known dir-album, e.g. loaded
+    // at startup or created some other way) before falling back to
+    // `ensure_dir_albums`'s sync-root walk, which also creates any missing
+    // intermediate albums for a brand-new directory.
+    let already_known_album_id = path.parent().and_then(get_album_id_for_dir);
+    let resolved_dir_album_id = match already_known_album_id {
+        Some(id) => Some(id),
+        None => ensure_dir_albums(&path).await,
+    };
+    let album_id_opt = presigned_album_id_opt.or(resolved_dir_album_id);
 
     let file = INDEX_COORDINATOR
         .execute_waiting(OpenFileTask::new(path.clone()))
@@ -95,11 +103,7 @@ pub async fn index_for_watch(
     };
 
     let abstract_data_opt = INDEX_COORDINATOR
-        .execute_waiting(DeduplicateTask::new(
-            path.clone(),
-            hash,
-            presigned_album_id_opt,
-        ))
+        .execute_waiting(DeduplicateTask::new(path.clone(), hash, album_id_opt))
         .await??;
 
     // If the file is already in the database, we can skip further processing.

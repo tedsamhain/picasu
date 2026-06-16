@@ -6,7 +6,7 @@ use crate::{
 use anyhow::Result;
 use arrayvec::ArrayString;
 use mini_executor::Task;
-use std::{mem, path::PathBuf};
+use std::{mem, path::Path, path::PathBuf};
 use tokio::task::spawn_blocking;
 
 pub struct DeduplicateTask {
@@ -50,7 +50,16 @@ fn deduplicate_task(task: &DeduplicateTask) -> Result<Option<AbstractData>> {
         if let Some(alias_mut) = abstract_data.alias_mut() {
             let file_modify = mem::take(&mut alias_mut[0]);
             if let Some(exist_alias) = data_exist.alias_mut() {
-                exist_alias.push(file_modify);
+                // Drop any recorded alias whose file no longer exists on
+                // disk (e.g. the file was moved away from that path since
+                // it was last indexed), then add the current path only if
+                // it isn't already present — otherwise rediscovering the
+                // same file at its current, unchanged path would duplicate
+                // the entry on every watcher re-index.
+                exist_alias.retain(|a| Path::new(&a.file).exists());
+                if !exist_alias.iter().any(|a| a.file == file_modify.file) {
+                    exist_alias.push(file_modify);
+                }
             }
         }
         if let Some(album_id) = task.presigned_album_id {

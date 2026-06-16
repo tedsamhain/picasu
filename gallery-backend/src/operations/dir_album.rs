@@ -92,6 +92,14 @@ pub fn get_parent_album_id(dir_path: &Path) -> Option<ArrayString<64>> {
     DIR_ALBUM_CACHE.lock().unwrap().get(parent).copied()
 }
 
+/// Return the album ID for `dir_path` itself, if it is already a known
+/// filesystem-hierarchy album — regardless of whether it was registered via
+/// `ensure_dir_albums`'s sync-root walk or some other path (e.g. created
+/// directly by a test, or loaded at startup by `init_dir_album_cache`).
+pub fn get_album_id_for_dir(dir_path: &Path) -> Option<ArrayString<64>> {
+    DIR_ALBUM_CACHE.lock().unwrap().get(dir_path).copied()
+}
+
 /// Return the directory path corresponding to `album_id`, or `None` if it is
 /// not a filesystem-hierarchy album (or has not been loaded into the cache yet).
 pub fn get_dir_path_for_album(album_id: ArrayString<64>) -> Option<PathBuf> {
