@@ -116,7 +116,7 @@ These values are based on actual runtime RSS (resident memory) usage of the `uro
    docker compose up -d
    ```
 
-   This pulls `hsa00000/urocissa:latest` and starts it, storing config/data/images under `./urocissa-data/` (see `docker-compose.yml` at the repo root). To build the image from source instead of pulling, see the commented-out `build:` section in `docker-compose.yml`.
+   This pulls `hsa00000/urocissa:latest` and starts it, storing config/data/images under `./urocissa-data/` (see `compose.yaml` at the repo root). To build the image from source instead of pulling, see the commented-out `build:` section in `compose.yaml`.
 
 You can access the app using the following link:
 

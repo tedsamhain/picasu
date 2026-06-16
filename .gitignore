@@ -23,8 +23,8 @@ gallery-backend/object
 # `just run`'s dev sandbox (data dir + test galleries, see docs/CONFIG.md)
 /sandbox/
 
-# Local docker-compose overrides + the bind-mounted volume dirs from docker-compose.yml
-docker-compose.override.yml
+# Local compose overrides + the bind-mounted volume dirs from compose.yaml
+compose.override.yaml
 urocissa-data/
 
 # Ignore installer executables

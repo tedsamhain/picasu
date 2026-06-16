@@ -99,7 +99,7 @@ manually-launched dev instance at a throwaway sandbox directory
 `UROCISSA_IMAGE_HOME=sandbox/images` as a place to drop test galleries.
 
 The Docker image (`Dockerfile` at repo root) sets these to fixed in-image
-paths (`/config`, `/data`, `/images`); `docker-compose.yml` bind-mounts host
+paths (`/config`, `/data`, `/images`); `compose.yaml` bind-mounts host
 directories onto them. See the README's Docker quick-setup section.
 
 > **Note:** the data directory holds real, back-up-worthy data, not disposable

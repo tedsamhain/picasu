@@ -59,7 +59,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Fixed in-image storage roots. Bind-mount host directories onto these in
-# `docker-compose.yml`/`docker run -v`, rather than relying on Urocissa's
+# `compose.yaml`/`docker run -v`, rather than relying on Urocissa's
 # own portable/installed-mode autodetection or moving files into a
 # user-supplied path at container startup. See docs/CONFIG.md.
 ENV UROCISSA_CONFIG_HOME=/config
