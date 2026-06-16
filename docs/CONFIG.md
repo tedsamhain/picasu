@@ -45,6 +45,14 @@ These settings control the server's public-facing behavior.
 | `readOnlyMode`     | boolean        | `false`      | If `true`, the gallery runs in read-only mode — uploads, edits, and deletions are disabled.                                                                          |
 | `disableImg`       | boolean        | `false`      | If `true`, disables image processing in the frontend. **Intended for debugging only; do not use in production.**                                                     |
 
+**Backfilling pre-existing files:** the filesystem watcher only reacts to
+*future* create/modify events — it does not scan files already sitting
+under `imagePath` when the app starts (e.g. a volume populated before first
+run). After setting `imagePath`, use **Settings → One-Time Import → Scan
+Image Path** to index what's already there; unlike importing an arbitrary
+external folder, this always targets the configured `imagePath` itself, so
+album hierarchy is built from the directory structure correctly.
+
 ## Private Settings
 
 These settings handle sensitive security and authentication data.

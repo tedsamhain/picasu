@@ -14,6 +14,7 @@ use tokio::task::JoinHandle;
 use walkdir::{DirEntry, WalkDir};
 
 use crate::{
+    operations::utils::image_path::get_resolved_image_path,
     public::{
         constant::storage::get_data_path,
         error::{AppError, ErrorKind},
@@ -91,6 +92,43 @@ pub fn folder_import_status() -> FolderImportStatus {
 
 pub fn start_folder_import(path: &str) -> AppResult<()> {
     let root = canonicalize_import_root(path)?;
+    start_import_job(root)
+}
+
+/// Scan the currently configured `imagePath` for files the watcher hasn't
+/// seen yet, and (re-)index them.
+///
+/// The watcher only reacts to *future* filesystem `Create`/`Modify` events
+/// (see `start_watcher.rs`) — it never walks files already sitting under
+/// `imagePath` when it starts, e.g. a Docker volume populated before first
+/// run. Unlike [`start_folder_import`], the root here is always the
+/// configured `imagePath` itself, so `ensure_dir_albums` (which only
+/// creates albums for files under that root) reliably builds the album
+/// hierarchy from the directory structure, and XMP/EXIF tag discovery runs
+/// the same way it does for any indexed file. Safe to re-run: already-known
+/// hashes short-circuit to `DeduplicateTask`'s merge branch.
+pub fn start_image_home_scan() -> AppResult<()> {
+    let root = get_resolved_image_path().ok_or_else(|| {
+        AppError::new(
+            ErrorKind::InvalidInput,
+            "No imagePath configured to scan — set one in Settings first",
+        )
+    })?;
+
+    if !root.is_dir() {
+        return Err(AppError::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "Configured imagePath {} does not exist or is not a directory",
+                root.display()
+            ),
+        ));
+    }
+
+    start_import_job(root)
+}
+
+fn start_import_job(root: PathBuf) -> AppResult<()> {
     let internal_roots = internal_subtree_roots();
 
     if is_inside_internal_subtree(&root, &internal_roots) {

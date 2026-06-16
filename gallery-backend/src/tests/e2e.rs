@@ -35,6 +35,9 @@ mod tests {
     use crate::router::builder::build_rocket_with_config;
     use crate::tasks::BATCH_COORDINATOR;
     use crate::tasks::actor::album::album_task;
+    use crate::tasks::actor::folder_import::{
+        FolderImportState, folder_import_status, start_image_home_scan,
+    };
     use crate::tasks::batcher::flush_tree::FlushTreeTask;
     use crate::workflow::index_for_watch;
 
@@ -1432,5 +1435,87 @@ mod tests {
                 "bare-name search must return absolute paths, got {path:?}"
             );
         }
+    }
+
+    // ─── Scenario U: scanning the configured imagePath discovers both
+    // album hierarchy and XMP keyword tags ─────────────────────────────────
+
+    /// `start_image_home_scan` always targets the configured `imagePath`
+    /// (unlike `start_folder_import`, which accepts any path), so unlike
+    /// importing an arbitrary external folder, scanning must reliably
+    /// build the album from the directory structure. Also exercises that
+    /// XMP keyword discovery runs the same way through this entry point as
+    /// it does for the watcher/one-time-import paths (Scenario N).
+    #[test]
+    fn scenario_u_image_home_scan_discovers_albums_and_tags() {
+        let data = {
+            let _ = &*TEST_ENV;
+            DATA_PATH.get().expect("DATA_PATH initialised")
+        };
+
+        let image_home = data.join("e2e_u_image_home");
+        let album_dir = image_home.join("vacation");
+        std::fs::create_dir_all(&album_dir).expect("create album dir");
+
+        let photo_path = album_dir.join("e2e_u_photo.jpg");
+        write_real_jpeg_with_xmp_keywords(&photo_path, [10, 20, 30], &["e2e_u_sunset"]);
+
+        // Point the configured imagePath at our fixture root, scoped to
+        // this test (reset at the end so later tests aren't affected).
+        {
+            let mut config = APP_CONFIG.get().unwrap().write().unwrap();
+            config.public.image_path = Some(image_home.clone());
+        }
+
+        start_image_home_scan().expect("start_image_home_scan must accept the job");
+
+        let rt = tokio::runtime::Runtime::new().expect("build runtime");
+        rt.block_on(async {
+            for _ in 0..100 {
+                if folder_import_status().state != FolderImportState::Running {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+            wait_for_flush().await;
+        });
+
+        {
+            let mut config = APP_CONFIG.get().unwrap().write().unwrap();
+            config.public.image_path = None;
+        }
+
+        let status = folder_import_status();
+        assert_eq!(
+            status.state,
+            FolderImportState::Completed,
+            "scan must complete: {status:?}"
+        );
+        assert_eq!(
+            status.processed, 1,
+            "must process exactly the one fixture photo"
+        );
+
+        let hash = find_hash_by_alias_path(&photo_path);
+        let txn = TREE.in_disk.begin_read().expect("begin read");
+        let table = txn.open_table(DATA_TABLE).expect("open table");
+        let guard = table
+            .get(hash.as_str())
+            .expect("redb get")
+            .expect("indexed record must be in redb");
+        let abstract_data = guard.value();
+
+        assert!(
+            abstract_data.album().is_some(),
+            "scanning the configured imagePath must assign an album from \
+             the discovered directory hierarchy"
+        );
+
+        let tags = abstract_data.tag();
+        assert!(
+            tags.contains("e2e_u_sunset"),
+            "keywords embedded in the file's XMP packet must be discovered \
+             during the scan, same as any other indexing path (got {tags:?})"
+        );
     }
 }

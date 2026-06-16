@@ -15,6 +15,7 @@ pub fn generate_post_routes() -> Vec<Route> {
         create_dir_album::create_dir_album,
         import_config::import_config_handler,
         import_folder::start_folder_import_handler,
+        import_folder::start_image_home_scan_handler,
         import_folder::cancel_folder_import_handler
     ]
 }

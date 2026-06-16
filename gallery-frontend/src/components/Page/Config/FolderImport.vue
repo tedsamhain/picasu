@@ -5,6 +5,33 @@
       <v-divider thickness="4" variant="double"></v-divider>
 
       <v-list-item
+        title="Scan Image Path"
+        :subtitle="
+          imagePath
+            ? `Index existing files under ${imagePath} the watcher hasn't seen yet`
+            : 'Set an Image Path above first'
+        "
+        prepend-icon="mdi-folder-refresh-outline"
+        lines="two"
+      >
+        <template #append>
+          <v-btn
+            color="primary"
+            variant="flat"
+            prepend-icon="mdi-magnify-scan"
+            class="text-none font-weight-medium"
+            :disabled="!imagePath || isRunning"
+            :loading="scanLoading"
+            @click="startScan"
+          >
+            Scan Now
+          </v-btn>
+        </template>
+      </v-list-item>
+
+      <v-divider></v-divider>
+
+      <v-list-item
         title="Import Folder"
         :subtitle="selectedPath || 'No folder selected'"
         prepend-icon="mdi-folder-arrow-down-outline"
@@ -79,9 +106,11 @@ import {
   cancelFolderImport,
   getFolderImportStatus,
   startFolderImport,
+  startImageHomeScan,
   type FolderImportStatus,
   type FolderImportState
 } from '@/api/fs'
+import { useConfigStore } from '@/store/configStore'
 import { useMessageStore } from '@/store/messageStore'
 import { tryWithMessageStore } from '@/script/utils/try_catch'
 import ServerFilePicker from './ServerFilePicker.vue'
@@ -98,15 +127,18 @@ const emptyStatus = (): FolderImportStatus => ({
   cancelRequested: false
 })
 
+const configStore = useConfigStore('mainId')
 const messageStore = useMessageStore('mainId')
 
 const selectedPath = ref('')
 const showFilePicker = ref(false)
 const loading = ref(false)
+const scanLoading = ref(false)
 const cancelLoading = ref(false)
 const status = ref<FolderImportStatus>(emptyStatus())
 let pollTimer: ReturnType<typeof setInterval> | undefined
 
+const imagePath = computed(() => configStore.config?.imagePath ?? null)
 const isRunning = computed(() => status.value.state === 'running')
 
 const counters = computed(() => [
@@ -177,6 +209,26 @@ const refreshStatus = async () => {
 
 const onFilePickerSelect = (path: string) => {
   selectedPath.value = path
+}
+
+const startScan = async () => {
+  if (imagePath.value === null) {
+    messageStore.error('Set an Image Path before scanning')
+    return
+  }
+
+  scanLoading.value = true
+  const success = await tryWithMessageStore('mainId', async () => {
+    await startImageHomeScan()
+    return true
+  })
+
+  if (success === true) {
+    messageStore.success('Image path scan started')
+    await refreshStatus()
+  }
+
+  scanLoading.value = false
 }
 
 const startImport = async () => {
