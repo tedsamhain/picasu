@@ -106,19 +106,32 @@ build: frontend-build backend-build
 [group('global')]
 audit: backend-audit backend-deny frontend-audit
 
-# Pre-commit check: format + check + test for each modified component
+# Pre-commit check: run format + linter/static checks.
+# On main, we enforce full tests as well. This is to support
+# test-driven development in development branches.
+# Developers know best which tests to fix and what to delegate to CI,
+# but then again, these are safe defaults when people are in a hurry.
 [group('global')]
 precommit:
     #!/usr/bin/env sh
     set -e
+    branch=$(git rev-parse --abbrev-ref HEAD)
     changed=$(git diff --cached --name-only)
+
+    if [ "$branch" = "main" ]; then
+        echo "[ precommit ] On main — full test suite is required to pass."
+        just format
+        just check
+        just test
+        exit 0
+    fi
+
+    echo "[ precommit ] On '$branch' — format/lint enforced; run tests at your disgression."
     if echo "$changed" | grep -q '^gallery-backend/'; then
         just backend-format
         just backend-check
-        just backend-test
     fi
     if echo "$changed" | grep -q '^gallery-frontend/'; then
         just frontend-format
         just frontend-check
-        just frontend-test
     fi
