@@ -50,7 +50,14 @@ export function useHandleClick(
         const hashOrId = abstractData.id
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (hashOrId !== undefined) {
-          const page = route.meta.getChildPage(route, hashOrId)
+          const page =
+            abstractData.type === 'album'
+              ? {
+                  name: 'albumsReadPage',
+                  params: { hash: hashOrId },
+                  query: route.query
+                }
+              : route.meta.getChildPage(route, hashOrId)
           router
             .push(page)
 

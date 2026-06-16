@@ -17,22 +17,6 @@
     >
       <template #home-toolbar>
         <HomeIsolatedBar :album="album" />
-        <div v-if="childAlbums.length > 0" class="child-albums-strip px-3 py-2 bg-surface">
-          <div class="text-caption text-medium-emphasis mb-1">Sub-albums</div>
-          <div class="d-flex flex-wrap gap-2">
-            <v-chip
-              v-for="child in childAlbums"
-              :key="child.albumId"
-              variant="tonal"
-              color="primary"
-              size="small"
-              style="cursor: pointer"
-              @click="navigateToChildAlbum(child.albumId)"
-            >
-              {{ child.displayName }}
-            </v-chip>
-          </div>
-        </div>
       </template>
     </Home>
   </v-overlay>
@@ -41,7 +25,7 @@
 import Home from './Home.vue'
 import HomeIsolatedBar from '@/components/NavBar/HomeBars/HomeIsolatedBar.vue'
 import { GalleryAlbum } from '@type/types'
-import { computed, onBeforeMount, Ref, ref, watch } from 'vue'
+import { computed, Ref, ref, watch } from 'vue'
 import { useCollectionStore } from '@/store/collectionStore'
 import { LocationQueryValue, useRoute, useRouter } from 'vue-router'
 import { useDataStore } from '@/store/dataStore'
@@ -52,7 +36,12 @@ const router = useRouter()
 const dataStore = useDataStore('mainId')
 const albumStore = useAlbumStore('mainId')
 const album: Ref<GalleryAlbum | undefined> = ref(undefined)
-const basicString: Ref<string | null> = ref(null)
+
+const basicString = computed<string | null>(() => {
+  const id = route.params.hash
+  if (typeof id !== 'string') return null
+  return `and(trashed:false, or(album:"${id}", parent_album:"${id}"))`
+})
 
 const searchString = ref<LocationQueryValue | LocationQueryValue[] | undefined>(null)
 const collectionStore = useCollectionStore('subId')
@@ -102,17 +91,6 @@ const reverseKey = computed(() => {
 
 const hashKey = computed(() => (typeof route.params.hash === 'string' ? route.params.hash : ''))
 
-// Child dir-albums whose parentAlbumId matches the current album.
-const childAlbums = computed(() => {
-  if (!album.value || !albumStore.fetched) return []
-  const currentId = album.value.id
-  return [...albumStore.albums.values()].filter((a) => a.parentAlbumId === currentId)
-})
-
-function navigateToChildAlbum(childId: string) {
-  void router.push({ name: 'albumsReadPage', params: { hash: childId } })
-}
-
 // This forces ONLY the isolated Home to remount when subSearch changes
 const isolatedHomeKey = computed(() => {
   return `isolated-${hashKey.value}-${subSearchKey.value}-${locateKey.value}-${priorityKey.value}-${reverseKey.value}`
@@ -126,31 +104,55 @@ watch(
   { immediate: true }
 )
 
-onBeforeMount(() => {
-  const hash = route.params.hash
-  if (typeof hash === 'string') {
+function albumFromStore(id: string): GalleryAlbum | undefined {
+  const info = albumStore.albums.get(id)
+  if (info === undefined) return undefined
+  return {
+    type: 'album' as const,
+    id: info.albumId,
+    title: info.albumName,
+    startTime: null,
+    endTime: null,
+    lastModifiedTime: 0,
+    cover: null,
+    thumbhash: null,
+    tags: [],
+    itemCount: 0,
+    itemSize: 0,
+    pending: false,
+    description: null,
+    isFavorite: false,
+    isArchived: false,
+    isTrashed: false,
+    updateAt: 0,
+    shareList: info.shareList
+  }
+}
+
+watch(
+  () => route.params.hash,
+  (hash) => {
+    album.value = undefined
+    if (typeof hash !== 'string') return
     const index = dataStore.hashMapData.get(hash)
     if (index !== undefined) {
       const data = dataStore.data.get(index)
       if (data?.type === 'album') {
         album.value = data
+        return
       }
     }
-  }
-
-  const album_id = route.params.hash
-  if (typeof album_id === 'string') {
-    basicString.value = `and(album:"${album_id}", trashed:false)`
-  }
-
-  if (!albumStore.fetched) {
-    void albumStore.fetchAlbums()
-  }
-})
+    album.value = albumFromStore(hash)
+    if (album.value === undefined && !albumStore.fetched) {
+      void albumStore.fetchAlbums().then(() => {
+        if (route.params.hash === hash) {
+          album.value ??= albumFromStore(hash)
+        }
+      })
+    }
+  },
+  { immediate: true }
+)
 </script>
 
-<style scoped>
-.child-albums-strip {
-  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
-</style>
+<style scoped></style>

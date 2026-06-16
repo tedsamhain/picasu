@@ -24,6 +24,17 @@
       />
     </div>
     <div
+      v-else-if="albumFallback !== undefined"
+      class="pa-0 h-100 w-100 d-flex position-relative bg-background"
+    >
+      <ViewPageDisplay
+        :abstract-data="albumFallback"
+        :index="0"
+        :hash="hash"
+        :isolation-id="isolationId"
+      />
+    </div>
+    <div
       v-else
       fluid
       class="pa-0 h-100 overflow-hidden position-relative"
@@ -40,15 +51,17 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDataStore } from '@/store/dataStore'
+import { useAlbumStore } from '@/store/albumStore'
 import ViewPageDisplay from '@/components/View/Display/Display.vue'
 import ViewPageMetadata from '@/components/View/Metadata/ViewPageMetadata.vue'
-import { IsolationId } from '@type/types'
+import { IsolationId, EnrichedUnifiedData } from '@type/types'
 import { useConstStore } from '@/store/constStore'
 const props = defineProps<{
   isolationId: IsolationId
 }>()
 
 const dataStore = useDataStore(props.isolationId)
+const albumStore = useAlbumStore('mainId')
 const route = useRoute()
 const router = useRouter()
 const constStore = useConstStore('mainId')
@@ -83,6 +96,37 @@ const abstractData = computed(() => {
     return dataStore.data.get(index.value)
   } else {
     return undefined
+  }
+})
+
+// Sub-albums are not in the main page's dataStore (only root albums are loaded there).
+// When index is undefined and isolationId is mainId, try albumStore so DisplayAlbum.vue
+// can mount and provide its router-view for HomeIsolated at level 3.
+const albumFallback = computed((): EnrichedUnifiedData | undefined => {
+  if (index.value !== undefined || props.isolationId !== 'mainId') return undefined
+  const info = albumStore.albums.get(hash.value)
+  if (!info) return undefined
+  return {
+    type: 'album',
+    id: info.albumId,
+    title: info.albumName,
+    startTime: null,
+    endTime: null,
+    lastModifiedTime: 0,
+    cover: null,
+    thumbhash: null,
+    tags: [],
+    itemCount: 0,
+    itemSize: 0,
+    pending: false,
+    description: null,
+    isFavorite: false,
+    isArchived: false,
+    isTrashed: false,
+    updateAt: 0,
+    shareList: Object.fromEntries(info.shareList),
+    thumbhashUrl: null,
+    timestamp: 0
   }
 })
 </script>

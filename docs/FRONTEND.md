@@ -229,13 +229,13 @@ Stores instantiated with the same ID are shared (Pinia singletons by ID). Passin
 | From level | Click on | Navigates to | Route name |
 |------------|----------|--------------|------------|
 | 1 (grid) | photo/video | level 2 viewer | `{baseName}ViewPage` |
-| 1 (grid) | album | level 3 album grid | `{baseName}ReadPage` |
+| 1 (grid) | album (any page) | level 3 album grid | **always `albumsReadPage`** |
 | 2 (DisplayAlbum) | "Enter Album" button | level 3 album grid | `{baseName}ReadPage` |
 | 3 (album grid) | photo/video | level 4 viewer | `{baseName}ReadViewPage` |
-| 3 (album grid) | sub-album | level 3 album grid for sub-album | `{baseName}ReadPage` |
+| 3 (album grid) | sub-album | level 3 album grid for sub-album | **always `albumsReadPage`** |
 | any | back gesture / ESC | one level up | `router.back()` |
 
-Clicking an album at level 1 or 3 goes directly to `{baseName}ReadPage` (level 3). Because level 2 sits between level 1 and 3 in the URL, `ViewPage.vue` at level 2 still mounts — it must render `DisplayAlbum.vue` to provide the `<router-view>` for level 3 (`HomeIsolated`).
+Album clicks always navigate to `albumsReadPage` regardless of which page triggered the click. This keeps all album content under `/albums/view/` semantically, and ensures `AlbumsPage`'s `dataStore` is the one backing album navigation. Because level 2 sits between level 1 and 3 in the URL, `ViewPage.vue` at level 2 still mounts — it must render `DisplayAlbum.vue` to provide the `<router-view>` for `HomeIsolated`.
 
 ---
 
