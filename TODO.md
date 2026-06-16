@@ -54,9 +54,9 @@
   hardcoded `../gallery-frontend/dist` relative path would resolve). No more entrypoint script —
   `ENTRYPOINT ["/app/urocissa"]` directly.
 - Runtime image sets fixed `UROCISSA_CONFIG_HOME=/config`, `UROCISSA_DATA_HOME=/data`,
-  `UROCISSA_IMAGE_HOME=/images`; `docker-compose.yml` (repo root) bind-mounts host dirs onto
+  `UROCISSA_IMAGE_HOME=/images`; `compose.yaml` (repo root) bind-mounts host dirs onto
   these instead of the app autodetecting or files being moved at startup.
-- `docker-compose.yml` added at repo root, replacing `run_urocissa_docker.sh` (~230 lines of
+- `compose.yaml` added at repo root, replacing `run_urocissa_docker.sh` (~230 lines of
   `sed`/`grep` JSON scraping of `syncPaths`/port — also now stale since `syncPaths` doesn't exist
   anymore). `run_urocissa_docker.sh` deleted; README's Docker quick-setup section now uses
   `docker compose up -d`.
