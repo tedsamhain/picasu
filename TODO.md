@@ -29,7 +29,13 @@
   - DEFERRED — not part of the storage-architecture fix below; xmp sidecars are a separate
     future step.
 
-## Storage architecture fix: stop duplicating originals into DATA_HOME (2026-06-16)
+## Storage architecture fix: stop duplicating originals into DATA_HOME (2026-06-16, DONE)
+
+Implemented in 4 sequenced commits exactly as planned below; full suite (75 tests) green
+throughout, no docker daemon available so no live-deployment verification was done beyond the
+in-process e2e suite. One follow-up still open, not part of this fix: `UROCISSA_STATE_HOME`
+(splitting `cache_db.redb`/`temp_db.redb`/`expire_db.redb` out of `DATA_HOME` into a true
+disposable-state dir) — see the standalone item further down.
 
 ### Problem (confirmed by code audit, not just the symptom)
 
@@ -130,39 +136,37 @@ before this was caught):
 - `docs/CONFIG.md` — note the no-migration decision (existing `object/imported/` is now dead,
   harmless, manually-deletable); document the upload-ingress-subfolder setting.
 
-### Test plan
+### Test plan — done
 
-- Update/extend `gallery-backend/src/tests/e2e.rs`:
-  - New scenario: upload with no `presignedAlbumId` lands in the ingress subfolder under `imagePath`
-    and is reachable via `assign_album` afterward (regression-locks the bug found above).
-  - New scenario: upload *with* `presignedAlbumId` writes directly into that album's real directory
-    (not a staging dir), and the file persists (not deleted) after indexing.
-  - New scenario: `GET /object/imported/<hash>.<ext>` serves the live file at its current
-    `source_path()`/`alias[0]`, including after `assign_album` has moved it (path changed, same
-    hash, must still serve correctly).
-  - New scenario: re-discovering the same file at an unchanged path does *not* emit the
-    duplicate-content warning; discovering identical content at a genuinely new path does (assert on
-    log output or refactor the warning into an observable side effect if cleaner to test); a pruned
-    stale alias emits its own distinct warning.
-  - Audit existing scenarios for incidental dependence on `object/imported/` existing — confirmed
-    via grep that none currently reference it directly, but re-run the full suite after each step
-    below to catch indirect breakage (e.g. thumbnail generation silently depending on copy timing).
-- Manual/live verification (no docker daemon in this dev environment, same caveat as the earlier
-  Docker rework): build, run against a real `imagePath` with subdirectories, upload with and without
-  a target album, confirm files appear under `imagePath` in the right place, confirm
-  `object/imported/` is never created, confirm download/view-original works, confirm `assign_album`
-  works for an uploaded photo.
+Added to `gallery-backend/src/tests/e2e.rs`:
+- `scenario_v` — `GET /object/imported/<hash>.<ext>` serves the live file via the real
+  prefetch → get-data → object/imported flow, including after `assign_album` moves it.
+- `scenario_w` — identical content at two simultaneously-existing paths is tracked as two live
+  aliases (the one case scenario_m/r didn't already cover).
+- `scenario_x` — upload with no `presignedAlbumId` lands in the ingress folder under `imagePath`
+  and is then reachable via `assign_album` (regression-locks the bug found above), via the real
+  multipart `/upload` endpoint.
+- `scenario_y` — upload *with* `presignedAlbumId` writes directly into that album's real
+  directory, via the real multipart `/upload` endpoint.
 
-### Suggested sequencing (separate, reviewable commits)
+Skipped: asserting on the new warning log lines directly (not practical with this project's
+current test setup, no log-capture infra) — covered behaviorally instead (scenario_m/r/w already
+exercise both the pruning and new-alias code paths; the warnings are an observability layer on
+top of unchanged, already-tested behavior).
 
-1. Switch all `imported_path()` readers to `source_path()` (no behavior change yet — `object/imported`
-   still gets written by `CopyTask`, just nothing reads it). Run full suite.
-2. Remove `CopyTask` + the `imported_path()` methods + rework `get_img.rs` serving. Run full suite.
-3. Add the alias-pruning/duplicate-detection warnings to `deduplicate_task`.
-4. Rework `post_upload.rs` to write into `IMAGE_HOME` (ingress subfolder + presigned-album-dir
-   cases); remove the now-dead upload-staging machinery (`delete_in_update.rs`,
-   `folder.rs`'s `upload/` creation, the `internal_subtree_roots` entry).
-5. Docs pass (`storage.rs`, `CONFIG.md`, this `TODO.md` entry marked resolved).
+Not done: live deployment verification (no docker daemon in this dev environment) — build,
+real `imagePath` with subdirectories, upload with/without a target album, confirm
+`object/imported/` is never created, confirm download/view-original works in a browser.
+
+### Sequencing — done, 4 commits
+
+1. Switch all `imported_path()` readers to `source_path()` (no behavior change yet).
+2. Remove `CopyTask` + the `imported_path()` methods + rework `get_img.rs` serving.
+3. Add the alias-pruning/duplicate-content `warn!`s to `deduplicate_task`.
+4. Rework `post_upload.rs` to write into `IMAGE_HOME`; remove the now-dead upload-staging
+   machinery (`delete_in_update.rs`, `folder.rs`'s `upload/` creation, the
+   `internal_subtree_roots` entry, `MAX_DELETE_ATTEMPTS`).
+5. This docs pass (`storage.rs`, `CONFIG.md`, this entry).
 
 - wrap image repo file operations and DB updates into a single transaction
   - the idea is to extend the DB consistency assurance to the photo repo
@@ -217,13 +221,14 @@ before this was caught):
   directly (non-Docker), now that storage locations are env-var-driven
   (`UROCISSA_CONFIG_HOME`/`UROCISSA_DATA_HOME`/`UROCISSA_IMAGE_HOME` set in the unit file rather
   than relying on autodetection).
-- [ ] `UROCISSA_STATE_HOME`: `UROCISSA_DATA_HOME` currently holds both irreplaceable data
-  (`db/index_v5.redb`, `object/imported/`) and genuinely disposable cache/staging files
-  (`db/cache_db.redb`, `db/temp_db.redb`, `db/expire_db.redb`, `upload/`). Splitting the latter
+- [ ] `UROCISSA_STATE_HOME`: `UROCISSA_DATA_HOME` holds `db/index_v5.redb` (irreplaceable —
+  the only store of record for tags/album-assignments/flags) alongside genuinely disposable
+  cache files (`db/cache_db.redb`, `db/temp_db.redb`, `db/expire_db.redb`). Splitting the latter
   into a proper state directory would make "what's safe to delete on reset" explicit instead of
   implicit in file names. Bigger change than the env var rename — touches each redb file's path
-  individually (`tree_snapshot/new.rs`, `query_snapshot/new.rs`, `expire/new.rs`,
-  `folder_import.rs`, `post_upload.rs`). Not done yet.
+  individually (`tree_snapshot/new.rs`, `query_snapshot/new.rs`, `expire/new.rs`). Not done yet.
+  (`object/imported/` and `upload/`, previously listed here, no longer exist — see "Storage
+  architecture fix" above.)
 
 ---
 
