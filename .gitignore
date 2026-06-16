@@ -1,4 +1,4 @@
-# Ignore all log files at the root level, typically generated with custom names by run_urocissa_docker.sh using --log-file
+# Ignore all log files at the root level
 /*.log
 
 # Prevent uploading development-related scripts and editor configuration files to the main branch
@@ -23,7 +23,9 @@ gallery-backend/object
 # `just run`'s dev sandbox (data dir + test galleries, see docs/CONFIG.md)
 /sandbox/
 
-docker/docker-compose.override.yml
+# Local docker-compose overrides + the bind-mounted volume dirs from docker-compose.yml
+docker-compose.override.yml
+urocissa-data/
 
 # Ignore installer executables
 *.exe

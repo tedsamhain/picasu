@@ -1,0 +1,19 @@
+# Ignore everything by default, then allow back in only what the Dockerfile
+# actually COPYs (gallery-backend/Cargo.*, src; gallery-frontend sources).
+**
+
+!gallery-backend/Cargo.lock
+!gallery-backend/Cargo.toml
+!gallery-backend/src
+!gallery-backend/src/**
+
+!gallery-frontend/package.json
+!gallery-frontend/package-lock.json
+!gallery-frontend/index.html
+!gallery-frontend/tsconfig.json
+!gallery-frontend/tsconfig.node.json
+!gallery-frontend/vite.config.ts
+!gallery-frontend/public
+!gallery-frontend/public/**
+!gallery-frontend/src
+!gallery-frontend/src/**

@@ -110,15 +110,15 @@ These values are based on actual runtime RSS (resident memory) usage of the `uro
    cd urocissa
    ```
 
-3. **Run the Launch Script**
-
-   Execute the `run_urocissa_docker.sh` script to launch Urocissa:
+3. **Launch with Docker Compose**
 
    ```bash
-   bash run_urocissa_docker.sh
+   docker compose up -d
    ```
 
-This script will launch Urocissa. You can access the app using the following link:
+   This pulls `hsa00000/urocissa:latest` and starts it, storing config/data/images under `./urocissa-data/` (see `docker-compose.yml` at the repo root). To build the image from source instead of pulling, see the commented-out `build:` section in `docker-compose.yml`.
+
+You can access the app using the following link:
 
 [http://127.0.0.1:5673](http://127.0.0.1:5673)
 
@@ -132,19 +132,12 @@ If you want to change the default port or configure a password, refer to the [Co
    git pull
    ```
 
-1. Pull the latest Docker image:
+2. Pull the latest image and restart:
 
    ```bash
-   docker pull hsa00000/urocissa:latest
+   docker compose pull
+   docker compose up -d
    ```
-
-1. Run the Docker script:
-
-   ```bash
-   bash run_urocissa_docker.sh
-   ```
-
-   This will update and launch Urocissa.
 
 ## Build from Source (Without Using Docker)
 
