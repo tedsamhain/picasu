@@ -60,8 +60,8 @@ pub fn process_image_info(abstract_data: &mut AbstractData) -> Result<()> {
 /// Re‑build all metadata for an existing **image** (e.g. after replace / fix).
 pub fn regenerate_metadata_for_image(abstract_data: &mut AbstractData) -> Result<()> {
     // Refresh size from filesystem
-    let size = metadata(abstract_data.imported_path())
-        .context("failed to read metadata for imported image file")?
+    let size = metadata(abstract_data.source_path())
+        .context("failed to read metadata for source image file")?
         .len();
     abstract_data.set_size(size);
 
@@ -111,8 +111,8 @@ pub fn process_video_info(abstract_data: &mut AbstractData) -> Result<()> {
 /// Re‑build all metadata for an existing **video** file.
 pub fn regenerate_metadata_for_video(abstract_data: &mut AbstractData) -> Result<()> {
     // Refresh size from filesystem metadata
-    let size = metadata(abstract_data.imported_path())
-        .context("failed to read metadata for imported video file")?
+    let size = metadata(abstract_data.source_path())
+        .context("failed to read metadata for source video file")?
         .len();
     abstract_data.set_size(size);
 

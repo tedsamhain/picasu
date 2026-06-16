@@ -19,14 +19,14 @@ static REGEX_OUT_TIME_US: LazyLock<Regex> =
 
 /// Compresses a video file, reporting progress by parsing ffmpeg's output.
 pub fn generate_compressed_video(abstract_data: &mut AbstractData) -> Result<()> {
-    let duration_result = video_duration(&abstract_data.imported_path_string());
+    let duration_result = video_duration(abstract_data.source_path_string());
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let duration = match duration_result {
         // Handle static GIFs by delegating to the image processor.
         Ok(d) if (d * 1000.0) as u32 == 100 => {
             info!(
                 "Static GIF detected. Processing as image: {:?}",
-                abstract_data.imported_path_string()
+                abstract_data.source_path_string()
             );
             abstract_data.convert_to_image();
             return process_image_info(abstract_data);
@@ -38,7 +38,7 @@ pub fn generate_compressed_video(abstract_data: &mut AbstractData) -> Result<()>
         {
             info!(
                 "Potentially corrupt or non-standard GIF. Processing as image: {:?}",
-                abstract_data.imported_path_string()
+                abstract_data.source_path_string()
             );
             abstract_data.convert_to_image();
             return process_image_info(abstract_data);
@@ -47,7 +47,7 @@ pub fn generate_compressed_video(abstract_data: &mut AbstractData) -> Result<()>
         Err(err) => {
             return Err(anyhow::anyhow!(
                 "Failed to get video duration for {:?}: {}",
-                abstract_data.imported_path_string(),
+                abstract_data.source_path_string(),
                 err
             ));
         }
@@ -57,7 +57,7 @@ pub fn generate_compressed_video(abstract_data: &mut AbstractData) -> Result<()>
     cmd.args([
         "-y", // Overwrite output file if it exists
         "-i",
-        &abstract_data.imported_path_string(),
+        abstract_data.source_path_string(),
         "-vf",
         // Scale video to a max height of 720p, ensuring dimensions are even.
         &format!(

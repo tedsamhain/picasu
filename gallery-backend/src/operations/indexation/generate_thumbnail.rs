@@ -65,7 +65,7 @@ pub fn generate_thumbnail_for_video(abstract_data: &AbstractData) -> Result<()> 
     cmd.args([
         "-y",
         "-i",
-        &abstract_data.imported_path_string(),
+        abstract_data.source_path_string(),
         "-ss",
         "0",
         "-vframes",

@@ -8,7 +8,7 @@ use std::path::PathBuf;
 /// from its thumbnail, adding *context* at every fallible step.
 pub fn generate_dynamic_image(abstract_data: &AbstractData) -> Result<DynamicImage> {
     let img_path = if abstract_data.is_image() {
-        abstract_data.imported_path()
+        abstract_data.source_path()
     } else {
         PathBuf::from(abstract_data.thumbnail_path())
     };

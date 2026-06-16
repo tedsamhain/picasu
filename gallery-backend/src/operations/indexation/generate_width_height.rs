@@ -12,12 +12,12 @@ pub fn generate_image_width_height(dynamic_image: &DynamicImage) -> (u32, u32) {
 /// Probe a video file using `ffprobe` (through `video_width_height`) to
 /// obtain `(width, height)`, adding explicit context to every `?` site.
 pub fn generate_video_width_height(abstract_data: &AbstractData) -> Result<(u32, u32)> {
-    let imported = abstract_data.imported_path_string();
+    let source = abstract_data.source_path_string();
 
-    let width = video_width_height("width", &imported)
-        .context(format!("failed to obtain video width for {imported:?}"))?;
-    let height = video_width_height("height", &imported)
-        .context(format!("failed to obtain video height for {imported:?}"))?;
+    let width = video_width_height("width", source)
+        .context(format!("failed to obtain video width for {source:?}"))?;
+    let height = video_width_height("height", source)
+        .context(format!("failed to obtain video height for {source:?}"))?;
 
     Ok((width, height))
 }
