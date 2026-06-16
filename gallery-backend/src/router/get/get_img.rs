@@ -1,3 +1,4 @@
+use crate::operations::open_db::open_data_table;
 use crate::public::constant::storage::get_data_path;
 use crate::public::error::{AppError, ErrorKind, ResultExt};
 use crate::router::{
@@ -74,6 +75,14 @@ pub async fn compressed_file(
     Ok(result)
 }
 
+/// Serve the original file directly from its current location under
+/// `imagePath` — there is no copy of it under `DATA_HOME`; `IMAGE_HOME` is
+/// the single, authoritative copy (see `docs/design.md` "Albums" and
+/// `TODO.md`'s "Storage architecture fix"). The route's `<file_path..>`
+/// segment is still `<hash-prefix>/<hash>.<ext>` for URL compatibility with
+/// the frontend and `GuardHashOriginal`'s validation, but only the hash
+/// (the file stem) is actually used, to look up the record's current
+/// `source_path()`.
 #[get("/object/imported/<file_path..>")]
 pub async fn imported_file(
     auth: GuardResult<GuardShare>,
@@ -82,18 +91,32 @@ pub async fn imported_file(
 ) -> AppResult<CompressedFileResponse<'static>> {
     let _ = auth?;
     let _ = hash_guard?;
-    let root = get_data_path();
-    let imported_file_path = root.join("object/imported").join(&file_path);
-    NamedFile::open(&imported_file_path)
+
+    let hash = file_path
+        .file_stem()
+        .and_then(std::ffi::OsStr::to_str)
+        .ok_or_else(|| AppError::new(ErrorKind::InvalidInput, "Invalid file path: missing hash"))?
+        .to_string();
+
+    let source_path = tokio::task::spawn_blocking(move || -> AppResult<PathBuf> {
+        let data_table = open_data_table();
+        let abstract_data = data_table
+            .get(hash.as_str())
+            .or_raise(|| (ErrorKind::Database, "Failed to fetch DB record"))?
+            .ok_or_else(|| AppError::new(ErrorKind::NotFound, "Hash not found"))?
+            .value();
+        Ok(abstract_data.source_path())
+    })
+    .await
+    .or_raise(|| (ErrorKind::Internal, "Failed to join blocking task"))??;
+
+    NamedFile::open(&source_path)
         .await
         .map(CompressedFileResponse::NamedFile)
         .or_raise(|| {
             (
                 ErrorKind::IO,
-                format!(
-                    "Error opening imported file: {}",
-                    imported_file_path.display()
-                ),
+                format!("Error opening original file: {}", source_path.display()),
             )
         })
 }

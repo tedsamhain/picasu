@@ -1518,4 +1518,92 @@ mod tests {
              during the scan, same as any other indexing path (got {tags:?})"
         );
     }
+
+    // ─── Scenario V: GET /object/imported serves the live source file,
+    // including after assign_album moves it ───────────────────────────────
+
+    /// Regression test for the storage architecture fix (see `TODO.md`):
+    /// `/object/imported/<hash>.<ext>` used to serve a content-addressed
+    /// *copy* of the original under `DATA_HOME`. It now looks up the
+    /// record's current `source_path()` and serves that directly, so it
+    /// must keep working after the file moves (e.g. via `assign_album`)
+    /// without any copy to keep in sync.
+    #[test]
+    fn scenario_v_imported_route_serves_live_source_after_move() {
+        let _serial = PREFETCH_SERIAL_GUARD.lock().unwrap();
+        let data = {
+            let _ = &*TEST_ENV;
+            DATA_PATH.get().expect("DATA_PATH initialised")
+        };
+
+        let import_dir = data.join("e2e_v_import");
+        std::fs::create_dir_all(&import_dir).expect("create import dir");
+        let src = import_dir.join("e2e_v_photo.jpg");
+        let original_bytes = b"e2e_v original bytes";
+        std::fs::write(&src, original_bytes).expect("write source file");
+
+        let hash = insert_photo_with_real_file(&src);
+        let client = make_client();
+
+        let served = fetch_original_bytes(&client, hash.as_str(), "jpg");
+        assert_eq!(
+            served, original_bytes,
+            "must serve the live source file's bytes, not a stale copy"
+        );
+
+        let album_dir = data.join("e2e_v_album");
+        std::fs::create_dir_all(&album_dir).expect("create album dir");
+        let album_id = make_dir_album(&album_dir);
+
+        let resp = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(format!(r#"{{"hash":"{hash}","albumId":"{album_id}"}}"#))
+            .dispatch();
+        assert_eq!(resp.status(), Status::Ok, "assign_album must return 200");
+
+        let served_after_move = fetch_original_bytes(&client, hash.as_str(), "jpg");
+        assert_eq!(
+            served_after_move, original_bytes,
+            "must still serve the original after assign_album moved it to a new path"
+        );
+    }
+
+    /// Fetch the original-file bytes via the real client flow: prefetch +
+    /// get-data (to obtain the hash-scoped, `allow_original` token embedded
+    /// in the response) + `GET /object/imported/<hash-prefix>/<hash>.<ext>`.
+    fn fetch_original_bytes(client: &Client, hash: &str, ext: &str) -> Vec<u8> {
+        let (timestamp, index, ts_token) = prefetch_locate(client, hash);
+        let resp = client
+            .get(format!(
+                "/get/get-data?timestamp={timestamp}&start={index}&end={}",
+                index + 1
+            ))
+            .header(rocket::http::Header::new(
+                "Authorization",
+                format!("Bearer {ts_token}"),
+            ))
+            .dispatch();
+        assert_eq!(resp.status(), Status::Ok, "get-data must succeed");
+        let body: Value = serde_json::from_str(&resp.into_string().unwrap()).expect("valid JSON");
+        let hash_token = body.as_array().expect("array")[0]["token"]
+            .as_str()
+            .expect("token")
+            .to_owned();
+
+        let resp = client
+            .get(format!("/object/imported/{}/{hash}.{ext}", &hash[0..2]))
+            .header(rocket::http::Header::new(
+                "Authorization",
+                format!("Bearer {hash_token}"),
+            ))
+            .dispatch();
+        assert_eq!(
+            resp.status(),
+            Status::Ok,
+            "GET /object/imported must succeed"
+        );
+        resp.into_bytes().expect("response body bytes")
+    }
 }

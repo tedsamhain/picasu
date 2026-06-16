@@ -3,7 +3,7 @@ use crate::operations::utils::image_path::get_resolved_image_path;
 use crate::tasks::{
     INDEX_COORDINATOR,
     actor::{
-        copy::CopyTask, deduplicate::DeduplicateTask, delete_in_update::DeleteTask, hash::HashTask,
+        deduplicate::DeduplicateTask, delete_in_update::DeleteTask, hash::HashTask,
         index::IndexTask, open_file::OpenFileTask, video::VideoTask,
     },
 };
@@ -112,9 +112,6 @@ pub async fn index_for_watch(
         return Ok(());
     };
 
-    abstract_data = INDEX_COORDINATOR
-        .execute_waiting(CopyTask::new(abstract_data))
-        .await??;
     abstract_data = INDEX_COORDINATOR
         .execute_waiting(IndexTask::new(abstract_data))
         .await??;

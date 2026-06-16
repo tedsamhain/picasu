@@ -362,21 +362,6 @@ impl AbstractData {
         PathBuf::from(self.source_path_string())
     }
 
-    /// Get the imported path string
-    pub fn imported_path_string(&self) -> String {
-        let hash = self.hash();
-        let ext = self.ext();
-        crate::public::constant::storage::get_data_path()
-            .join(format!(
-                "object/imported/{}/{}.{}",
-                &hash.as_str()[0..2],
-                hash,
-                ext
-            ))
-            .to_string_lossy()
-            .into_owned()
-    }
-
     /// Get the compressed path string
     pub fn compressed_path_string(&self) -> String {
         let hash = self.hash();
@@ -398,11 +383,6 @@ impl AbstractData {
             .join(relative_path)
             .to_string_lossy()
             .into_owned()
-    }
-
-    /// Get the imported path
-    pub fn imported_path(&self) -> PathBuf {
-        PathBuf::from(self.imported_path_string())
     }
 
     /// Get the compressed path
