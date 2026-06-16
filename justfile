@@ -101,7 +101,9 @@ test: backend-test frontend-test
 # Install cargo dev tools (cargo-nextest, cargo-deny, cargo-audit)
 [group('global')]
 install-dev:
-    cargo install cargo-nextest cargo-deny cargo-audit sccache
+    cargo install sccache
+    cargo install cargo-deny cargo-audit
+    cargo install --locked cargo-nextest
 
 # Build frontend then backend (debug, no embedded frontend) — developer default
 [group('global')]
