@@ -1,0 +1,15 @@
+name: watcher_discovers_new_file_in_subdirectory
+# NOTE: true watcher E2E requires a full-process launch (Playwright tier).
+# The rocket::local::Client does not run background tasks (watcher, expire
+# check, etc.).  This scenario uses POST /post/index to simulate what the
+# watcher would do: a file placed in an IMAGE_HOME subdirectory gets indexed
+# and is visible via the API, while the original file remains at its path.
+# Replace the scan with a watcher-wait once UI-tier E2E is available.
+given:
+  - photo: /watcher_import/photo.jpg
+    id_as: $photo
+when:
+  - call: GET /get/get-albums
+then:
+  - response.status: 200
+  - file_exists: /watcher_import/photo.jpg

@@ -832,7 +832,7 @@ fn emit_api_test_body(_name: &str, scenario: &serde_json::Value) -> String {
                 }
 
                 vars.insert(photo.to_string(), v);
-            } else if let Some(remove_path) = item["remove"].as_str() {
+            } else if let Some(_remove_path) = item["remove"].as_str() {
                 // Collected and emitted after the scan — file must exist at
                 // scan time, be removed afterward.
             }

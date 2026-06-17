@@ -1009,4 +1009,42 @@ mod scenarios_generated {
             "response.json.[0].abstractData.tags does not contain e2e_o_vacation"
         );
     }
+
+    #[test]
+    fn watcher_discovers_new_file_in_subdirectory() {
+        let _ = &*TEST_ENV;
+        let data = get_resolved_image_path().expect("IMAGE_HOME configured");
+        std::fs::create_dir_all(&data.join("watcher_import")).expect("create dir");
+        write_real_jpeg(
+            &data.join("watcher_import/photo.jpg"),
+            path_color("watcher_import/photo.jpg"),
+        );
+        let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        assert_eq!(
+            wait_for_import(30000),
+            FolderImportState::Completed,
+            "import"
+        );
+        let photo = discover_photo_hash(&client, "watcher_import/photo.jpg");
+        let resp_0 = client
+            .get("/get/get-albums")
+            .cookie(auth_cookie(&client))
+            .dispatch();
+        assert_eq!(
+            resp_0.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_0 status"
+        );
+        assert!(
+            data.join("watcher_import/photo.jpg").exists(),
+            "file should exist: watcher_import/photo.jpg"
+        );
+    }
 }
