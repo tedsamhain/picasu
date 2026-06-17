@@ -1,0 +1,5 @@
+name: create_empty_album endpoint removed
+when:
+  call: POST /post/create_empty_album
+then:
+  - response.status: 404

@@ -21,15 +21,18 @@ pub fn generate_all() {
         .unwrap_or_else(|e| panic!("cannot read {}: {e}", api_dir.display()))
         .filter_map(|e| e.ok())
         .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|ext| ext == "yaml" || ext == "yml"))
+        .filter(|p| {
+            p.extension()
+                .is_some_and(|ext| ext == "yaml" || ext == "yml")
+        })
         .collect();
     entries.sort();
 
     for path in &entries {
-        let yaml_str =
-            std::fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-        let scenario: serde_json::Value =
-            serde_yaml::from_str(&yaml_str).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()));
+        let yaml_str = std::fs::read_to_string(path)
+            .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        let scenario: serde_json::Value = serde_yaml::from_str(&yaml_str)
+            .unwrap_or_else(|e| panic!("parse {}: {e}", path.display()));
 
         let name = scenario["name"]
             .as_str()
@@ -63,7 +66,10 @@ pub fn generate_all() {
         .status()
         .unwrap_or_else(|e| panic!("rustfmt failed: {e}"));
     if !fmt_status.success() {
-        eprintln!("warning: rustfmt returned non-zero status on {}", out_path.display());
+        eprintln!(
+            "warning: rustfmt returned non-zero status on {}",
+            out_path.display()
+        );
     }
 
     eprintln!("wrote {} ({} scenarios)", out_path.display(), modules.len());
@@ -84,14 +90,26 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
     let mut vars: VarMap = HashMap::new();
     let mut lines: Vec<String> = Vec::new();
 
-    // DATA_PATH preamble
-    lines.push(
-        "let data = {\n\
-             let _ = &*TEST_ENV;\n\
-             DATA_PATH.get().expect(\"DATA_PATH initialised\")\n\
-         };"
-        .to_string(),
-    );
+    // Check whether we need DATA_PATH (given items or file/DB assertions)
+    let needs_data = given.map(|items| !items.is_empty()).unwrap_or(false)
+        || then.iter().any(|item| {
+            item.get("file_exists").is_some()
+                || item.get("file_absent").is_some()
+                || item.as_object().is_some_and(|m| {
+                    m.keys()
+                        .any(|k| k.starts_with("db.image(") || k.starts_with("db.album("))
+                })
+        });
+
+    if needs_data {
+        lines.push(
+            "let data = {\n\
+                 let _ = &*TEST_ENV;\n\
+                 DATA_PATH.get().expect(\"DATA_PATH initialised\")\n\
+             };"
+            .to_string(),
+        );
+    }
 
     // Process given items
     if let Some(items) = given {
@@ -108,7 +126,10 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
             } else if let Some(photo) = item["photo"].as_str() {
                 let v = fresh_var(&mut vars, item, "photo");
                 let photo_relative = photo.trim_start_matches('/');
-                let src_dir = Path::new(photo_relative).parent().map(|p| p.to_string_lossy()).unwrap_or_default();
+                let src_dir = Path::new(photo_relative)
+                    .parent()
+                    .map(|p| p.to_string_lossy())
+                    .unwrap_or_default();
 
                 if !src_dir.is_empty() && src_dir != "." {
                     lines.push(format!(
@@ -201,6 +222,10 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
             lines.push(format!(
                 "assert_eq!(resp.status(), Status::from_code({code}).unwrap(), \"{path} failed\");"
             ));
+        } else if let Some(code) = item["response.status_not"].as_i64() {
+            lines.push(format!(
+                "assert_ne!(resp.status(), Status::from_code({code}).unwrap(), \"{path} must not return {code}\");"
+            ));
         } else if let Some(file_path) = item["file_exists"].as_str() {
             let trimmed = file_path.trim_start_matches('/');
             lines.push(format!(
@@ -211,62 +236,63 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
             lines.push(format!(
                 "assert!(!data.join(\"{trimmed}\").exists(), \"file should be absent: {trimmed}\");"
             ));
-        } else if let Some((key, val)) = item.as_object().and_then(|m| m.iter().next()) {
-            if key.starts_with("db.image(") || key.starts_with("db.album(") {
-                let inner = key
-                    .strip_prefix("db.image(")
-                    .or_else(|| key.strip_prefix("db.album("))
-                    .expect("db assertion key");
-                let (id_expr, field_path) = inner.split_once(')').expect("db assertion syntax");
-                let field_path = field_path.strip_prefix('.').unwrap_or(field_path);
-                let field_path = if field_path.starts_with("metadata.") {
-                    field_path.to_string()
-                } else {
-                    format!("metadata.{field_path}")
-                };
+        } else if let Some((key, val)) = item.as_object().and_then(|m| m.iter().next())
+            && (key.starts_with("db.image(") || key.starts_with("db.album("))
+        {
+            let inner = key
+                .strip_prefix("db.image(")
+                .or_else(|| key.strip_prefix("db.album("))
+                .expect("db assertion key");
+            let (id_expr, field_path) = inner.split_once(')').expect("db assertion syntax");
+            let field_path = field_path.strip_prefix('.').unwrap_or(field_path);
+            let field_path = if field_path.starts_with("metadata.") {
+                field_path.to_string()
+            } else {
+                format!("metadata.{field_path}")
+            };
 
-                let (db_id, db_is_var) = if id_expr.starts_with('$') {
-                    let bare = id_expr.trim_start_matches('$');
-                    let val = vars.get(bare)
-                        .cloned()
-                        .unwrap_or_else(|| panic!("unknown variable {id_expr}"));
-                    (val, true)
-                } else {
-                    (id_expr.to_string(), false)
-                };
+            let (db_id, db_is_var) = if id_expr.starts_with('$') {
+                let bare = id_expr.trim_start_matches('$');
+                let val = vars
+                    .get(bare)
+                    .cloned()
+                    .unwrap_or_else(|| panic!("unknown variable {id_expr}"));
+                (val, true)
+            } else {
+                (id_expr.to_string(), false)
+            };
 
-                let db_id_for_get = if db_is_var {
-                    db_id.clone()
-                } else {
-                    format!("{db_id:?}")
-                };
+            let db_id_for_get = if db_is_var {
+                db_id.clone()
+            } else {
+                format!("{db_id:?}")
+            };
 
-                let db_type = if key.starts_with("db.image(") {
-                    "Image"
-                } else {
-                    "Album"
-                };
+            let db_type = if key.starts_with("db.image(") {
+                "Image"
+            } else {
+                "Album"
+            };
 
-                lines.push(format!(
-                    "{{\n\
-                         let txn = TREE.in_disk.begin_read().expect(\"begin read\");\n\
-                         let table = txn.open_table(DATA_TABLE).expect(\"open table\");\n\
-                          let guard = table\n\
-                              .get({db_id_for_get}.as_str())\n\
-                             .expect(\"redb get\")\n\
-                             .expect(\"record in redb\");\n\
-                         let AbstractData::{db_type}(record) = guard.value() else {{\n\
-                             panic!(\"not a {db_type} record\");\n\
-                         }};\n\
-                         assert_eq!(\n\
-                             format!(\"{{:?}}\", record.{field_path}),\n\
-                             format!(\"{{:?}}\", {expect}),\n\
-                             \"{key} mismatch\"\n\
-                         );\n\
-                     }}",
-                    expect = json_value_to_rust(val)
-                ));
-            }
+            lines.push(format!(
+                "{{\n\
+                     let txn = TREE.in_disk.begin_read().expect(\"begin read\");\n\
+                     let table = txn.open_table(DATA_TABLE).expect(\"open table\");\n\
+                      let guard = table\n\
+                          .get({db_id_for_get}.as_str())\n\
+                         .expect(\"redb get\")\n\
+                         .expect(\"record in redb\");\n\
+                     let AbstractData::{db_type}(record) = guard.value() else {{\n\
+                         panic!(\"not a {db_type} record\");\n\
+                     }};\n\
+                     assert_eq!(\n\
+                         format!(\"{{:?}}\", record.{field_path}),\n\
+                         format!(\"{{:?}}\", {expect}),\n\
+                         \"{key} mismatch\"\n\
+                     );\n\
+                 }}",
+                expect = json_value_to_rust(val)
+            ));
         }
     }
 
@@ -283,7 +309,8 @@ fn fresh_var(vars: &mut VarMap, item: &serde_json::Value, prefix: &str) -> Strin
     if let Some(id) = item["id_as"].as_str() {
         let bare = id.trim_start_matches('$');
         let code_name = bare.to_string();
-        vars.entry(bare.to_string()).or_insert_with(|| code_name.clone());
+        vars.entry(bare.to_string())
+            .or_insert_with(|| code_name.clone());
         code_name
     } else {
         let idx = vars.len();
@@ -352,15 +379,20 @@ fn load_json(path: &Path) -> Result<serde_json::Value, String> {
 }
 
 fn workspace_root() -> PathBuf {
-    let mut dir = PathBuf::from(
-        std::env::var("CARGO_MANIFEST_DIR")
-            .unwrap_or_else(|_| std::env::current_dir().unwrap().to_string_lossy().to_string()),
-    );
+    let mut dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| {
+        std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string()
+    }));
     loop {
         let manifest = dir.join("Cargo.toml");
         if manifest.exists() {
             let content = std::fs::read_to_string(&manifest).ok();
-            if content.as_deref().map_or(false, |c| c.contains("[workspace]")) {
+            if content
+                .as_deref()
+                .is_some_and(|c| c.contains("[workspace]"))
+            {
                 return dir;
             }
         }

@@ -89,4 +89,36 @@ mod scenarios_generated {
             );
         }
     }
+
+    #[test]
+    fn assign_album_endpoint_is_registered() {
+        let client = make_client();
+        let cookie = auth_cookie(&client);
+        let resp = client
+    .put("/put/assign_album")
+    .cookie(cookie)
+    .header(ContentType::JSON)
+    .body(serde_json::json!({"albumId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".to_string(), "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string()}).to_string())
+    .dispatch();
+        assert_ne!(
+            resp.status(),
+            Status::from_code(404).unwrap(),
+            "/put/assign_album must not return 404"
+        );
+    }
+
+    #[test]
+    fn create_empty_album_endpoint_removed() {
+        let client = make_client();
+        let cookie = auth_cookie(&client);
+        let resp = client
+            .post("/post/create_empty_album")
+            .cookie(cookie)
+            .dispatch();
+        assert_eq!(
+            resp.status(),
+            Status::from_code(404).unwrap(),
+            "/post/create_empty_album failed"
+        );
+    }
 }

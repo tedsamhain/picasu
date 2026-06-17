@@ -74,6 +74,14 @@
       "required": ["response.status"],
       "additionalProperties": false
     },
+    "apiThenResponseStatusNot": {
+      "type": "object",
+      "properties": {
+        "response.status_not": { "type": "integer", "minimum": 100, "maximum": 599 }
+      },
+      "required": ["response.status_not"],
+      "additionalProperties": false
+    },
     "apiThenResponseField": {
       "type": "object",
       "patternProperties": {
@@ -142,6 +150,7 @@
     "apiThenItem": {
       "oneOf": [
         { "$ref": "#/definitions/apiThenResponseStatus" },
+        { "$ref": "#/definitions/apiThenResponseStatusNot" },
         { "$ref": "#/definitions/apiThenResponseField" },
         { "$ref": "#/definitions/apiThenFileExists" },
         { "$ref": "#/definitions/apiThenFileAbsent" },
