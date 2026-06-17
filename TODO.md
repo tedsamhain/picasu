@@ -252,152 +252,156 @@ Confines AI/manual interpretation to scenario *authoring*; inputs, serialization
 and assertions are mechanical. See `docs/test-strategy.md` for the broader testing
 picture this slots into.
 
+### Layout
+
+Everything owned by the `xtask` crate:
+
+```
+xtask/
+├── data/
+│   ├── schema.json                    ← DSL schema (single source of truth)
+│   └── scenarios/
+│       ├── backend/*.yaml             ← API E2E scenarios → Rocket Client tests
+│       ├── generator/*.yaml           ← generator self-tests (negative assertions)
+│       └── frontend/*.yaml            ← future UI scenarios → Playwright specs
+├── src/
+│   ├── main.rs                        ← CLI dispatch
+│   └── generator.rs                   ← YAML → Rust emitter
+│       └── #[cfg(test)]               ← unit tests on generator functions
+└── tests/                             ← cargo integration tests for xtask
+```
+
+Output lands in the backend crate (must stay in `src/` — uses crate internals):
+
+```
+gallery-backend/
+├── openapi.json                       ← `cargo xtask emit-openapi`
+└── src/tests/
+    ├── e2e.rs                         ← placeholder (all scenarios deleted)
+    ├── scenarios_generated.rs         ← `cargo xtask test-backend` output
+    └── fixtures/api.rs                ← interface adapters (HTTP + filesystem)
+```
+
+### Subcommands
+
+| Command | Reads | Does |
+|---|---|---|
+| `cargo xtask emit-openapi` | `utoipa` annotations on routes | writes `gallery-backend/openapi.json` |
+| `cargo xtask test-backend` | `data/scenarios/backend/*.yaml` | generates → `scenarios_generated.rs` → `cargo nextest run` |
+| `cargo xtask test-generator` | `data/scenarios/generator/*.yaml` | generates temp .rs → compile → run → assert panics |
+| `cargo xtask test-frontend` | `data/scenarios/frontend/*.yaml` | future: generates Playwright specs → `npx playwright test` |
+
 ### Architecture decisions
 
-- **Standalone tool via cargo xtask**, not a build script — keeps `cargo test`
-  fast, debuggable, and leaves room for further generators/tooling under one entry.
-- **Backend-authoritative contract** (`utoipa`) — no FE/BE drift window; Rust owns
-  the schema as it owns the data (redb/bitcode).
-- **E2E tests observe only exposed interfaces** — the HTTP API and the `IMAGE_HOME`
-  filesystem. Internal state (redb `DATA_HOME`/`STATE_HOME`) is never inspected by
-  E2E tests; DB-level invariants belong in unit tests.
-- **Fixtures are interface adapters** — they translate abstract YAML declarations
-  (`given:` items) into HTTP calls and `IMAGE_HOME` filesystem operations. They
-  are the single implementation of the DSL's exposed-backend contract and change
-  together with the API and `IMAGE_HOME` conventions.
-- **Generator emits calls to fixture helpers only** — no inline redb-reading code in
-  the generated test functions. The generator is a thin declarative translator.
-- **No raw-Rust escape hatch** in the DSL — a missing verb is resolved by adding a
-  reusable fixture helper, not by inlining code into generated tests.
-- **`e2e.rs` will be deleted** once all scenarios are ported to the DSL.
-  Until then both coexist.
-- **Fixtures will move to the xtask crate** once they no longer depend on
-  gallery-backend internals (only on the external HTTP API and filesystem).
+- [x] **Standalone tool via cargo xtask**
+- [x] **E2E tests observe only exposed interfaces** — HTTP API + `IMAGE_HOME`
+- [x] **Fixtures are interface adapters** — `internal.rs` deleted; only `api.rs` remains
+- [x] **Generator emits calls to fixture helpers only** — no inline redb code
+- [x] **No raw-Rust escape hatch** in the DSL
+- [x] **`e2e.rs` deleted** — placeholder only
+- [ ] **Backend-authoritative contract** (`utoipa`) — `openapi.json` exists but no routes
+  are annotated yet; generator loads it but doesn't validate against it
+- [ ] **Fixtures moved to xtask crate** — still live in `gallery-backend`
+- [ ] **Scenarios + schema live under xtask** — currently in workspace-root `scenarios/`
 
-### Current state of play
+### Current state — DONE
 
-**Repository:** clean (committed).
+- [x] `e2e.rs` deleted (placeholder remains)
+- [x] **12 scenarios ported to DSL:** B, D, G, H, I, K, O, P, Q, S, T, create_dir_album
+- [x] Watcher/upload/scan scenarios (A, E, L, M, N, R, U, W, X, Y, Z) dropped from plan
+- [x] `internal.rs` deleted; `api.rs` contains only HTTP/filesystem interface adapters
+- [x] Generator: no `db.*` code paths remain (Phase 1 done)
+- [x] Generated `scenarios_generated.rs`: no `db.` references (verified)
 
-**Hand-written scenarios (`gallery-backend/src/tests/e2e.rs`):** deleted.
-All remaining Rust e2e scenarios have been removed. `e2e.rs` is a placeholder.
+### Immediate actions (before writing new features)
 
-**Ported to DSL (11):** B, D, G, H, I, K, O, P, Q, S, T — each has a
-`scenarios/api/*.yaml` file and a generated entry in
-`src/tests/scenarios_generated.rs`.
+#### 0. Reorganize into xtask layout
 
-**Watcher/upload/scan scenarios (deleted from plan):** A, E, L, M, N, R, U, W,
-X, Y, Z were removed without YAML equivalents. The watcher path will be covered
-by a new YAML pattern; scan/upload are exercisable via API calls in YAML.
+- [ ] Move `scenarios/api/*.yaml` → `xtask/data/scenarios/backend/`
+- [ ] Move `scenarios/schema.json` → `xtask/data/schema.json`
+- [ ] Create `xtask/data/scenarios/generator/` (empty dir)
+- [ ] Create `xtask/data/scenarios/frontend/` (empty dir)
+- [ ] Update `generator.rs` paths: `workspace_root().join("scenarios/api")` →
+  `workspace_root().join("xtask/data/scenarios/backend")`
+- [ ] Delete workspace-root `scenarios/` directory
+- [ ] Re-generate: `cargo xtask gen-scenarios` → verify `cargo nextest run` passes unchanged
 
-**API-test scenarios (deferred):** J, V — covered by Rust, removed without YAML
-equivalents. To be re-implemented via YAML setup + API call + verify pattern.
+#### 1. Generator pipeline validation
 
-**Generator (`xtask/src/generator.rs`):** still contains `db.*` code paths
-(Phase 1 not done). Generated tests use them for album/item_count assertions
-(scenarios H, I, Q, S).
+The generator is a pure-YAML-to-Rust translator with no test coverage of its own.
+Bugs (incorrect variable substitution, wrong assertion emission, silently swallowing
+unknown YAML keys) produce passing-but-wrong tests.
 
-**Fixtures (`src/tests/fixtures/`):** cleaned up. `internal.rs` deleted.
-`api.rs` contains only interface-adapter helpers used by generated code.
-Redb-access helpers removed. No direct-DB helpers remain.
+- [ ] **Unit-test the generator** — `#[cfg(test)]` blocks in `xtask/src/generator.rs`
+  that feed known YAML fragments and assert the exact emitted Rust string.  Covers:
+  `emit_single_call`, `emit_then_assertions`, `build_json_access`,
+  `body_to_json_expr`, `value_to_json_expr`, `substitute_path_vars`,
+  `body_raw_to_expr`, `fresh_var`, and the `capture` + `calc` paths.
+- [ ] **`cargo xtask test-generator` subcommand** — reads `data/scenarios/generator/*.yaml`
+  (each encodes a deliberately false assertion, e.g. `response.status: 404` on a
+  known-200 route), generates temp `.rs` files, compiles + runs each, and asserts the
+  test **panics**.  If any generated test passes (the bad assertion wasn't caught),
+  the subcommand exits non-zero.
+- [ ] **Schema validation at generation time** — `schema.json` is loaded but never
+  used.  Validate every YAML against it before emitting Rust.  Reject unknown
+  top-level keys, unknown assertion verbs, and type mismatches.
 
-### Implementation plan
+#### 2. CI guard against generated-code drift
 
-The migration happens in four phases, each producing working generated tests.
+- [ ] Rename `gen-scenarios` → `test-backend`, add integration: `cargo xtask
+  test-backend` generates → runs `cargo nextest run -- scenarios_generated`.  Add
+  drift check: `git diff --exit-code -- gallery-backend/src/tests/scenarios_generated.rs`.
 
-#### Phase 1: Generator hygiene
+### Remaining items sorted by RoI
 
-Remove `db.*` code paths from the generator. The generated tests must only
-emit fixture helper calls, never inline redb access.
+#### 3. Port deferred scenarios J, V
 
-- [ ] Remove `db.image(` / `db.album(` key detection from `needs_data` check
-  (generator.rs line 100).
-- [ ] Remove the entire `db.*` assertion emission block in `emit_then_assertions`
-  (generator.rs lines 302–358).
-- [ ] Port scenarios H, I, Q, S to avoid `db.*` assertions (use HTTP checks
-  or filesystem assertions instead).
-- [ ] Re-generate: `cargo xtask gen-scenarios` → `cargo nextest run`.
-
-#### Phase 2: Refactor fixtures to API-only
-
-**DONE.** `internal.rs` deleted. All remaining fixture helpers in `api.rs`
-work through the HTTP API or filesystem. No redb-access helpers remain.
-The `fixtures/` module is already split along the right lines.
-
-#### Phase 3: Batch port remaining scenarios
-
-**Ported to DSL (11 — all in `scenarios/api/`):**
-B, D, G, H, I, K, O, P, Q, S, T.
-Rust equivalents deleted from `e2e.rs`.
-
-**Dropped (removed without YAML equivalents):**
-- A (initial state, singleton — removed)
-- E (generated hierarchy — removed as scan test)
-- L, M, N, R (watcher path, were red/pinning bugs — removed; watcher to be
-  covered by new YAML pattern)
-- U, Z (scan path — removed; scan can be exercised via `POST /post/index` in
-  YAML)
-- X, Y (upload path — removed; upload can be exercised via API calls in YAML)
-- W (duplicate tracking, watcher path — removed)
-
-**Deferred (to be written as YAML):**
 - [ ] Scenario J — `assign_album_rejects_stale_file_path` — 4xx on ghost record
-- [ ] Scenario V — `imported_route_serves_live_source_after_move` — binary
-  serving invariant
+- [ ] Scenario V — `imported_route_serves_live_source_after_move` — binary serving
+  invariant
 
-**Remaining gaps in regression matrix (never covered by any scenario):**
-- [ ] `create_dir_album` endpoint E2E
-- [ ] Stale `DIR_ALBUM_CACHE` — dir deleted externally
-- [ ] `POST /upload` with hash already known (different album)
-- [ ] `assign_album` targeting a manual album (no `dir_path`)
-- [ ] `GuardReadOnlyMode` on mutating routes
+#### 4. Fill highest-value regression gaps
+
+From `docs/test-strategy.md` regression matrix:
+
+- [ ] `GuardReadOnlyMode` on mutating routes → 405
 - [ ] Share capability flags: `show_metadata`, `show_download`, `show_upload`
-- [ ] `GET /object/*` with wrong hash-scoped token
-- [ ] Prefetch snapshot expiry (known bug, no fix yet)
-- [ ] Video pipeline parity with image pipeline
+- [ ] `assign_album` targeting a manual album (no `dir_path`) → 4xx
+- [ ] Stale `DIR_ALBUM_CACHE` — dir deleted externally → clear error
+- [ ] `POST /upload` with hash already known but different album → last-write-wins
+- [ ] `GET /object/*` with wrong hash-scoped token → 401/403
+- [ ] Prefetch snapshot expiry — blocked until known bug is fixed
 
-#### Phase 4: Decommission e2e.rs
+#### 5. utoipa annotation backfill (pay-as-you-go)
 
-**Done:** `src/tests/e2e.rs` deleted (placeholder remains). `internal.rs`
-deleted.
+- [ ] Annotate one route as a template, confirm `openapi.json` regenerates
+- [ ] `cargo xtask openapi-coverage` — routes vs spec, percentage + unannotated list
+- [ ] Backfill remaining routes incrementally, one per PR
 
-**Not done** — move `api.rs` fixtures to xtask crate:
-- [ ] Move `api.rs` (interface-adapter fixtures) from `gallery-backend` into
-  the `xtask` crate as a library module that generated tests import.
-- [ ] Update `xtask/Cargo.toml` to add `rocket`, `serde_json`, `tempfile` etc.
-  as dependencies.
-- [ ] Update generated test preamble to import from `xtask::fixtures` instead
-  of `crate::tests::fixtures`.
-- [ ] Verify `cargo nextest run` passes.
+#### 6. Move fixtures to xtask crate
 
-### Future tooling (separate from the generator)
+- [ ] Move `api.rs` → `xtask/src/fixtures/`; add `rocket`, `serde_json`, `image` deps
+- [ ] Update generated preamble to `use xtask::fixtures::*`
 
-- **Album content generator** — reads YAML `given:` declarations and materializes
-  the declared content on `IMAGE_HOME` (placeholder images with specified colors,
-  embedded XMP metadata, EXIF dates). Optional mutation/randomization for broader
-  coverage without hand-writing each variant. Standalone `xtask` subcommand.
-- **API fuzzer** — drives random valid/invalid inputs against the OpenAPI contract
-  to find unhandled edge cases and 500s. Could be built on `proptest` or similar.
+#### 7. DSL vocabulary expansion
 
-### DSL vocabulary — API scenarios (`scenarios/api/*.yaml`)
+New verbs needed for regression gaps:
 
-Given verbs (materialize on `IMAGE_HOME`, no redb writes):
-- `dir_album: <path>` + `id_as: $var` — creates directory, returns album ID
-- `photo: <path>` + optional `color`, `tags`, `exif_date` — writes placeholder file
-- `empty: true` — no-op marker
+- [ ] `share: <album_id>` — create share with capability flags
+- [ ] `config: { read_only_mode: true }` — config mutation via API
+- [ ] `upload: <file>` — multipart upload
+- [ ] `delete_dir: <path>` — filesystem cleanup
+- [ ] Share-auth in `call:` (`auth: $share_token`)
 
-When verbs:
-- `call: <METHOD /path>` + optional `body`, `auth`
+#### 8. UI tier — design the DSL, not yet implement
 
-Then verbs (HTTP + IMAGE_HOME only):
-- `response.status: <code>` / `response.status_not: <code>`
-- `response.json.<field.path>: <value>` — field-level JSON response check
-- `file_exists: <path>` / `file_absent: <path>` — IMAGE_HOME filesystem check
+- [ ] Design UI DSL vocabulary (navigation, selectors, visual assertions)
+- [ ] Prototype one `cargo xtask test-frontend` scenario
 
-No `db.*` assertions. DB-level checks are the responsibility of unit tests.
+#### 9. Future tooling (deferred)
 
-### Interface contract (utoipa, backend-authoritative)
+- Album content generator — mutation/randomization for broader image coverage
+- API fuzzer — `proptest`-driven exploration of the OpenAPI contract
+- Scenario coverage reporting — matrix rows with/without YAML scenarios, emitted as table
+- scenarios_generated.rs` earmarked for review, we can probably refactor or find a better name/location
 
-- [ ] **Coverage reporting**: introspect the mounted `routes!` set vs OpenAPI paths;
-  emit a coverage percentage and list unannotated routes. Report in CI output but
-  do not fail the build — annotation is incremental, not a gate.
-- [ ] Backfill `utoipa` across remaining routes incrementally, endpoint-by-endpoint.
