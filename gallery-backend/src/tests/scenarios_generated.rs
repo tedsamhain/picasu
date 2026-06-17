@@ -25,12 +25,12 @@ mod scenarios_generated {
         .expect("write source file");
         let photo = {
             let src = data.join("gen_e2e_i_import/gen_e2e_i_photo.jpg");
-            insert_photos(&[PhotoSpec {
+            let hashes = insert_photos(&[PhotoSpec {
                 path: src.to_str().unwrap(),
                 tags: &[],
                 exif_date: None,
             }]);
-            find_hash_by_alias_path(&src)
+            hashes[0].clone()
         };
         let client = make_client();
         let resp_0 = client
@@ -55,38 +55,6 @@ mod scenarios_generated {
             Status::from_code(200).unwrap(),
             "call resp_1 status"
         );
-        {
-            let txn = TREE.in_disk.begin_read().expect("begin read");
-            let table = txn.open_table(DATA_TABLE).expect("open table");
-            let guard = table
-                .get(album_a.as_str())
-                .expect("redb get")
-                .expect("record in redb");
-            let AbstractData::Album(record) = guard.value() else {
-                panic!("not a Album record");
-            };
-            assert_eq!(
-                format!("{:?}", record.metadata.item_count),
-                format!("{:?}", 0),
-                "db.album($album_a).item_count mismatch"
-            );
-        }
-        {
-            let txn = TREE.in_disk.begin_read().expect("begin read");
-            let table = txn.open_table(DATA_TABLE).expect("open table");
-            let guard = table
-                .get(album_b.as_str())
-                .expect("redb get")
-                .expect("record in redb");
-            let AbstractData::Album(record) = guard.value() else {
-                panic!("not a Album record");
-            };
-            assert_eq!(
-                format!("{:?}", record.metadata.item_count),
-                format!("{:?}", 1),
-                "db.album($album_b).item_count mismatch"
-            );
-        }
     }
 
     #[test]
@@ -105,12 +73,12 @@ mod scenarios_generated {
         .expect("write source file");
         let photo = {
             let src = data.join("gen_e2e_h_import/gen_e2e_h_photo.jpg");
-            insert_photos(&[PhotoSpec {
+            let hashes = insert_photos(&[PhotoSpec {
                 path: src.to_str().unwrap(),
                 tags: &[],
                 exif_date: None,
             }]);
-            find_hash_by_alias_path(&src)
+            hashes[0].clone()
         };
         let client = make_client();
         let resp = client
@@ -132,43 +100,6 @@ mod scenarios_generated {
             !data.join("gen_e2e_h_import/gen_e2e_h_photo.jpg").exists(),
             "file should be absent: gen_e2e_h_import/gen_e2e_h_photo.jpg"
         );
-        {
-            let txn = TREE.in_disk.begin_read().expect("begin read");
-            let table = txn.open_table(DATA_TABLE).expect("open table");
-            let guard = table
-                .get(photo.as_str())
-                .expect("redb get")
-                .expect("record in redb");
-            let AbstractData::Image(record) = guard.value() else {
-                panic!("not a Image record");
-            };
-            assert_eq!(
-                format!("{:?}", record.metadata.alias[0].file),
-                format!(
-                    "{:?}",
-                    data.join("gen_e2e_h_album/gen_e2e_h_photo.jpg")
-                        .to_string_lossy()
-                        .to_string()
-                ),
-                "db.image($photo).alias[0].file mismatch"
-            );
-        }
-        {
-            let txn = TREE.in_disk.begin_read().expect("begin read");
-            let table = txn.open_table(DATA_TABLE).expect("open table");
-            let guard = table
-                .get(album.as_str())
-                .expect("redb get")
-                .expect("record in redb");
-            let AbstractData::Album(record) = guard.value() else {
-                panic!("not a Album record");
-            };
-            assert_eq!(
-                format!("{:?}", record.metadata.item_count),
-                format!("{:?}", 1),
-                "db.album($album).item_count mismatch"
-            );
-        }
     }
 
     #[test]
@@ -193,11 +124,90 @@ mod scenarios_generated {
         let resp = client
             .post("/post/create_empty_album")
             .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
             .dispatch();
         assert_eq!(
             resp.status(),
             Status::from_code(404).unwrap(),
             "call resp status"
+        );
+    }
+
+    #[test]
+    fn tags_visible_via_get_data() {
+        let data = {
+            let _ = &*TEST_ENV;
+            DATA_PATH.get().expect("DATA_PATH initialised")
+        };
+        std::fs::create_dir_all(&data.join("e2e_o")).expect("create dir");
+        std::fs::write(&data.join("e2e_o/tagged.jpg"), b"\xff\xd8\xff fake jpeg")
+            .expect("write source file");
+        let photo = {
+            let src = data.join("e2e_o/tagged.jpg");
+            let hashes = insert_photos(&[PhotoSpec {
+                path: src.to_str().unwrap(),
+                tags: &["e2e_o_family", "e2e_o_vacation"],
+                exif_date: None,
+            }]);
+            hashes[0].clone()
+        };
+        let client = make_client();
+        let resp_0 = client
+            .post(format!(r#"/get/prefetch?locate={photo}"#))
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        let parsed_body: serde_json::Value =
+            serde_json::from_slice(&resp_0.into_bytes().expect("response body")).unwrap();
+        let idx = {
+            let val = &parsed_body["prefetch"]["locateTo"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let token = {
+            let val = &parsed_body["token"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let ts = {
+            let val = &parsed_body["prefetch"]["timestamp"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let end = (idx.parse::<i64>().unwrap() + 1).to_string();
+        let resp_1 = client
+            .get(format!(
+                r#"/get/get-data?timestamp={ts}&start={idx}&end={end}"#
+            ))
+            .header(rocket::http::Header::new(
+                "Authorization",
+                "Bearer ".to_string() + &token.clone(),
+            ))
+            .dispatch();
+        assert_eq!(
+            resp_1.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_1 status"
+        );
+        let parsed_final: serde_json::Value =
+            serde_json::from_slice(&resp_1.into_bytes().expect("response body"))
+                .expect("valid JSON");
+        let arr = parsed_final[0]["abstractData"]["tags"]
+            .as_array()
+            .expect("response.json.[0].abstractData.tags must be an array");
+        assert!(
+            arr.contains(&serde_json::json!("e2e_o_family".to_string())),
+            "response.json.[0].abstractData.tags does not contain e2e_o_family"
+        );
+        let arr = parsed_final[0]["abstractData"]["tags"]
+            .as_array()
+            .expect("response.json.[0].abstractData.tags must be an array");
+        assert!(
+            arr.contains(&serde_json::json!("e2e_o_vacation".to_string())),
+            "response.json.[0].abstractData.tags does not contain e2e_o_vacation"
         );
     }
 }

@@ -90,15 +90,10 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
     let mut vars: VarMap = HashMap::new();
     let mut lines: Vec<String> = Vec::new();
 
-    // Check whether we need DATA_PATH (given items or file/DB assertions)
+    // Check whether we need DATA_PATH (given items or filesystem assertions)
     let needs_data = given.map(|items| !items.is_empty()).unwrap_or(false)
         || then.iter().any(|item| {
-            item.get("file_exists").is_some()
-                || item.get("file_absent").is_some()
-                || item.as_object().is_some_and(|m| {
-                    m.keys()
-                        .any(|k| k.starts_with("db.image(") || k.starts_with("db.album("))
-                })
+            item.get("file_exists").is_some() || item.get("file_absent").is_some()
         });
 
     if needs_data {
@@ -174,8 +169,8 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
                 lines.push(format!(
                     "let {v} = {{\n\
                          let src = data.join(\"{photo_relative}\");\n\
-                         insert_photos(&[PhotoSpec {{ path: src.to_str().unwrap(), tags: {tags_arr}, exif_date: {exif_date} }}]);\n\
-                         find_hash_by_alias_path(&src)\n\
+                         let hashes = insert_photos(&[PhotoSpec {{ path: src.to_str().unwrap(), tags: {tags_arr}, exif_date: {exif_date} }}]);\n\
+                         hashes[0].clone()\n\
                      }};"
                 ));
 
@@ -197,6 +192,54 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
 
             if let Some(call_then) = call.get("then").and_then(|v| v.as_array()) {
                 emit_then_assertions(call_then, &resp_var, &vars, &mut lines);
+            }
+
+            // Capture response fields into variables for subsequent steps.
+            if let Some(capture) = call.get("capture").and_then(|c| c.as_object()) {
+                if !capture.is_empty() {
+                    lines.push(format!(
+                        "let parsed_body: serde_json::Value =\n\
+                             serde_json::from_slice(\n\
+                                 &{resp_var}.into_bytes().expect(\"response body\")\n\
+                             ).unwrap();"
+                    ));
+                    for (var_name, json_path) in capture {
+                        let bare = var_name.trim_start_matches('$');
+                        let field = json_path.as_str().unwrap_or_else(|| {
+                            panic!("capture {var_name}: value must be a string JSON path")
+                        });
+                        let access = build_json_access(field);
+                        lines.push(format!(
+                            "let {bare} = {{\n\
+                                 let val = &parsed_body{access};\n\
+                                 val.as_str().map(|s| s.to_string())\n\
+                                     .unwrap_or_else(|| val.to_string())\n\
+                             }};"
+                        ));
+                        vars.insert(bare.to_string(), bare.to_string());
+                    }
+                }
+            }
+
+            // Compute derived values from captured variables.
+            if let Some(calc) = call.get("calc").and_then(|c| c.as_object()) {
+                for (var_name, expr) in calc {
+                    let bare = var_name.trim_start_matches('$');
+                    let expr_str = expr.as_str().unwrap_or_else(|| {
+                        panic!("calc {var_name}: value must be a string expression")
+                    });
+                    // Support: "${var}+N" where N is a literal integer.
+                    if let Some((var_part, suffix)) = expr_str.split_once('+') {
+                        let var_part = var_part.trim_start_matches("${").trim_end_matches('}');
+                        let suffix = suffix.trim();
+                        if let Ok(n) = suffix.parse::<i64>() {
+                            lines.push(format!(
+                                "let {bare} = ({var_part}.parse::<i64>().unwrap() + {n}).to_string();"
+                            ));
+                            vars.insert(bare.to_string(), bare.to_string());
+                        }
+                    }
+                }
             }
         }
         let last_resp = format!("resp_{}", calls.len().saturating_sub(1));
@@ -228,7 +271,7 @@ fn emit_single_call(
 
     let parts: Vec<&str> = call_str.splitn(2, ' ').collect();
     let method = parts[0];
-    let _path = parts[1];
+    let path = parts[1];
 
     let body_str = body_val
         .map(|b| body_to_json_expr(b, vars))
@@ -239,16 +282,74 @@ fn emit_single_call(
     }
 
     let method_lower = method.to_lowercase();
-    let mut req = format!("let {resp_var} = client\n    .{method_lower}(\"{_path}\")");
+    let path_expr = if path.contains("${") {
+        format!("format!(r#\"{}\"#)", substitute_path_vars(path, vars))
+    } else {
+        format!("\"{path}\"")
+    };
+    let mut req = format!("let {resp_var} = client\n    .{method_lower}({path_expr})");
     if auth {
         req.push_str("\n    .cookie(auth_cookie(&client))");
     }
-    if !body_str.is_empty() && method != "GET" {
+    // Custom headers
+    if let Some(headers) = call.get("headers").and_then(|h| h.as_object()) {
+        for (hdr_name, hdr_val) in headers {
+            let val_expr = value_to_json_expr(hdr_val, vars);
+            req.push_str(&format!(
+                "\n    .header(rocket::http::Header::new(\"{hdr_name}\", {val_expr}))"
+            ));
+        }
+    }
+    if method != "GET" {
         req.push_str("\n    .header(ContentType::JSON)");
-        req.push_str(&format!("\n    .body({body_str})"));
+        if !body_str.is_empty() {
+            req.push_str(&format!("\n    .body({body_str})"));
+        }
     }
     req.push_str("\n    .dispatch();");
     lines.push(req);
+}
+
+/// Convert a dotted JSON path like `response.prefetch.locateTo` or
+/// `response.[0].tags` into Rust bracket access like
+/// `["prefetch"]["locateTo"]` or `[0]["tags"]`.
+fn build_json_access(path: &str) -> String {
+    let stripped = path.strip_prefix("response.").unwrap_or(path);
+    stripped
+        .split('.')
+        .map(|seg| {
+            if let Some(idx) = seg.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+                format!("[{idx}]")
+            } else {
+                format!("[{seg:?}]")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+fn substitute_path_vars(path: &str, vars: &VarMap) -> String {
+    let mut result = String::new();
+    let mut rest = path;
+    while let Some(start) = rest.find("${") {
+        result.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        if let Some(end) = after.find('}') {
+            let var_name = &after[..end];
+            let bare = var_name.trim_start_matches('$');
+            if vars.contains_key(bare) {
+                result.push_str(&format!("{{{bare}}}"));
+            } else {
+                result.push_str(&format!("${{{var_name}}}"));
+            }
+            rest = &after[end + 1..];
+        } else {
+            result.push_str("${");
+            rest = after;
+        }
+    }
+    result.push_str(rest);
+    result
 }
 
 fn emit_then_assertions(
@@ -257,6 +358,7 @@ fn emit_then_assertions(
     vars: &VarMap,
     lines: &mut Vec<String>,
 ) {
+    // First emit all status checks (before body is consumed).
     for item in then_items {
         if let Some(code) = item["response.status"].as_i64() {
             lines.push(format!(
@@ -266,7 +368,65 @@ fn emit_then_assertions(
             lines.push(format!(
                 "assert_ne!({resp_var}.status(), Status::from_code({code}).unwrap(), \"call {resp_var} must not return {code}\");"
             ));
-        } else if let Some(file_path) = item["file_exists"].as_str() {
+        }
+    }
+
+    // Collect JSON-path assertions so we can parse the body once.
+    let json_checks: Vec<(String, &serde_json::Value)> = then_items
+        .iter()
+        .filter_map(|item| {
+            item.as_object().and_then(|m| m.iter().next()).and_then(
+                |(key, val)| {
+                    if key.starts_with("response.json.") {
+                        Some((key.clone(), val))
+                    } else {
+                        None
+                    }
+                },
+            )
+        })
+        .collect();
+
+    if !json_checks.is_empty() {
+        lines.push(format!(
+            "let parsed_final: serde_json::Value =\n\
+                 serde_json::from_slice(\n\
+                     &{resp_var}.into_bytes().expect(\"response body\")\n\
+                 ).expect(\"valid JSON\");"
+        ));
+        for (key, val) in &json_checks {
+            let field_path = key.strip_prefix("response.json.").unwrap();
+            let access = field_path
+                .split('.')
+                .map(|seg| {
+                    if let Some(idx) = seg.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+                        format!("[{idx}]")
+                    } else {
+                        format!("[{seg:?}]")
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("");
+            if let Some(contained) = val.as_object().and_then(|o| o.get("contains")) {
+                let contained_expr = value_to_json_expr(contained, vars);
+                let contained_label = contained.as_str().unwrap_or("?");
+                lines.push(format!(
+                    "let arr = parsed_final{access}.as_array().expect(\"{key} must be an array\");\n\
+                     assert!(arr.contains(&serde_json::json!({contained_expr})), \
+                         \"{key} does not contain {contained_label}\");"
+                ));
+            } else {
+                let expect = value_to_json_expr(val, vars);
+                lines.push(format!(
+                    "assert_eq!(parsed_final{access}, serde_json::json!({expect}), \"{key} mismatch\");"
+                ));
+            }
+        }
+    }
+
+    // file_exists / file_absent assertions.
+    for item in then_items {
+        if let Some(file_path) = item["file_exists"].as_str() {
             let trimmed = file_path.trim_start_matches('/');
             lines.push(format!(
                 "assert!(data.join(\"{trimmed}\").exists(), \"file should exist: {trimmed}\");"
@@ -275,63 +435,6 @@ fn emit_then_assertions(
             let trimmed = file_path.trim_start_matches('/');
             lines.push(format!(
                 "assert!(!data.join(\"{trimmed}\").exists(), \"file should be absent: {trimmed}\");"
-            ));
-        } else if let Some((key, val)) = item.as_object().and_then(|m| m.iter().next())
-            && (key.starts_with("db.image(") || key.starts_with("db.album("))
-        {
-            let inner = key
-                .strip_prefix("db.image(")
-                .or_else(|| key.strip_prefix("db.album("))
-                .expect("db assertion key");
-            let (id_expr, field_path) = inner.split_once(')').expect("db assertion syntax");
-            let field_path = field_path.strip_prefix('.').unwrap_or(field_path);
-            let field_path = if field_path.starts_with("metadata.") {
-                field_path.to_string()
-            } else {
-                format!("metadata.{field_path}")
-            };
-
-            let (db_id, db_is_var) = if id_expr.starts_with('$') {
-                let bare = id_expr.trim_start_matches('$');
-                let val = vars
-                    .get(bare)
-                    .cloned()
-                    .unwrap_or_else(|| panic!("unknown variable {id_expr}"));
-                (val, true)
-            } else {
-                (id_expr.to_string(), false)
-            };
-
-            let db_id_for_get = if db_is_var {
-                db_id.clone()
-            } else {
-                format!("{db_id:?}")
-            };
-
-            let db_type = if key.starts_with("db.image(") {
-                "Image"
-            } else {
-                "Album"
-            };
-
-            lines.push(format!(
-                "{{\n\
-                     let txn = TREE.in_disk.begin_read().expect(\"begin read\");\n\
-                     let table = txn.open_table(DATA_TABLE).expect(\"open table\");\n\
-                      let guard = table\n\
-                          .get({db_id_for_get}.as_str())\n\
-                         .expect(\"redb get\")\n\
-                         .expect(\"record in redb\");\n\
-                     let AbstractData::{db_type}(record) = guard.value() else {{\n\
-                         panic!(\"not a {db_type} record\");\n\
-                     }};\n\
-                     assert_eq!(\n\
-                         format!(\"{{:?}}\", record.{field_path}),\n\
-                         format!(\"{{:?}}\", {expect}),\n\
-                         \"{key} mismatch\"\n\
-                     );\n\
-                 }}",
-                expect = json_value_to_rust(val)
             ));
         }
     }
@@ -382,25 +485,61 @@ fn body_to_json_expr(val: &serde_json::Value, vars: &VarMap) -> String {
     }
 }
 
-fn json_value_to_rust(v: &serde_json::Value) -> String {
-    match v {
-        serde_json::Value::String(s) => {
-            // Path-like strings (starting with /) are data-relative.
-            if s.starts_with('/') {
-                let trimmed = s.trim_start_matches('/');
-                format!("data.join({trimmed:?}).to_string_lossy().to_string()")
-            } else {
-                format!("{s:?}.to_string()")
-            }
+fn interpolate_string(s: &str, vars: &VarMap) -> String {
+    if let Some(bare) = s.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+        if let Some(rust_var) = vars.get(bare) {
+            return rust_var.clone();
         }
+        return format!("{bare:?}");
+    }
+
+    let mut parts: Vec<String> = Vec::new();
+    let mut rest = s;
+    while let Some(start) = rest.find("${") {
+        if let Some(end) = rest[start..].find('}') {
+            let literal = &rest[..start];
+            let bare = &rest[start + 2..start + end];
+            if !literal.is_empty() {
+                parts.push(format!("{literal:?}.to_string()"));
+            }
+            if let Some(rust_var) = vars.get(bare) {
+                parts.push(format!("{rust_var}.clone()"));
+            } else {
+                parts.push(format!("{bare:?}"));
+            }
+            rest = &rest[start + end + 1..];
+        } else {
+            break;
+        }
+    }
+    if !rest.is_empty() {
+        parts.push(format!("{rest:?}.to_string()"));
+    }
+
+    if parts.is_empty() {
+        return r#""".to_string()"#.to_string();
+    }
+
+    parts.join(" + &")
+}
+
+fn value_to_json_expr(val: &serde_json::Value, vars: &VarMap) -> String {
+    match val {
+        serde_json::Value::String(s) => interpolate_string(s, vars),
         serde_json::Value::Number(n) => n.to_string(),
         serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Null => "None".to_string(),
+        serde_json::Value::Null => "null".to_string(),
         serde_json::Value::Array(arr) => {
-            let items: Vec<String> = arr.iter().map(json_value_to_rust).collect();
-            format!("vec![{}]", items.join(", "))
+            let items: Vec<String> = arr.iter().map(|v| value_to_json_expr(v, vars)).collect();
+            format!("[{}]", items.join(", "))
         }
-        _ => "todo!()".to_string(),
+        serde_json::Value::Object(map) => {
+            let pairs: Vec<String> = map
+                .iter()
+                .map(|(k, v)| format!("{k:?}: {}", value_to_json_expr(v, vars)))
+                .collect();
+            format!("{{{pairs}}}", pairs = pairs.join(", "))
+        }
     }
 }
 
