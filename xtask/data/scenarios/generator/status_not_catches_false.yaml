@@ -1,0 +1,7 @@
+name: status.assert_ne catches false pass
+given:
+  - empty: true
+when:
+  - call: GET /get/get-albums
+then:
+  - response.status_not: 200

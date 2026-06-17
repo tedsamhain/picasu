@@ -87,10 +87,25 @@ frontend-audit:
 emit-openapi:
     cargo xtask emit-openapi
 
-# Generate scenario test code from YAML specs (not yet implemented)
+# Generate scenario test code from YAML specs
 [group('spec')]
-gen-scenarios:
-    cargo xtask gen-scenarios
+test-backend:
+    cargo xtask test-backend
+
+# Backward-compat alias
+[group('spec')]
+gen-scenarios: test-backend
+
+# Generate negative tests and verify assertion machinery catches failures
+[group('spec')]
+test-generator:
+    cargo xtask test-generator
+
+# Verify generated code is in sync with YAML sources (for CI / precommit)
+[group('spec')]
+check-generated:
+    cargo xtask test-backend
+    git diff --exit-code -- gallery-backend/src/tests/scenarios_generated.rs
 
 # ── Global ─────────────────────────────────────────────────────────────────────
 
@@ -160,6 +175,7 @@ precommit:
 
     if [ "$branch" = "main" ]; then
         echo "[ precommit ] On main — full test suite is required to pass."
+        just check-generated
         just format
         just check
         just test
@@ -170,6 +186,9 @@ precommit:
     if echo "$changed" | grep -q '^gallery-backend/'; then
         just backend-format
         just backend-check
+    fi
+    if echo "$changed" | grep -qE '^(xtask/data|xtask/src|gallery-backend/src/tests/scenarios_generated)'; then
+        just check-generated
     fi
     if echo "$changed" | grep -q '^gallery-frontend/'; then
         just frontend-format

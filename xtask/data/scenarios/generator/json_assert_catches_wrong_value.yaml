@@ -1,0 +1,8 @@
+name: json field assert catches wrong value
+given:
+  - empty: true
+when:
+  - call: GET /get/get-albums
+then:
+  - response.status: 200
+  - response.json.length: 999

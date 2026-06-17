@@ -1,0 +1,7 @@
+name: status.assert_eq catches wrong code
+given:
+  - empty: true
+when:
+  - call: GET /get/get-albums
+then:
+  - response.status: 404

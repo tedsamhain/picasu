@@ -1,0 +1,8 @@
+name: file_exists catches missing file
+given:
+  - empty: true
+when:
+  - call: GET /get/get-albums
+then:
+  - response.status: 200
+  - file_exists: /nonexistent/this_should_not_exist
