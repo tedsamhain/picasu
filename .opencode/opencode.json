@@ -31,7 +31,5 @@
       "template": "Run `just format-fix`"
     }
   },
-  "plugin": [
-    "./plugin/auto-check.ts"
-  ]
+  "plugin": []
 }
