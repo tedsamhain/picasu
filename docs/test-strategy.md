@@ -21,8 +21,8 @@ Tests are organised in a pyramid with increasing integration scope and decreasin
 |---|---|---|---|
 | **Unit** | Pure functions with no I/O (filters, transforms, priority logic, schema version dispatch) | `#[cfg(test)]` blocks in the same file as the code | ✅ `cargo nextest` |
 | **Integration** | Multi-component flows with a real redb in a tempdir (index → dedup → flush → album update, schema migration round-trips) | `src/tests/` (separate files per area) | ✅ `cargo nextest` |
-| **E2E — API** | Backend HTTP API + `IMAGE_HOME` filesystem only. Generated from YAML scenarios (`scenarios/api/*.yaml`). No direct DB access — internal redb state is opaque. | `src/tests/scenarios_generated.rs` (via `xtask gen-scenarios`) | ✅ `cargo nextest` |
-| **E2E — UI** (not yet built) | Full stack: real backend on ephemeral port + built frontend driven by Playwright. Generated from `scenarios/ui/*.yaml`. | `tests/playwright/` (via `xtask gen-scenarios`) | ✅ playwright |
+| **E2E — API** | Backend HTTP API + `IMAGE_HOME` filesystem only. Generated from YAML scenarios (`xtask/data/scenarios/backend/*.yaml`). No direct DB access — internal redb state is opaque. | `src/tests/scenarios_generated.rs` (via `cargo xtask test-backend`) | ✅ `cargo nextest` |
+| **E2E — UI** (not yet built) | Full stack: real backend on ephemeral port + built frontend driven by Playwright. Generated from `xtask/data/scenarios/frontend/*.yaml`. | `tests/playwright/` (via `cargo xtask test-frontend`) | ✅ playwright |
 
 All levels run on a dev machine. CI automates them, but nothing is "CI-only".
 
@@ -69,7 +69,7 @@ feedback — see `just run` in the justfile, which uses `UROCISSA_CONFIG_HOME`/
 | Unsafe code | `#![deny(unsafe_code)]` in `main.rs` | ✅ enforced at compile time |
 | Backend unit tests | `cargo nextest run` (unit tests in `#[cfg(test)]` blocks) | ✅ in precommit |
 | Backend hand-written scenarios | `cargo nextest run` (`src/tests/e2e.rs` scenarios A–Z, being ported to DSL) | ✅ in precommit; will be **deleted** once all ported |
-| Backend generated API scenarios | `cargo xtask gen-scenarios` → `cargo nextest run` (`src/tests/scenarios_generated.rs`) | 🟡 4 ported so far (H, G, K, I); remaining 18 in progress |
+| Backend generated API scenarios | `cargo xtask test-backend` → `cargo nextest run` (`src/tests/scenarios_generated.rs`) | ✅ 12 scenarios ported; no `db.*` assertions remain |
 | Frontend format | `prettier --check` | ✅ in precommit |
 | Frontend types | `vue-tsc --noEmit` | ✅ in precommit |
 | Frontend lint | `eslint` (strictTypeChecked + vue strongly-recommended) | ✅ in precommit |
@@ -304,7 +304,7 @@ generate E2E test code. Two target types:
 - **API** (`scenarios/api/*.yaml`): Rocket-`Client` Rust tests. Given state is
   materialised on `IMAGE_HOME` (filesystem). Assertions check HTTP responses
   and `IMAGE_HOME` filesystem state only — no direct redb reads. Generated
-  by `cargo xtask gen-scenarios` into `src/tests/scenarios_generated.rs`.
+  by `cargo xtask test-backend` into `src/tests/scenarios_generated.rs`.
 - **UI** (`scenarios/ui/*.yaml`): Playwright TypeScript specs (deferred —
   requires running backend).
 

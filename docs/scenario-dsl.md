@@ -147,7 +147,7 @@ a green test.
 
 ```bash
 # Validate all scenario files (via xtask)
-cargo xtask gen-scenarios --validate
+cargo xtask test-backend
 ```
 
 ## Idempotency and isolation

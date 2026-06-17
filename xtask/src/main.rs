@@ -7,9 +7,12 @@ fn main() {
 
     match subcommand.as_deref() {
         Some("emit-openapi") => emit_openapi(),
-        Some("gen-scenarios") => generator::generate_all(),
         Some("test-backend") => {
+            let just_generate = std::env::args().any(|a| a == "--generate-only");
             generator::generate_all();
+            if just_generate {
+                return;
+            }
             let status = Command::new("cargo")
                 .args(["nextest", "run", "--package", "urocissa", "--", "scenarios_generated"])
                 .current_dir(workspace_root())
@@ -40,12 +43,12 @@ fn main() {
         }
         Some(other) => {
             eprintln!("unknown subcommand: {other}");
-            eprintln!("available: emit-openapi, gen-scenarios, test-backend, test-generator");
+            eprintln!("available: emit-openapi, test-backend, test-generator");
             std::process::exit(1);
         }
         None => {
             eprintln!("missing subcommand");
-            eprintln!("available: emit-openapi, gen-scenarios, test-backend, test-generator");
+            eprintln!("available: emit-openapi, test-backend, test-generator");
             std::process::exit(1);
         }
     }

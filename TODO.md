@@ -324,7 +324,7 @@ gallery-backend/
 - [ ] Update `generator.rs` paths: `workspace_root().join("scenarios/api")` →
   `workspace_root().join("xtask/data/scenarios/backend")`
 - [ ] Delete workspace-root `scenarios/` directory
-- [ ] Re-generate: `cargo xtask gen-scenarios` → verify `cargo nextest run` passes unchanged
+- [x] Re-generate: `cargo xtask test-backend --generate-only` → verify `cargo nextest run` passes
 
 #### 1. Generator pipeline validation
 
@@ -348,9 +348,8 @@ unknown YAML keys) produce passing-but-wrong tests.
 
 #### 2. CI guard against generated-code drift
 
-- [ ] Rename `gen-scenarios` → `test-backend`, add integration: `cargo xtask
-  test-backend` generates → runs `cargo nextest run -- scenarios_generated`.  Add
-  drift check: `git diff --exit-code -- gallery-backend/src/tests/scenarios_generated.rs`.
+- [x] `cargo xtask test-backend` generates → runs `cargo nextest run -- scenarios_generated`.
+  Drift check: `just check-generated` (generate-only + git diff --exit-code).
 
 ### Remaining items sorted by RoI
 
