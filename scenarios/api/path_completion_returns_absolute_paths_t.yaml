@@ -1,0 +1,12 @@
+name: path completion returns absolute paths
+when:
+  - call: GET /get/path-completion
+    then:
+      - response.status: 200
+      - response.json.children:
+          all_absolute: true
+  - call: GET /get/path-completion?path=src
+then:
+  - response.status: 200
+  - response.json.children:
+      all_absolute: true

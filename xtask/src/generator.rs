@@ -363,9 +363,13 @@ fn emit_single_call(
     let method = parts[0];
     let path = parts[1];
 
-    let body_str = body_val
-        .map(|b| body_to_json_expr(b, vars))
-        .unwrap_or_default();
+    let body_str = if let Some(raw_body) = call.get("raw_body").and_then(|v| v.as_str()) {
+        body_raw_to_expr(raw_body, vars)
+    } else {
+        body_val
+            .map(|b| body_to_json_expr(b, vars))
+            .unwrap_or_default()
+    };
 
     if emit_client {
         lines.push("let client = make_client();".to_string());
@@ -398,6 +402,32 @@ fn emit_single_call(
     }
     req.push_str("\n    .dispatch();");
     lines.push(req);
+}
+
+/// Convert a `raw_body` template (using `${var}` references) into a Rust
+/// `format!()` expression that interpolates the captured variables at test
+/// runtime.  Literal `{` and `}` characters in the template are doubled
+/// for Rust's format string syntax (e.g. JSON `{` → `{{`).
+fn body_raw_to_expr(raw: &str, _vars: &VarMap) -> String {
+    let mut fmt_parts: Vec<String> = Vec::new();
+    let mut rest = raw;
+    while let Some(start) = rest.find("${") {
+        let literal = &rest[..start];
+        fmt_parts.push(literal.replace('{', "{{").replace('}', "}}"));
+        let after = &rest[start + 2..];
+        if let Some(end) = after.find('}') {
+            let var_name = &after[..end];
+            let bare = var_name.trim_start_matches('$');
+            fmt_parts.push(format!("{{{bare}}}"));
+            rest = &after[end + 1..];
+        } else {
+            fmt_parts.push("${{".to_string());
+            rest = after;
+        }
+    }
+    fmt_parts.push(rest.replace('{', "{{").replace('}', "}}"));
+    let fmt_str = fmt_parts.join("");
+    format!("format!(r#\"{fmt_str}\"#)")
 }
 
 /// Convert a dotted JSON path like `response.prefetch.locateTo` or
@@ -554,6 +584,19 @@ fn emit_then_assertions(
                     "let arr = parsed_final{access}.as_array().expect(\"{key} must be an array\");\n\
                      assert!(arr.contains(&serde_json::json!({contained_expr})), \
                          \"{key} does not contain {contained_label}\");"
+                ));
+            } else if val
+                .as_object()
+                .and_then(|o| o.get("all_absolute"))
+                .and_then(|v| v.as_bool())
+                == Some(true)
+            {
+                lines.push(format!(
+                    "for child in parsed_final{access}.as_array().expect(\"{key} must be an array\") {{\n\
+                         let path = child.as_str().expect(\"child must be a string\");\n\
+                         assert!(std::path::Path::new(path).is_absolute(), \
+                             \"expected absolute path, got {{path}}\");\n\
+                     }}"
                 ));
             } else {
                 let expect = value_to_json_expr(val, vars);

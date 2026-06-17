@@ -1,0 +1,29 @@
+name: tags modifiable via edit tag api
+given:
+  - photo: /e2e_p/photo.jpg
+    id_as: $photo
+when:
+  - call: POST /get/prefetch?locate=${photo}
+    capture:
+      token: response.token
+      ts: response.prefetch.timestamp
+      idx: response.prefetch.locateTo
+  - call: PUT /put/edit_tag
+    raw_body: '{"indexArray":[${idx}],"addTagsArray":["e2e_p_added"],"removeTagsArray":[],"timestamp":${ts}}'
+    then:
+      - response.status: 200
+  - call: POST /get/prefetch?locate=${photo}
+    capture:
+      token: response.token
+      ts: response.prefetch.timestamp
+      idx: response.prefetch.locateTo
+    calc:
+      end: "${idx}+1"
+  - call: GET /get/get-data?timestamp=${ts}&start=${idx}&end=${end}
+    auth: false
+    headers:
+      Authorization: "Bearer ${token}"
+then:
+  - response.status: 200
+  - response.json.[0].abstractData.tags:
+      contains: e2e_p_added
