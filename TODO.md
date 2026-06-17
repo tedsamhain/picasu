@@ -276,35 +276,29 @@ picture this slots into.
 
 ### Current state of play
 
-**Repository:** dirty (working changes to `generator.rs`, `TODO.md`,
-`docs/test-strategy.md`, `.opencode/opencode.json`).
+**Repository:** clean (committed).
 
-**Hand-written scenarios (`gallery-backend/src/tests/e2e.rs`):** 24 test fns
-(A, B, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z).
-No C or F — those were always unit tests outside e2e.rs.
+**Hand-written scenarios (`gallery-backend/src/tests/e2e.rs`):** deleted.
+All remaining Rust e2e scenarios have been removed. `e2e.rs` is a placeholder.
 
-**Ported to DSL (4):** G, H, I, K — each has a `scenarios/api/*.yaml` file and
-a generated entry in `src/tests/scenarios_generated.rs`. The hand-written
-versions still exist in `e2e.rs`; both are currently passing.
+**Ported to DSL (11):** B, D, G, H, I, K, O, P, Q, S, T — each has a
+`scenarios/api/*.yaml` file and a generated entry in
+`src/tests/scenarios_generated.rs`.
 
-**Generator (`xtask/src/generator.rs`):** emits Rocket-`Client` tests with:
-- HTTP call emission (multi-`when` supported)
-- `response.status` / `response.status_not` assertions
-- `response.json.<path>` field assertions
-- `file_exists` / `file_absent` assertions
-- **`db.image(...)` / `db.album(...)` inline redb-read code paths** (lines 93–101,
-  302–358) — these read `TREE.in_disk` and `DATA_TABLE` directly in the
-  generated test. **Deprecated.** They were needed for the reference port
-  (Scenario H) but violate the API-only constraint.
+**Watcher/upload/scan scenarios (deleted from plan):** A, E, L, M, N, R, U, W,
+X, Y, Z were removed without YAML equivalents. The watcher path will be covered
+by a new YAML pattern; scan/upload are exercisable via API calls in YAML.
 
-**Fixtures (`src/tests/fixtures.rs`):** mixed responsibility. Some are clean
-interface adapters (`make_client`, `auth_cookie`, `json_get`, `read_current_abstract_data`,
-`fetch_original_bytes`). Others access redb directly (`find_hash_by_alias_path`,
-`insert_photos`, `insert_stale_photo_record`). These will be refactored to HTTP
-calls in Phase 2.
+**API-test scenarios (deferred):** J, V — covered by Rust, removed without YAML
+equivalents. To be re-implemented via YAML setup + API call + verify pattern.
 
-**Intentionally red scenarios (pin known bugs):** L, M, N, R. These must stay
-red in their ported DSL form — the fix shows up as a green diff.
+**Generator (`xtask/src/generator.rs`):** still contains `db.*` code paths
+(Phase 1 not done). Generated tests use them for album/item_count assertions
+(scenarios H, I, Q, S).
+
+**Fixtures (`src/tests/fixtures/`):** cleaned up. `internal.rs` deleted.
+`api.rs` contains only interface-adapter helpers used by generated code.
+Redb-access helpers removed. No direct-DB helpers remain.
 
 ### Implementation plan
 
@@ -319,98 +313,61 @@ emit fixture helper calls, never inline redb access.
   (generator.rs line 100).
 - [ ] Remove the entire `db.*` assertion emission block in `emit_then_assertions`
   (generator.rs lines 302–358).
-- [ ] Verify the 4 ported scenarios still compile and pass (they already use
-  HTTP-only assertions — the `db.*` code has not been exercised for them).
+- [ ] Port scenarios H, I, Q, S to avoid `db.*` assertions (use HTTP checks
+  or filesystem assertions instead).
 - [ ] Re-generate: `cargo xtask gen-scenarios` → `cargo nextest run`.
 
 #### Phase 2: Refactor fixtures to API-only
 
-Convert fixture helpers that read redb to use the HTTP API instead. The goal
-is that every helper called by generated code works through the external
-interface.
-
-- [ ] `find_hash_by_alias_path` — currently reads `TREE.in_disk` + `DATA_TABLE`.
-  Replace with a `GET /get/get-data?<hash>` call that resolves the alias from
-  the JSON response. This is a dependency for the `photo` `given:` verb (which
-  needs to resolve the inserted photo's hash).
-- [ ] `insert_photos` — currently calls `index_for_watch` internally. The
-  `given:` verb already emits `write_real_jpeg` + `insert_photos` inline in
-  generated code. Move `insert_photos` call to a helper that triggers indexing
-  via the API if possible, or keep as an internal-only helper that lives on
-  in `e2e.rs` (not used by generated code after Phase 3).
-- [ ] `insert_stale_photo_record` — currently writes directly to redb. Either
-  convert to a multi-step API sequence or mark as internal-only.
-- [ ] Split `fixtures.rs` into two modules:
-  - `fixtures/mod.rs` (or `fixtures/api.rs`): interface-adapter helpers
-    (API-only, movable to xtask later).
-  - `fixtures/internal.rs`: helpers that still need redb access (used only
-    by hand-written `e2e.rs` tests; deleted with them).
-- [ ] Verify generated tests still pass after each refactor.
+**DONE.** `internal.rs` deleted. All remaining fixture helpers in `api.rs`
+work through the HTTP API or filesystem. No redb-access helpers remain.
+The `fixtures/` module is already split along the right lines.
 
 #### Phase 3: Batch port remaining scenarios
 
-Port scenarios from `e2e.rs` to YAML + generated code, grouped by the
-assertion patterns they need.
+**Ported to DSL (11 — all in `scenarios/api/`):**
+B, D, G, H, I, K, O, P, Q, S, T.
+Rust equivalents deleted from `e2e.rs`.
 
-**Batch 3a — HTTP response + filesystem checks (no new helpers needed):**
-Scenarios that assert via `response.json.*`, `response.status`, `file_exists`,
-or `file_absent`.
+**Dropped (removed without YAML equivalents):**
+- A (initial state, singleton — removed)
+- E (generated hierarchy — removed as scan test)
+- L, M, N, R (watcher path, were red/pinning bugs — removed; watcher to be
+  covered by new YAML pattern)
+- U, Z (scan path — removed; scan can be exercised via `POST /post/index` in
+  YAML)
+- X, Y (upload path — removed; upload can be exercised via API calls in YAML)
+- W (duplicate tracking, watcher path — removed)
 
-- [ ] Scenario J — `assign_album_rejects_stale_file_path` (status code + file absent)
-- [ ] Scenario T — `path_completion_returns_absolute_paths` (response shape)
-- [ ] Scenario X — `upload_with_no_album_lands_in_ingress_folder` (filesystem)
-- [ ] Scenario Y — `upload_with_album_writes_into_album_directory` (filesystem)
+**Deferred (to be written as YAML):**
+- [ ] Scenario J — `assign_album_rejects_stale_file_path` — 4xx on ghost record
+- [ ] Scenario V — `imported_route_serves_live_source_after_move` — binary
+  serving invariant
 
-**Batch 3b — Tags and metadata via get-data:**
-Scenarios that read back photo state through the sidebar data endpoint.
-
-- [ ] Scenario B — `photo_tags_reflect_injected_metadata`
-- [ ] Scenario O — `tags_visible_via_get_data_sidebar_path`
-- [ ] Scenario P — `tags_modifiable_via_edit_tag_api`
-- [ ] Scenario S — `reindex_preserves_album_and_tags`
-- [ ] Scenario Z — `force_reindex_refreshes_already_known_files`
-
-**Batch 3c — Album hierarchy and membership:**
-Scenarios that check album tree structure and photo membership.
-
-- [ ] Scenario D — `dir_album_parent_child_relationship`
-- [ ] Scenario E — `generated_dir_tree_hierarchy_properties`
-- [ ] Scenario L — `dir_album_membership_not_set_at_index_time` (red)
-- [ ] Scenario Q — `album_visible_via_get_data_after_assign`
-
-**Batch 3d — Complex flows and image serving:**
-Scenarios that involve image-home scan, import serving, duplicate tracking,
-and the watcher.
-
-- [ ] Scenario U — `image_home_scan_discovers_albums_and_tags`
-- [ ] Scenario V — `imported_route_serves_live_source_after_move`
-- [ ] Scenario W — `duplicate_content_at_two_live_paths_tracked_as_two_aliases`
-- [ ] Scenario M — `watcher_reindex_after_assign_duplicates_alias` (red)
-- [ ] Scenario R — `externally_moved_file_keeps_dead_alias_entry` (red)
-
-**Batch 3e — Remaining:**
-- [ ] Scenario N — `tags_not_discovered_from_xmp_keywords_at_index_time` (red)
-- [ ] Scenario A — `initial_empty_state` (singleton setup; may remain as a
-  standalone fixture or be absorbed into the test harness)
-
-For each scenario:
-  a. Add DSL verb + fixture helper if the assertion pattern isn't covered.
-  b. Write YAML scenario file in `scenarios/api/`.
-  c. Re-generate and run: `cargo xtask gen-scenarios && cargo nextest run`.
-  d. Once the generated test matches the hand-written one's assertions (within
-     the API-only constraint), delete the hand-written version from `e2e.rs`.
+**Remaining gaps in regression matrix (never covered by any scenario):**
+- [ ] `create_dir_album` endpoint E2E
+- [ ] Stale `DIR_ALBUM_CACHE` — dir deleted externally
+- [ ] `POST /upload` with hash already known (different album)
+- [ ] `assign_album` targeting a manual album (no `dir_path`)
+- [ ] `GuardReadOnlyMode` on mutating routes
+- [ ] Share capability flags: `show_metadata`, `show_download`, `show_upload`
+- [ ] `GET /object/*` with wrong hash-scoped token
+- [ ] Prefetch snapshot expiry (known bug, no fix yet)
+- [ ] Video pipeline parity with image pipeline
 
 #### Phase 4: Decommission e2e.rs
 
-- [ ] Delete `src/tests/e2e.rs`.
-- [ ] Remove `internal.rs` fixtures (no longer needed).
+**Done:** `src/tests/e2e.rs` deleted (placeholder remains). `internal.rs`
+deleted.
+
+**Not done** — move `api.rs` fixtures to xtask crate:
 - [ ] Move `api.rs` (interface-adapter fixtures) from `gallery-backend` into
   the `xtask` crate as a library module that generated tests import.
 - [ ] Update `xtask/Cargo.toml` to add `rocket`, `serde_json`, `tempfile` etc.
   as dependencies.
 - [ ] Update generated test preamble to import from `xtask::fixtures` instead
   of `crate::tests::fixtures`.
-- [ ] Verify `cargo nextest run` passes with no e2e.rs, no internal fixtures.
+- [ ] Verify `cargo nextest run` passes.
 
 ### Future tooling (separate from the generator)
 
