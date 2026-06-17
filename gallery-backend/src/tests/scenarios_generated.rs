@@ -223,6 +223,46 @@ mod scenarios_generated {
     }
 
     #[test]
+    fn assign_album_rejects_stale_file_path() {
+        let _ = &*TEST_ENV;
+        let data = get_resolved_image_path().expect("IMAGE_HOME configured");
+        std::fs::create_dir_all(&data.join("e2e_j/album")).expect("create album dir");
+        write_real_jpeg(
+            &data.join("e2e_j/album/.__urocissa_ph__.jpg"),
+            path_color("e2e_j/album/.__urocissa_ph__.jpg"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_j")).expect("create dir");
+        write_real_jpeg(&data.join("e2e_j/photo.jpg"), path_color("e2e_j/photo.jpg"));
+        let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        assert_eq!(
+            wait_for_import(30000),
+            FolderImportState::Completed,
+            "import"
+        );
+        std::fs::remove_file(&data.join("e2e_j/photo.jpg")).expect("remove file");
+        let album = discover_album_id(&client, "e2e_j/album");
+        let photo = discover_photo_hash(&client, "e2e_j/photo.jpg");
+        let resp_0 = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"albumId": album, "hash": photo}).to_string())
+            .dispatch();
+        assert_ne!(
+            resp_0.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_0 must not return 200"
+        );
+    }
+
+    #[test]
     fn create_dir_album_creates_subdirectory_and_registers_album() {
         let _ = &*TEST_ENV;
         let data = get_resolved_image_path().expect("IMAGE_HOME configured");
@@ -440,6 +480,50 @@ mod scenarios_generated {
             found["parentAlbumId"],
             serde_json::json!(parent_id),
             "array_where parentAlbumId mismatch"
+        );
+    }
+
+    #[test]
+    fn image_serving_survives_album_move() {
+        let _ = &*TEST_ENV;
+        let data = get_resolved_image_path().expect("IMAGE_HOME configured");
+        std::fs::create_dir_all(&data.join("e2e_v/album")).expect("create album dir");
+        write_real_jpeg(
+            &data.join("e2e_v/album/.__urocissa_ph__.jpg"),
+            path_color("e2e_v/album/.__urocissa_ph__.jpg"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_v")).expect("create dir");
+        write_real_jpeg(&data.join("e2e_v/photo.jpg"), path_color("e2e_v/photo.jpg"));
+        let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        assert_eq!(
+            wait_for_import(30000),
+            FolderImportState::Completed,
+            "import"
+        );
+        let album = discover_album_id(&client, "e2e_v/album");
+        let photo = discover_photo_hash(&client, "e2e_v/photo.jpg");
+        let resp_0 = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"albumId": album, "hash": photo}).to_string())
+            .dispatch();
+        assert_eq!(
+            resp_0.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_0 status"
+        );
+        assert_eq!(
+            serve_compressed_image(&client, &photo),
+            Status::Ok,
+            "serve_image_ok: $photo"
         );
     }
 

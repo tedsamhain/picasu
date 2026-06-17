@@ -1,0 +1,15 @@
+name: image_serving_survives_album_move
+given:
+  - dir_album: /e2e_v/album
+    id_as: $album
+  - photo: /e2e_v/photo.jpg
+    id_as: $photo
+when:
+  - call: PUT /put/assign_album
+    body:
+      hash: "${photo}"
+      albumId: "${album}"
+    then:
+      - response.status: 200
+then:
+  - serve_image_ok: $photo

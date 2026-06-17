@@ -41,6 +41,14 @@
       "required": ["photo"],
       "additionalProperties": false
     },
+    "givenRemove": {
+      "type": "object",
+      "properties": {
+        "remove": { "type": "string" }
+      },
+      "required": ["remove"],
+      "additionalProperties": false
+    },
     "givenEmpty": {
       "type": "object",
       "properties": {
@@ -53,7 +61,8 @@
       "oneOf": [
         { "$ref": "#/definitions/givenDirAlbum" },
         { "$ref": "#/definitions/givenPhoto" },
-        { "$ref": "#/definitions/givenEmpty" }
+        { "$ref": "#/definitions/givenEmpty" },
+        { "$ref": "#/definitions/givenRemove" }
       ]
     },
     "apiCall": {

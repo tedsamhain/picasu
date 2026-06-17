@@ -362,6 +362,15 @@ fn emit_then_assertions(
             lines.push(format!(
                 "assert!(!data.join(\"{trimmed}\").exists(), \"file should be absent: {trimmed}\");"
             ));
+        } else if let Some(photo_var) = item["serve_image_ok"].as_str() {
+            let bare = photo_var.trim_start_matches('$');
+            let rust_var = vars
+                .get(bare)
+                .unwrap_or_else(|| panic!("serve_image_ok: unknown var {photo_var}"));
+            lines.push(format!(
+                "assert_eq!(serve_compressed_image(&client, &{rust_var}), Status::Ok, \
+                 \"serve_image_ok: {photo_var}\");"
+            ));
         }
     }
 }
@@ -505,7 +514,10 @@ fn validate_scenario(schema: &serde_json::Value, scenario: &serde_json::Value, p
     if let Some(given) = scenario["given"].as_array() {
         for (i, item) in given.iter().enumerate() {
             if let Some(obj) = item.as_object() {
-                let known_keys = &["dir_album", "photo", "empty", "id_as", "tags", "exif_date", "color"];
+                let known_keys = &[
+                    "dir_album", "photo", "empty", "remove", "id_as",
+                    "tags", "exif_date", "color",
+                ];
                 for key in obj.keys() {
                     if !known_keys.contains(&key.as_str()) {
                         panic!(
@@ -517,9 +529,13 @@ fn validate_scenario(schema: &serde_json::Value, scenario: &serde_json::Value, p
                         );
                     }
                 }
-                if !obj.contains_key("dir_album") && !obj.contains_key("photo") && !obj.contains_key("empty") {
+                if !obj.contains_key("dir_album")
+                    && !obj.contains_key("photo")
+                    && !obj.contains_key("empty")
+                    && !obj.contains_key("remove")
+                {
                     panic!(
-                        "{}: given[{}]: must contain one of: dir_album, photo, empty",
+                        "{}: given[{}]: must contain one of: dir_album, photo, empty, remove",
                         path.display(),
                         i
                     );
@@ -536,7 +552,7 @@ fn validate_scenario(schema: &serde_json::Value, scenario: &serde_json::Value, p
         for (i, item) in then_items.iter().enumerate() {
             let known_keys = &[
                 "response.status", "response.status_not", "file_exists", "file_absent",
-                "array_min_counts", "array_where",
+                "array_min_counts", "array_where", "serve_image_ok",
             ];
             if let Some(obj) = item.as_object() {
                 for key in obj.keys() {
@@ -816,9 +832,19 @@ fn emit_api_test_body(_name: &str, scenario: &serde_json::Value) -> String {
                 }
 
                 vars.insert(photo.to_string(), v);
+            } else if let Some(remove_path) = item["remove"].as_str() {
+                // Collected and emitted after the scan — file must exist at
+                // scan time, be removed afterward.
             }
         }
     }
+
+    // Collect remove-paths (post-scan deletions).
+    let remove_paths: Vec<&str> = given
+        .iter()
+        .flat_map(|items| items.iter())
+        .filter_map(|item| item["remove"].as_str())
+        .collect();
 
     if has_given_items {
         lines.push(
@@ -833,6 +859,14 @@ fn emit_api_test_body(_name: &str, scenario: &serde_json::Value) -> String {
               assert_eq!(wait_for_import(30000), FolderImportState::Completed, \"import\");"
                 .to_string(),
         );
+
+        // Emit post-scan file deletions (needed for stale-file-path tests).
+        for rp in &remove_paths {
+            let trimmed = rp.trim_start_matches('/');
+            lines.push(format!(
+                "std::fs::remove_file(&data.join(\"{trimmed}\")).expect(\"remove file\");"
+            ));
+        }
 
         if has_id_as {
             for item in given.iter().flat_map(|items| items.iter()) {

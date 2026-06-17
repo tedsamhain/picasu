@@ -307,7 +307,7 @@ gallery-backend/
 ### Current state — DONE
 
 - [x] `e2e.rs` deleted (placeholder remains)
-- [x] **12 scenarios ported to DSL:** B, D, G, H, I, K, O, P, Q, S, T, create_dir_album
+- [x] **14 scenarios ported to DSL:** B, D, G, H, I, J, K, O, P, Q, S, T, V, create_dir_album
 - [x] Watcher/upload/scan scenarios (A, E, L, M, N, R, U, W, X, Y, Z) dropped from plan
 - [x] `internal.rs` deleted; `api.rs` contains only HTTP/filesystem interface adapters
 - [x] Generator: no `db.*` code paths remain (Phase 1 done)
@@ -355,9 +355,8 @@ unknown YAML keys) produce passing-but-wrong tests.
 
 #### 3. Port deferred scenarios J, V
 
-- [ ] Scenario J — `assign_album_rejects_stale_file_path` — 4xx on ghost record
-- [ ] Scenario V — `imported_route_serves_live_source_after_move` — binary serving
-  invariant
+- [x] Scenario J — `assign_album_rejects_stale_file_path` — 4xx on ghost record
+- [x] Scenario V — `image_serving_survives_album_move` — binary serving after album move
 
 #### 4. Fill highest-value regression gaps
 

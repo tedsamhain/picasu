@@ -313,6 +313,69 @@ pub fn discover_album_id(client: &Client, relative_dir: &str) -> String {
     album["albumId"].as_str().expect("albumId").to_owned()
 }
 
+/// Serve a compressed image via `/object/compressed/<hash_prefix>/<hash>.jpg`.
+/// Handles the full token flow: admin auth → Path-based prefetch →
+/// timestamp token → get-data (hash token) → serve image.
+pub fn serve_compressed_image(client: &Client, hash: &str) -> rocket::http::Status {
+    let cookie = auth_cookie(client);
+    let image_home =
+        get_resolved_image_path().expect("IMAGE_HOME must be configured for serve_compressed_image");
+
+    let body = serde_json::json!({"Path": image_home.to_string_lossy()});
+
+    let prefetch_resp = client
+        .post("/get/prefetch")
+        .cookie(cookie.clone())
+        .header(ContentType::JSON)
+        .body(body.to_string())
+        .dispatch();
+    assert_eq!(
+        prefetch_resp.status(),
+        Status::Ok,
+        "prefetch for serve_compressed_image"
+    );
+    let prefetch_body: Value =
+        serde_json::from_slice(&prefetch_resp.into_bytes().expect("prefetch body"))
+            .expect("valid prefetch JSON");
+    let timestamp = prefetch_body["prefetch"]["timestamp"]
+        .as_i64()
+        .expect("prefetch.timestamp");
+    let token = prefetch_body["token"]
+        .as_str()
+        .expect("prefetch.token")
+        .to_owned();
+
+    let data_resp = client
+        .get(format!("/get/get-data?timestamp={timestamp}&start=0&end=1"))
+        .header(rocket::http::Header::new(
+            "Authorization",
+            format!("Bearer {token}"),
+        ))
+        .dispatch();
+    assert_eq!(
+        data_resp.status(),
+        Status::Ok,
+        "get-data for serve_compressed_image"
+    );
+    let data_body: Value =
+        serde_json::from_slice(&data_resp.into_bytes().expect("get-data body"))
+            .expect("valid get-data JSON");
+    let hash_token = data_body[0]["token"]
+        .as_str()
+        .expect("hash token");
+
+    let hash_prefix = &hash[0..2];
+    let resp = client
+        .get(format!("/object/compressed/{hash_prefix}/{hash}.jpg"))
+        .cookie(cookie.clone())
+        .header(rocket::http::Header::new(
+            "Authorization",
+            format!("Bearer {hash_token}"),
+        ))
+        .dispatch();
+    resp.status()
+}
+
 /// Poll `folder_import_status` in a loop until the import reaches a
 /// terminal state, then return that state.  Panics if the import takes
 /// longer than `timeout_ms`.
