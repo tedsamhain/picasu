@@ -9,30 +9,39 @@ mod scenarios_generated {
 
     #[test]
     fn album_membership_is_singular() {
-        let data = {
-            let _ = &*TEST_ENV;
-            DATA_PATH.get().expect("DATA_PATH initialised")
-        };
+        let _ = &*TEST_ENV;
+        let data = get_resolved_image_path().expect("IMAGE_HOME configured");
         std::fs::create_dir_all(&data.join("gen_e2e_i_album_a")).expect("create album dir");
-        let album_a = make_dir_album(&data.join("gen_e2e_i_album_a"));
+        write_real_jpeg(
+            &data.join("gen_e2e_i_album_a/.__urocissa_ph__.jpg"),
+            path_color("gen_e2e_i_album_a/.__urocissa_ph__.jpg"),
+        );
         std::fs::create_dir_all(&data.join("gen_e2e_i_album_b")).expect("create album dir");
-        let album_b = make_dir_album(&data.join("gen_e2e_i_album_b"));
+        write_real_jpeg(
+            &data.join("gen_e2e_i_album_b/.__urocissa_ph__.jpg"),
+            path_color("gen_e2e_i_album_b/.__urocissa_ph__.jpg"),
+        );
         std::fs::create_dir_all(&data.join("gen_e2e_i_import")).expect("create dir");
-        std::fs::write(
+        write_real_jpeg(
             &data.join("gen_e2e_i_import/gen_e2e_i_photo.jpg"),
-            b"\xff\xd8\xff fake jpeg",
-        )
-        .expect("write source file");
-        let photo = {
-            let src = data.join("gen_e2e_i_import/gen_e2e_i_photo.jpg");
-            let hashes = insert_photos(&[PhotoSpec {
-                path: src.to_str().unwrap(),
-                tags: &[],
-                exif_date: None,
-            }]);
-            hashes[0].clone()
-        };
+            path_color("gen_e2e_i_import/gen_e2e_i_photo.jpg"),
+        );
         let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        assert_eq!(
+            wait_for_import(30000),
+            FolderImportState::Completed,
+            "import"
+        );
+        let album_a = discover_album_id(&client, "gen_e2e_i_album_a");
+        let album_b = discover_album_id(&client, "gen_e2e_i_album_b");
+        let photo = discover_photo_hash(&client, "gen_e2e_i_import/gen_e2e_i_photo.jpg");
         let resp_0 = client
             .put("/put/assign_album")
             .cookie(auth_cookie(&client))
@@ -59,28 +68,33 @@ mod scenarios_generated {
 
     #[test]
     fn assign_album_moves_file_and_updates_membership() {
-        let data = {
-            let _ = &*TEST_ENV;
-            DATA_PATH.get().expect("DATA_PATH initialised")
-        };
+        let _ = &*TEST_ENV;
+        let data = get_resolved_image_path().expect("IMAGE_HOME configured");
         std::fs::create_dir_all(&data.join("gen_e2e_h_album")).expect("create album dir");
-        let album = make_dir_album(&data.join("gen_e2e_h_album"));
+        write_real_jpeg(
+            &data.join("gen_e2e_h_album/.__urocissa_ph__.jpg"),
+            path_color("gen_e2e_h_album/.__urocissa_ph__.jpg"),
+        );
         std::fs::create_dir_all(&data.join("gen_e2e_h_import")).expect("create dir");
-        std::fs::write(
+        write_real_jpeg(
             &data.join("gen_e2e_h_import/gen_e2e_h_photo.jpg"),
-            b"\xff\xd8\xff fake jpeg",
-        )
-        .expect("write source file");
-        let photo = {
-            let src = data.join("gen_e2e_h_import/gen_e2e_h_photo.jpg");
-            let hashes = insert_photos(&[PhotoSpec {
-                path: src.to_str().unwrap(),
-                tags: &[],
-                exif_date: None,
-            }]);
-            hashes[0].clone()
-        };
+            path_color("gen_e2e_h_import/gen_e2e_h_photo.jpg"),
+        );
         let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        assert_eq!(
+            wait_for_import(30000),
+            FolderImportState::Completed,
+            "import"
+        );
+        let album = discover_album_id(&client, "gen_e2e_h_album");
+        let photo = discover_photo_hash(&client, "gen_e2e_h_import/gen_e2e_h_photo.jpg");
         let resp = client
             .put("/put/assign_album")
             .cookie(auth_cookie(&client))
@@ -134,68 +148,182 @@ mod scenarios_generated {
     }
 
     #[test]
-    fn photo_tags_reflect_injected_metadata() {
-        let data = {
-            let _ = &*TEST_ENV;
-            DATA_PATH.get().expect("DATA_PATH initialised")
-        };
-        std::fs::create_dir_all(&data.join("e2e_b/2023/summer")).expect("create dir");
-        std::fs::write(
-            &data.join("e2e_b/2023/summer/beach.jpg"),
-            b"\xff\xd8\xff fake jpeg",
-        )
-        .expect("write source file");
-        {
-            let src = data.join("e2e_b/2023/summer/beach.jpg");
-            insert_photos(&[PhotoSpec {
-                path: src.to_str().unwrap(),
-                tags: &["e2e_b_nature", "e2e_b_summer", "e2e_b_beach"],
-                exif_date: Some("2023:07:15 10:00:00"),
-            }]);
-        }
-        std::fs::create_dir_all(&data.join("e2e_b/2023/summer")).expect("create dir");
-        std::fs::write(
-            &data.join("e2e_b/2023/summer/sunset.jpg"),
-            b"\xff\xd8\xff fake jpeg",
-        )
-        .expect("write source file");
-        {
-            let src = data.join("e2e_b/2023/summer/sunset.jpg");
-            insert_photos(&[PhotoSpec {
-                path: src.to_str().unwrap(),
-                tags: &["e2e_b_nature", "e2e_b_summer"],
-                exif_date: Some("2023:07:16 20:00:00"),
-            }]);
-        }
-        std::fs::create_dir_all(&data.join("e2e_b/2024/winter")).expect("create dir");
-        std::fs::write(
-            &data.join("e2e_b/2024/winter/snow.jpg"),
-            b"\xff\xd8\xff fake jpeg",
-        )
-        .expect("write source file");
-        {
-            let src = data.join("e2e_b/2024/winter/snow.jpg");
-            insert_photos(&[PhotoSpec {
-                path: src.to_str().unwrap(),
-                tags: &["e2e_b_nature", "e2e_b_winter"],
-                exif_date: Some("2024:01:10 09:00:00"),
-            }]);
-        }
-        std::fs::create_dir_all(&data.join("e2e_b/2024/city")).expect("create dir");
-        std::fs::write(
-            &data.join("e2e_b/2024/city/skyline.jpg"),
-            b"\xff\xd8\xff fake jpeg",
-        )
-        .expect("write source file");
-        {
-            let src = data.join("e2e_b/2024/city/skyline.jpg");
-            insert_photos(&[PhotoSpec {
-                path: src.to_str().unwrap(),
-                tags: &["e2e_b_architecture", "e2e_b_city"],
-                exif_date: None,
-            }]);
-        }
+    fn dir_album_parent_child_relationship() {
+        let _ = &*TEST_ENV;
+        let data = get_resolved_image_path().expect("IMAGE_HOME configured");
+        let data_path = data.to_string_lossy().to_string();
+        std::fs::create_dir_all(&data.join("e2e_d")).expect("create album dir");
+        write_real_jpeg(
+            &data.join("e2e_d/.__urocissa_ph__.jpg"),
+            path_color("e2e_d/.__urocissa_ph__.jpg"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_d/vacation")).expect("create album dir");
+        write_real_jpeg(
+            &data.join("e2e_d/vacation/.__urocissa_ph__.jpg"),
+            path_color("e2e_d/vacation/.__urocissa_ph__.jpg"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_d/vacation/day1")).expect("create album dir");
+        write_real_jpeg(
+            &data.join("e2e_d/vacation/day1/.__urocissa_ph__.jpg"),
+            path_color("e2e_d/vacation/day1/.__urocissa_ph__.jpg"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_d/vacation")).expect("create dir");
+        write_real_jpeg_with_xmp_keywords(
+            &data.join("e2e_d/vacation/img1.jpg"),
+            [128, 128, 128],
+            &["e2e_d_travel"],
+        );
+        std::fs::create_dir_all(&data.join("e2e_d/vacation/day1")).expect("create dir");
+        write_real_jpeg_with_xmp_keywords(
+            &data.join("e2e_d/vacation/day1/img2.jpg"),
+            [128, 128, 128],
+            &["e2e_d_travel", "e2e_d_beach"],
+        );
         let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        assert_eq!(
+            wait_for_import(30000),
+            FolderImportState::Completed,
+            "import"
+        );
+        let e2e_id = discover_album_id(&client, "e2e_d");
+        let parent_id = discover_album_id(&client, "e2e_d/vacation");
+        let child_id = discover_album_id(&client, "e2e_d/vacation/day1");
+        let resp_0 = client
+            .get("/get/get-albums")
+            .cookie(auth_cookie(&client))
+            .dispatch();
+        assert_eq!(
+            resp_0.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_0 status"
+        );
+        let parsed_final: serde_json::Value =
+            serde_json::from_slice(&resp_0.into_bytes().expect("response body"))
+                .expect("valid JSON");
+        let found = parsed_final
+            .as_array()
+            .expect("response must be an array")
+            .iter()
+            .find(|item| {
+                item["dirPath"] == serde_json::json!(data_path.clone() + &"/e2e_d".to_string())
+            })
+            .expect("no element matching array_where conditions");
+        assert_eq!(
+            found["albumId"],
+            serde_json::json!(e2e_id),
+            "array_where albumId mismatch"
+        );
+        assert_eq!(
+            found["dirPath"],
+            serde_json::json!(data_path.clone() + &"/e2e_d".to_string()),
+            "array_where dirPath mismatch"
+        );
+        assert_eq!(
+            found["parentAlbumId"],
+            serde_json::json!(null),
+            "array_where parentAlbumId mismatch"
+        );
+        let found = parsed_final
+            .as_array()
+            .expect("response must be an array")
+            .iter()
+            .find(|item| {
+                item["dirPath"]
+                    == serde_json::json!(data_path.clone() + &"/e2e_d/vacation".to_string())
+            })
+            .expect("no element matching array_where conditions");
+        assert_eq!(
+            found["albumId"],
+            serde_json::json!(parent_id),
+            "array_where albumId mismatch"
+        );
+        assert_eq!(
+            found["dirPath"],
+            serde_json::json!(data_path.clone() + &"/e2e_d/vacation".to_string()),
+            "array_where dirPath mismatch"
+        );
+        assert_eq!(
+            found["parentAlbumId"],
+            serde_json::json!(e2e_id),
+            "array_where parentAlbumId mismatch"
+        );
+        let found = parsed_final
+            .as_array()
+            .expect("response must be an array")
+            .iter()
+            .find(|item| {
+                item["dirPath"]
+                    == serde_json::json!(data_path.clone() + &"/e2e_d/vacation/day1".to_string())
+            })
+            .expect("no element matching array_where conditions");
+        assert_eq!(
+            found["albumId"],
+            serde_json::json!(child_id),
+            "array_where albumId mismatch"
+        );
+        assert_eq!(
+            found["dirPath"],
+            serde_json::json!(data_path.clone() + &"/e2e_d/vacation/day1".to_string()),
+            "array_where dirPath mismatch"
+        );
+        assert_eq!(
+            found["parentAlbumId"],
+            serde_json::json!(parent_id),
+            "array_where parentAlbumId mismatch"
+        );
+    }
+
+    #[test]
+    fn photo_tags_reflect_injected_metadata() {
+        let _ = &*TEST_ENV;
+        let data = get_resolved_image_path().expect("IMAGE_HOME configured");
+        std::fs::create_dir_all(&data.join("e2e_b/2023/summer")).expect("create dir");
+        write_real_jpeg_with_xmp_and_exif(
+            &data.join("e2e_b/2023/summer/beach.jpg"),
+            [128, 128, 128],
+            &["e2e_b_nature", "e2e_b_summer", "e2e_b_beach"],
+            Some("2023:07:15 10:00:00"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_b/2023/summer")).expect("create dir");
+        write_real_jpeg_with_xmp_and_exif(
+            &data.join("e2e_b/2023/summer/sunset.jpg"),
+            [128, 128, 128],
+            &["e2e_b_nature", "e2e_b_summer"],
+            Some("2023:07:16 20:00:00"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_b/2024/winter")).expect("create dir");
+        write_real_jpeg_with_xmp_and_exif(
+            &data.join("e2e_b/2024/winter/snow.jpg"),
+            [128, 128, 128],
+            &["e2e_b_nature", "e2e_b_winter"],
+            Some("2024:01:10 09:00:00"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_b/2024/city")).expect("create dir");
+        write_real_jpeg_with_xmp_keywords(
+            &data.join("e2e_b/2024/city/skyline.jpg"),
+            [128, 128, 128],
+            &["e2e_b_architecture", "e2e_b_city"],
+        );
+        let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        assert_eq!(
+            wait_for_import(30000),
+            FolderImportState::Completed,
+            "import"
+        );
         let resp_0 = client
             .get("/get/get-tags")
             .cookie(auth_cookie(&client))
@@ -228,23 +356,28 @@ mod scenarios_generated {
 
     #[test]
     fn tags_visible_via_get_data() {
-        let data = {
-            let _ = &*TEST_ENV;
-            DATA_PATH.get().expect("DATA_PATH initialised")
-        };
+        let _ = &*TEST_ENV;
+        let data = get_resolved_image_path().expect("IMAGE_HOME configured");
         std::fs::create_dir_all(&data.join("e2e_o")).expect("create dir");
-        std::fs::write(&data.join("e2e_o/tagged.jpg"), b"\xff\xd8\xff fake jpeg")
-            .expect("write source file");
-        let photo = {
-            let src = data.join("e2e_o/tagged.jpg");
-            let hashes = insert_photos(&[PhotoSpec {
-                path: src.to_str().unwrap(),
-                tags: &["e2e_o_family", "e2e_o_vacation"],
-                exif_date: None,
-            }]);
-            hashes[0].clone()
-        };
+        write_real_jpeg_with_xmp_keywords(
+            &data.join("e2e_o/tagged.jpg"),
+            [128, 128, 128],
+            &["e2e_o_family", "e2e_o_vacation"],
+        );
         let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        assert_eq!(
+            wait_for_import(30000),
+            FolderImportState::Completed,
+            "import"
+        );
+        let photo = discover_photo_hash(&client, "e2e_o/tagged.jpg");
         let resp_0 = client
             .post(format!(r#"/get/prefetch?locate={photo}"#))
             .cookie(auth_cookie(&client))

@@ -189,6 +189,45 @@ fn start_import_job(root: PathBuf, force: bool) -> AppResult<()> {
     Ok(())
 }
 
+/// Start an `IMAGE_HOME` scan with an optional subdirectory filter.
+///
+/// * `path` (`None` or empty) — scan the entire `imagePath`.
+/// * `path` (`Some(subdir)`) — scan only `imagePath / subdir`.
+pub fn start_image_home_index(path: Option<&str>, force: bool) -> AppResult<()> {
+    let image_home = get_resolved_image_path()
+        .ok_or_else(|| AppError::new(ErrorKind::InvalidInput, "No imagePath configured to scan"))?;
+
+    let root = match path {
+        Some(subdir) if !subdir.is_empty() => {
+            let p = image_home.join(subdir.trim_start_matches('/'));
+            if !p.is_dir() {
+                return Err(AppError::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "Subdirectory {} does not exist or is not a directory",
+                        p.display()
+                    ),
+                ));
+            }
+            p
+        }
+        _ => {
+            if !image_home.is_dir() {
+                return Err(AppError::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "imagePath {} does not exist or is not a directory",
+                        image_home.display()
+                    ),
+                ));
+            }
+            image_home
+        }
+    };
+
+    start_import_job(root, force)
+}
+
 pub fn cancel_folder_import() -> AppResult<()> {
     let active = ACTIVE_IMPORT.lock().unwrap().clone();
     let Some(active) = active else {

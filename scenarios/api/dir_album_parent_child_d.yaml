@@ -1,0 +1,40 @@
+name: dir album parent-child relationship
+given:
+  - dir_album: /e2e_d
+    id_as: $e2e_id
+  - dir_album: /e2e_d/vacation
+    id_as: $parent_id
+  - dir_album: /e2e_d/vacation/day1
+    id_as: $child_id
+  - photo: /e2e_d/vacation/img1.jpg
+    tags:
+      - e2e_d_travel
+  - photo: /e2e_d/vacation/day1/img2.jpg
+    tags:
+      - e2e_d_travel
+      - e2e_d_beach
+when:
+  - call: GET /get/get-albums
+then:
+  - response.status: 200
+  - array_where:
+      where:
+        dirPath: "${data_path}/e2e_d"
+      assert:
+        parentAlbumId: null
+        dirPath: "${data_path}/e2e_d"
+        albumId: ${e2e_id}
+  - array_where:
+      where:
+        dirPath: "${data_path}/e2e_d/vacation"
+      assert:
+        parentAlbumId: ${e2e_id}
+        dirPath: "${data_path}/e2e_d/vacation"
+        albumId: ${parent_id}
+  - array_where:
+      where:
+        dirPath: "${data_path}/e2e_d/vacation/day1"
+      assert:
+        parentAlbumId: ${parent_id}
+        dirPath: "${data_path}/e2e_d/vacation/day1"
+        albumId: ${child_id}

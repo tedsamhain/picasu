@@ -15,6 +15,7 @@ pub use rocket::http::{ContentType, Status};
 pub use serde_json::Value;
 
 pub use crate::operations::hash::{blake3_hasher, generate_random_hash};
+pub use crate::operations::utils::image_path::get_resolved_image_path;
 pub use crate::public::constant::redb::DATA_TABLE;
 pub use crate::public::constant::storage::DATA_PATH;
 pub use crate::public::db::tree::TREE;
@@ -50,8 +51,11 @@ pub static TEST_ENV: LazyLock<TestEnv> = LazyLock::new(|| {
         .expect("DATA_PATH already set");
 
     // No password → GuardAuth auto-succeeds; read_only_mode = false.
+    // Set image_path so POST /post/index can scan an IMAGE_HOME.
+    let mut test_config = AppConfig::default();
+    test_config.public.image_path = Some("".into()); // root of image_home_base()
     APP_CONFIG
-        .set(RwLock::new(AppConfig::default()))
+        .set(RwLock::new(test_config))
         .expect("APP_CONFIG already set");
 
     // Create DATA_TABLE so read-only handlers don't fail on an empty DB.
@@ -124,6 +128,11 @@ pub static TEST_ENV: LazyLock<TestEnv> = LazyLock::new(|| {
         init_assertions: failures,
     }
 });
+
+/// There is exactly one global folder-import slot in `folder_import.rs`.
+/// All generated tests that call `POST /post/index` must hold this lock
+/// for their entire body to get `202 Accepted` instead of `409 Conflict`.
+pub static INDEX_SERIAL_GUARD: Mutex<()> = Mutex::new(());
 
 /// `TREE_SNAPSHOT` keys snapshots by `Utc::now().timestamp_millis()`
 /// (get_prefetch.rs). Two `prefetch` calls from different tests landing

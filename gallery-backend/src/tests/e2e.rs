@@ -1055,8 +1055,13 @@ mod tests {
 
         // Point the configured imagePath at our fixture root, scoped to
         // this test (reset at the end so later tests aren't affected).
+        // Hold INDEX_SERIAL_GUARD so generated tests (which also scan) see
+        // a consistent image_path.
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let saved_image_path;
         {
             let mut config = APP_CONFIG.get().unwrap().write().unwrap();
+            saved_image_path = config.public.image_path.clone();
             config.public.image_path = Some(image_home.clone());
         }
 
@@ -1075,8 +1080,9 @@ mod tests {
 
         {
             let mut config = APP_CONFIG.get().unwrap().write().unwrap();
-            config.public.image_path = None;
+            config.public.image_path = saved_image_path;
         }
+        drop(_guard);
 
         let status = folder_import_status();
         assert_eq!(
@@ -1250,8 +1256,11 @@ mod tests {
         let image_home = data.join("e2e_x_image_home");
         std::fs::create_dir_all(&image_home).expect("create image home");
 
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let saved_image_path;
         {
             let mut config = APP_CONFIG.get().unwrap().write().unwrap();
+            saved_image_path = config.public.image_path.clone();
             config.public.image_path = Some(image_home.clone());
         }
 
@@ -1280,8 +1289,9 @@ mod tests {
 
         {
             let mut config = APP_CONFIG.get().unwrap().write().unwrap();
-            config.public.image_path = None;
+            config.public.image_path = saved_image_path;
         }
+        drop(_guard);
 
         let uploads_dir = image_home.join("uploads");
         let uploaded_files: Vec<_> = std::fs::read_dir(&uploads_dir)
@@ -1417,8 +1427,11 @@ mod tests {
                 .expect("compute real content hash");
         insert_stale_photo_record(&photo_path, real_hash);
 
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let saved_image_path;
         {
             let mut config = APP_CONFIG.get().unwrap().write().unwrap();
+            saved_image_path = config.public.image_path.clone();
             config.public.image_path = Some(image_home.clone());
         }
 
@@ -1470,8 +1483,9 @@ mod tests {
 
         {
             let mut config = APP_CONFIG.get().unwrap().write().unwrap();
-            config.public.image_path = None;
+            config.public.image_path = saved_image_path;
         }
+        drop(_guard);
 
         let status = folder_import_status();
         assert_eq!(

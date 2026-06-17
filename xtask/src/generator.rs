@@ -89,37 +89,58 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
 
     let mut vars: VarMap = HashMap::new();
     let mut lines: Vec<String> = Vec::new();
+    let mut has_id_as = false;
 
-    // Check whether we need DATA_PATH (given items or filesystem assertions)
+    // Check whether we need filesystem access (given items or file assertions)
     let needs_data = given.map(|items| !items.is_empty()).unwrap_or(false)
         || then.iter().any(|item| {
             item.get("file_exists").is_some() || item.get("file_absent").is_some()
         });
 
     if needs_data {
+        // `data` points to IMAGE_HOME (the resolved imagePath).
         lines.push(
-            "let data = {\n\
-                 let _ = &*TEST_ENV;\n\
-                 DATA_PATH.get().expect(\"DATA_PATH initialised\")\n\
-             };"
-            .to_string(),
+            "let _ = &*TEST_ENV;\n\
+             let data = get_resolved_image_path().expect(\"IMAGE_HOME configured\");"
+                .to_string(),
         );
+
+        // Emit data_path helper only if any assertion references ${data_path}.
+        let scenario_text = serde_json::to_string(&scenario).unwrap_or_default();
+        if scenario_text.contains("${data_path}") {
+            lines.push(
+                "let data_path = data.to_string_lossy().to_string();".to_string()
+            );
+            vars.insert("data_path".to_string(), "data_path".to_string());
+        }
     }
 
-    // Process given items
+    // ── Given: write files / create dirs ─────────────────────────────────
+    let has_given_items = given.map(|items| !items.is_empty()).unwrap_or(false);
     if let Some(items) = given {
         for item in items {
             if let Some(dir) = item["dir_album"].as_str() {
-                let v = fresh_var(&mut vars, item, "album");
+                let _v = fresh_var(&mut vars, item, "album");
+                if item.get("id_as").is_some() {
+                    has_id_as = true;
+                }
                 let trimmed = dir.trim_start_matches('/');
                 lines.push(format!(
                     "std::fs::create_dir_all(&data.join(\"{trimmed}\")).expect(\"create album dir\");"
                 ));
-                lines.push(format!(
-                    "let {v} = make_dir_album(&data.join(\"{trimmed}\"));"
-                ));
+                if item.get("id_as").is_some() {
+                    // Placeholder so the scan creates the dir album even if
+                    // no other photo lives in this directory.
+                    let ph_path = format!("{trimmed}/.__urocissa_ph__.jpg");
+                    lines.push(format!(
+                        "write_real_jpeg(&data.join(\"{ph_path}\"), path_color(\"{ph_path}\"));"
+                    ));
+                }
             } else if let Some(photo) = item["photo"].as_str() {
                 let v = fresh_var(&mut vars, item, "photo");
+                if item.get("id_as").is_some() {
+                    has_id_as = true;
+                }
                 let photo_relative = photo.trim_start_matches('/');
                 let src_dir = Path::new(photo_relative)
                     .parent()
@@ -132,21 +153,16 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
                     ));
                 }
 
-                let has_color = item.get("color").and_then(|c| c.as_array()).is_some();
-
-                if has_color {
-                    let color = item["color"].as_array().unwrap();
-                    let r = color[0].as_i64().unwrap_or(128);
-                    let g = color[1].as_i64().unwrap_or(128);
-                    let b = color[2].as_i64().unwrap_or(128);
-                    lines.push(format!(
-                        "write_real_jpeg(&data.join(\"{photo_relative}\"), [{r}, {g}, {b}]);"
-                    ));
-                } else {
-                    lines.push(format!(
-                        "std::fs::write(&data.join(\"{photo_relative}\"), b\"\\xff\\xd8\\xff fake jpeg\").expect(\"write source file\");"
-                    ));
-                }
+                let color = item.get("color").and_then(|c| c.as_array());
+                let (r, g, b) = color
+                    .map(|c| {
+                        (
+                            c[0].as_i64().unwrap_or(128) as u8,
+                            c[1].as_i64().unwrap_or(128) as u8,
+                            c[2].as_i64().unwrap_or(128) as u8,
+                        )
+                    })
+                    .unwrap_or((128u8, 128u8, 128u8));
 
                 let tags: Vec<String> = item["tags"]
                     .as_array()
@@ -156,32 +172,52 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
                             .collect()
                     })
                     .unwrap_or_default();
-                let tags_arr = if tags.is_empty() {
-                    "&[]".to_string()
-                } else {
-                    format!("&[{}]", tags.join(", "))
-                };
-                let exif_date = item["exif_date"]
-                    .as_str()
-                    .map(|d| format!("Some({d:?})"))
-                    .unwrap_or_else(|| "None".to_string());
+                let exif_date = item["exif_date"].as_str();
 
-                let has_var = item.get("id_as").is_some();
-                if has_var {
-                    lines.push(format!(
-                        "let {v} = {{\n\
-                             let src = data.join(\"{photo_relative}\");\n\
-                             let hashes = insert_photos(&[PhotoSpec {{ path: src.to_str().unwrap(), tags: {tags_arr}, exif_date: {exif_date} }}]);\n\
-                             hashes[0].clone()\n\
-                         }};"
-                    ));
-                } else {
-                    lines.push(format!(
-                        "{{\n\
-                             let src = data.join(\"{photo_relative}\");\n\
-                             insert_photos(&[PhotoSpec {{ path: src.to_str().unwrap(), tags: {tags_arr}, exif_date: {exif_date} }}]);\n\
-                         }}"
-                    ));
+                let has_tags = !tags.is_empty();
+                let has_date = exif_date.is_some();
+
+                match (has_tags, has_date) {
+                    (true, true) => {
+                        let tags_fmt = format!("&[{}]", tags.join(", "));
+                        let date = exif_date.unwrap();
+                        lines.push(format!(
+                            "write_real_jpeg_with_xmp_and_exif(\
+                             &data.join(\"{photo_relative}\"), \
+                             [{r}, {g}, {b}], \
+                             {tags_fmt}, \
+                             Some({date:?}));"
+                        ));
+                    }
+                    (true, false) => {
+                        let tags_fmt = format!("&[{}]", tags.join(", "));
+                        lines.push(format!(
+                            "write_real_jpeg_with_xmp_keywords(\
+                             &data.join(\"{photo_relative}\"), \
+                             [{r}, {g}, {b}], \
+                             {tags_fmt});"
+                        ));
+                    }
+                    (false, true) => {
+                        let date = exif_date.unwrap();
+                        lines.push(format!(
+                            "write_real_jpeg_with_exif(\
+                             &data.join(\"{photo_relative}\"), \
+                             [{r}, {g}, {b}], \
+                             {date:?});"
+                        ));
+                    }
+                    (false, false) => {
+                        if item.get("color").is_some() {
+                            lines.push(format!(
+                                "write_real_jpeg(&data.join(\"{photo_relative}\"), [{r}, {g}, {b}]);"
+                            ));
+                        } else {
+                            lines.push(format!(
+                                "write_real_jpeg(&data.join(\"{photo_relative}\"), path_color(\"{photo_relative}\"));"
+                            ));
+                        }
+                    }
                 }
 
                 vars.insert(photo.to_string(), v);
@@ -189,12 +225,52 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
         }
     }
 
-    // Process when/then blocks
+    // ── Scan IMAGE_HOME if we wrote any files ────────────────────────────
+    if has_given_items {
+        lines.push(
+            "let client = make_client();\n\
+              let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());\n\
+              let _scan_resp = client\n\
+                  .post(\"/post/index\")\n\
+                  .cookie(auth_cookie(&client))\n\
+                  .header(ContentType::JSON)\n\
+                  .dispatch();\n\
+              assert_eq!(_scan_resp.status(), Status::Accepted, \"scan trigger\");\n\
+              assert_eq!(wait_for_import(30000), FolderImportState::Completed, \"import\");"
+                .to_string(),
+        );
+
+        // Discover hashes / album IDs for items with id_as
+        if has_id_as {
+            for item in given.iter().flat_map(|items| items.iter()) {
+                if let Some(dir) = item["dir_album"].as_str() {
+                    if item.get("id_as").is_some() {
+                        let v = fresh_var(&mut vars, item, "album");
+                        let trimmed = dir.trim_start_matches('/');
+                        lines.push(format!(
+                            "let {v} = discover_album_id(&client, \"{trimmed}\");"
+                        ));
+                    }
+                } else if let Some(photo) = item["photo"].as_str() {
+                    if item.get("id_as").is_some() {
+                        let v = fresh_var(&mut vars, item, "photo");
+                        let trimmed = photo.trim_start_matches('/');
+                        lines.push(format!(
+                            "let {v} = discover_photo_hash(&client, \"{trimmed}\");"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    // ── When / Then ──────────────────────────────────────────────────────
     let is_multi = when.is_array();
+    let client_ready = has_given_items;
 
     if is_multi {
         let calls = when.as_array().expect("when array");
-        let mut client_emitted = false;
+        let mut client_emitted = client_ready;
         for (i, call) in calls.iter().enumerate() {
             let resp_var = format!("resp_{i}");
             emit_single_call(call, &vars, &mut lines, &resp_var, !client_emitted);
@@ -255,7 +331,11 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
         let last_resp = format!("resp_{}", calls.len().saturating_sub(1));
         emit_then_assertions(then, &last_resp, &vars, &mut lines);
     } else {
-        emit_single_call(when, &vars, &mut lines, "resp", true);
+        if client_ready {
+            emit_single_call(when, &vars, &mut lines, "resp", false);
+        } else {
+            emit_single_call(when, &vars, &mut lines, "resp", true);
+        }
         emit_then_assertions(then, "resp", &vars, &mut lines);
     }
 
@@ -387,7 +467,10 @@ fn emit_then_assertions(
         .filter_map(|item| {
             item.as_object().and_then(|m| m.iter().next()).and_then(
                 |(key, val)| {
-                    if key.starts_with("response.json.") || key == "array_min_counts" {
+                    if key.starts_with("response.json.")
+                        || key == "array_min_counts"
+                        || key == "array_where"
+                    {
                         Some((key.clone(), val))
                     } else {
                         None
@@ -426,6 +509,30 @@ fn emit_then_assertions(
                      }}",
                     pairs.join(", ")
                 ));
+                continue;
+            }
+            if key == "array_where" {
+                let aw = val.as_object().expect("array_where value must be an object");
+                let where_obj = aw.get("where").and_then(|w| w.as_object()).expect("array_where requires 'where' object");
+                let assert_obj = aw.get("assert").and_then(|a| a.as_object()).expect("array_where requires 'assert' object");
+                let where_pairs: Vec<String> = where_obj.iter()
+                    .map(|(field, cond)| {
+                        let cond_expr = value_to_json_expr(cond, vars);
+                        format!("item[{field:?}] == serde_json::json!({cond_expr})")
+                    })
+                    .collect();
+                lines.push(format!(
+                    "let found = parsed_final.as_array().expect(\"response must be an array\").iter()\n\
+                         .find(|item| {})\n\
+                         .expect(\"no element matching array_where conditions\");",
+                    where_pairs.join(" && "),
+                ));
+                for (field, expected) in assert_obj {
+                    let expect_expr = value_to_json_expr(expected, vars);
+                    lines.push(format!(
+                        "assert_eq!(found[{field:?}], serde_json::json!({expect_expr}), \"array_where {field} mismatch\");"
+                    ));
+                }
                 continue;
             }
             let field_path = key.strip_prefix("response.json.").unwrap();
