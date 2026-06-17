@@ -236,175 +236,211 @@ bucket explicit in code, not just in a comment:
 - [ ] Frontend progress UI — poll the existing `/get/import/folder/status` pattern (or a future SSE stream) to show active indexing progress to authenticated users
 - [ ] Structured logging — investigate `tracing` + `tracing-subscriber` as a replacement for `env_logger` to support spans, JSON output for log aggregators, and `tracing-journald` for native systemd/journald integration
 
-## Spec-driven E2E testing (planning — not yet implemented)
+## Spec-driven E2E testing
 
-Goal: generate E2E test code from a semi-formal spec rather than hand-writing
+Goal: generate test code from a semi-formal spec rather than hand-writing
 (or AI-writing) each test body. Two layers: a **backend-authoritative interface
 contract** (Rust `utoipa` annotations → `openapi.json`) fixes operation names and
 request/response schemas; a **scenario DSL** (Given/When/Then YAML) describes
 fixtures, calls, and assertions. A standalone generator expands scenarios into
-the existing `e2e.rs` Rocket-`Client` test style, and later into Playwright specs.
+Rocket-`Client` Rust tests and later into Playwright browser specs.
+
+All tests are locally executable and debuggable first. CI automates and orchestrates
+what already runs on a dev machine — there is no "CI-only" test tier.
 
 Confines AI/manual interpretation to scenario *authoring*; inputs, serialization,
 and assertions are mechanical. See `docs/test-strategy.md` for the broader testing
 picture this slots into.
 
-Decisions taken:
+### Architecture decisions
+
 - **Standalone tool via cargo xtask**, not a build script — keeps `cargo test`
   fast, debuggable, and leaves room for further generators/tooling under one entry.
 - **Backend-authoritative contract** (`utoipa`) — no FE/BE drift window; Rust owns
   the schema as it owns the data (redb/bitcode).
-- **Scenario-DSL-first** — the first spike targets stateful flows (the source of
-  most real bugs), with the contract layer as the operation registry + type-check
-  for scenario bodies.
+- **E2E tests observe only exposed interfaces** — the HTTP API and the `IMAGE_HOME`
+  filesystem. Internal state (redb `DATA_HOME`/`STATE_HOME`) is never inspected by
+  E2E tests; DB-level invariants belong in unit tests.
+- **Fixtures are interface adapters** — they translate abstract YAML declarations
+  (`given:` items) into HTTP calls and `IMAGE_HOME` filesystem operations. They
+  are the single implementation of the DSL's exposed-backend contract and change
+  together with the API and `IMAGE_HOME` conventions.
+- **Generator emits calls to fixture helpers only** — no inline redb-reading code in
+  the generated test functions. The generator is a thin declarative translator.
+- **No raw-Rust escape hatch** in the DSL — a missing verb is resolved by adding a
+  reusable fixture helper, not by inlining code into generated tests.
+- **`e2e.rs` will be deleted** once all scenarios are ported to the DSL.
+  Until then both coexist.
+- **Fixtures will move to the xtask crate** once they no longer depend on
+  gallery-backend internals (only on the external HTTP API and filesystem).
 
-### Prerequisite: Cargo workspace + xtask
+### Current state of play
 
-- [ ] Convert repo to a Cargo workspace. Today `gallery-backend/Cargo.toml` is a
-  bare `[package]` with no root manifest. Add a root (or `gallery-backend`-level)
-  `[workspace]` with members: the existing `urocissa` crate and a new `xtask` crate.
-- [ ] `xtask` crate: subcommand dispatch (`xtask gen-scenarios`, `xtask emit-openapi`,
-  room for `xtask check-coverage`). Alias `cargo xtask` via `.cargo/config.toml`.
-- [ ] Add `just gen-scenarios` / `just emit-openapi` recipes wrapping the xtask calls;
-  wire generation + the coverage gate into `just precommit` so generated code and
-  spec cannot drift from source unnoticed.
+**Repository:** dirty (working changes to `generator.rs`, `TODO.md`,
+`docs/test-strategy.md`, `.opencode/opencode.json`).
+
+**Hand-written scenarios (`gallery-backend/src/tests/e2e.rs`):** 24 test fns
+(A, B, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z).
+No C or F — those were always unit tests outside e2e.rs.
+
+**Ported to DSL (4):** G, H, I, K — each has a `scenarios/api/*.yaml` file and
+a generated entry in `src/tests/scenarios_generated.rs`. The hand-written
+versions still exist in `e2e.rs`; both are currently passing.
+
+**Generator (`xtask/src/generator.rs`):** emits Rocket-`Client` tests with:
+- HTTP call emission (multi-`when` supported)
+- `response.status` / `response.status_not` assertions
+- `response.json.<path>` field assertions
+- `file_exists` / `file_absent` assertions
+- **`db.image(...)` / `db.album(...)` inline redb-read code paths** (lines 93–101,
+  302–358) — these read `TREE.in_disk` and `DATA_TABLE` directly in the
+  generated test. **Deprecated.** They were needed for the reference port
+  (Scenario H) but violate the API-only constraint.
+
+**Fixtures (`src/tests/fixtures.rs`):** mixed responsibility. Some are clean
+interface adapters (`make_client`, `auth_cookie`, `json_get`, `read_current_abstract_data`,
+`fetch_original_bytes`). Others access redb directly (`find_hash_by_alias_path`,
+`insert_photos`, `insert_stale_photo_record`). These will be refactored to HTTP
+calls in Phase 2.
+
+**Intentionally red scenarios (pin known bugs):** L, M, N, R. These must stay
+red in their ported DSL form — the fix shows up as a green diff.
+
+### Implementation plan
+
+The migration happens in four phases, each producing working generated tests.
+
+#### Phase 1: Generator hygiene
+
+Remove `db.*` code paths from the generator. The generated tests must only
+emit fixture helper calls, never inline redb access.
+
+- [ ] Remove `db.image(` / `db.album(` key detection from `needs_data` check
+  (generator.rs line 100).
+- [ ] Remove the entire `db.*` assertion emission block in `emit_then_assertions`
+  (generator.rs lines 302–358).
+- [ ] Verify the 4 ported scenarios still compile and pass (they already use
+  HTTP-only assertions — the `db.*` code has not been exercised for them).
+- [ ] Re-generate: `cargo xtask gen-scenarios` → `cargo nextest run`.
+
+#### Phase 2: Refactor fixtures to API-only
+
+Convert fixture helpers that read redb to use the HTTP API instead. The goal
+is that every helper called by generated code works through the external
+interface.
+
+- [ ] `find_hash_by_alias_path` — currently reads `TREE.in_disk` + `DATA_TABLE`.
+  Replace with a `GET /get/get-data?<hash>` call that resolves the alias from
+  the JSON response. This is a dependency for the `photo` `given:` verb (which
+  needs to resolve the inserted photo's hash).
+- [ ] `insert_photos` — currently calls `index_for_watch` internally. The
+  `given:` verb already emits `write_real_jpeg` + `insert_photos` inline in
+  generated code. Move `insert_photos` call to a helper that triggers indexing
+  via the API if possible, or keep as an internal-only helper that lives on
+  in `e2e.rs` (not used by generated code after Phase 3).
+- [ ] `insert_stale_photo_record` — currently writes directly to redb. Either
+  convert to a multi-step API sequence or mark as internal-only.
+- [ ] Split `fixtures.rs` into two modules:
+  - `fixtures/mod.rs` (or `fixtures/api.rs`): interface-adapter helpers
+    (API-only, movable to xtask later).
+  - `fixtures/internal.rs`: helpers that still need redb access (used only
+    by hand-written `e2e.rs` tests; deleted with them).
+- [ ] Verify generated tests still pass after each refactor.
+
+#### Phase 3: Batch port remaining scenarios
+
+Port scenarios from `e2e.rs` to YAML + generated code, grouped by the
+assertion patterns they need.
+
+**Batch 3a — HTTP response + filesystem checks (no new helpers needed):**
+Scenarios that assert via `response.json.*`, `response.status`, `file_exists`,
+or `file_absent`.
+
+- [ ] Scenario J — `assign_album_rejects_stale_file_path` (status code + file absent)
+- [ ] Scenario T — `path_completion_returns_absolute_paths` (response shape)
+- [ ] Scenario X — `upload_with_no_album_lands_in_ingress_folder` (filesystem)
+- [ ] Scenario Y — `upload_with_album_writes_into_album_directory` (filesystem)
+
+**Batch 3b — Tags and metadata via get-data:**
+Scenarios that read back photo state through the sidebar data endpoint.
+
+- [ ] Scenario B — `photo_tags_reflect_injected_metadata`
+- [ ] Scenario O — `tags_visible_via_get_data_sidebar_path`
+- [ ] Scenario P — `tags_modifiable_via_edit_tag_api`
+- [ ] Scenario S — `reindex_preserves_album_and_tags`
+- [ ] Scenario Z — `force_reindex_refreshes_already_known_files`
+
+**Batch 3c — Album hierarchy and membership:**
+Scenarios that check album tree structure and photo membership.
+
+- [ ] Scenario D — `dir_album_parent_child_relationship`
+- [ ] Scenario E — `generated_dir_tree_hierarchy_properties`
+- [ ] Scenario L — `dir_album_membership_not_set_at_index_time` (red)
+- [ ] Scenario Q — `album_visible_via_get_data_after_assign`
+
+**Batch 3d — Complex flows and image serving:**
+Scenarios that involve image-home scan, import serving, duplicate tracking,
+and the watcher.
+
+- [ ] Scenario U — `image_home_scan_discovers_albums_and_tags`
+- [ ] Scenario V — `imported_route_serves_live_source_after_move`
+- [ ] Scenario W — `duplicate_content_at_two_live_paths_tracked_as_two_aliases`
+- [ ] Scenario M — `watcher_reindex_after_assign_duplicates_alias` (red)
+- [ ] Scenario R — `externally_moved_file_keeps_dead_alias_entry` (red)
+
+**Batch 3e — Remaining:**
+- [ ] Scenario N — `tags_not_discovered_from_xmp_keywords_at_index_time` (red)
+- [ ] Scenario A — `initial_empty_state` (singleton setup; may remain as a
+  standalone fixture or be absorbed into the test harness)
+
+For each scenario:
+  a. Add DSL verb + fixture helper if the assertion pattern isn't covered.
+  b. Write YAML scenario file in `scenarios/api/`.
+  c. Re-generate and run: `cargo xtask gen-scenarios && cargo nextest run`.
+  d. Once the generated test matches the hand-written one's assertions (within
+     the API-only constraint), delete the hand-written version from `e2e.rs`.
+
+#### Phase 4: Decommission e2e.rs
+
+- [ ] Delete `src/tests/e2e.rs`.
+- [ ] Remove `internal.rs` fixtures (no longer needed).
+- [ ] Move `api.rs` (interface-adapter fixtures) from `gallery-backend` into
+  the `xtask` crate as a library module that generated tests import.
+- [ ] Update `xtask/Cargo.toml` to add `rocket`, `serde_json`, `tempfile` etc.
+  as dependencies.
+- [ ] Update generated test preamble to import from `xtask::fixtures` instead
+  of `crate::tests::fixtures`.
+- [ ] Verify `cargo nextest run` passes with no e2e.rs, no internal fixtures.
+
+### Future tooling (separate from the generator)
+
+- **Album content generator** — reads YAML `given:` declarations and materializes
+  the declared content on `IMAGE_HOME` (placeholder images with specified colors,
+  embedded XMP metadata, EXIF dates). Optional mutation/randomization for broader
+  coverage without hand-writing each variant. Standalone `xtask` subcommand.
+- **API fuzzer** — drives random valid/invalid inputs against the OpenAPI contract
+  to find unhandled edge cases and 500s. Could be built on `proptest` or similar.
+
+### DSL vocabulary — API scenarios (`scenarios/api/*.yaml`)
+
+Given verbs (materialize on `IMAGE_HOME`, no redb writes):
+- `dir_album: <path>` + `id_as: $var` — creates directory, returns album ID
+- `photo: <path>` + optional `color`, `tags`, `exif_date` — writes placeholder file
+- `empty: true` — no-op marker
+
+When verbs:
+- `call: <METHOD /path>` + optional `body`, `auth`
+
+Then verbs (HTTP + IMAGE_HOME only):
+- `response.status: <code>` / `response.status_not: <code>`
+- `response.json.<field.path>: <value>` — field-level JSON response check
+- `file_exists: <path>` / `file_absent: <path>` — IMAGE_HOME filesystem check
+
+No `db.*` assertions. DB-level checks are the responsibility of unit tests.
 
 ### Interface contract (utoipa, backend-authoritative)
 
-- [ ] Add `utoipa` dependency. Annotate the 3 spike endpoints first
-  (`POST /post/authenticate`, `GET /get/get-albums`, `PUT /put/assign_album`) with
-  path + request/response schema derives.
-- [ ] `xtask emit-openapi` writes `gallery-backend/openapi.json` (committed, reviewable).
-  A test asserts the emitted doc matches the committed file (drift guard).
 - [ ] **Coverage reporting**: introspect the mounted `routes!` set vs OpenAPI paths;
   emit a coverage percentage and list unannotated routes. Report in CI output but
   do not fail the build — annotation is incremental, not a gate.
 - [ ] Backfill `utoipa` across remaining routes incrementally, endpoint-by-endpoint.
-
-### Refactor e2e.rs: fixtures vs. test code
-
-- [ ] Split `src/tests/e2e.rs`. Move reusable fixture builders/helpers
-  (`make_dir_album`, `insert_photo_with_real_file`, `make_client`, `auth_cookie`,
-  `refresh_in_memory`, the `TestEnv`/`DATA_PATH` setup, redb read helpers) into a
-  `src/tests/fixtures.rs` (or `tests/support/`) module with stable public signatures.
-- [ ] These fixtures become the DSL `given:` vocabulary primitives — the generator
-  emits calls to them, so their signatures are an API the generator depends on.
-- [ ] Leave the existing hand-written scenarios in place initially; generated
-  scenarios live in a separate `src/tests/scenarios_generated.rs` (clearly marked
-  generated, never hand-edited). Port scenarios to the DSL one at a time.
-
-### Scenario DSL: spec + documentation (in docs/)
-
-- [ ] Write `docs/scenario-dsl.md`: the semi-formal spec + authoring guide. Must
-  define, with examples, the fixed vocabulary:
-  - `given:` — `dir_album`, `photo`, `tag`, `empty` (each maps to a fixture builder);
-    `id_as` binding syntax for referencing created entities (`$album`, `$photo`).
-  - `when:` — `call: <operation>` (name resolved against `openapi.json`; `body`
-    validated against the operation's request schema at generation time); auth and
-    content-type derived from the contract.
-  - `then:` — `response.status`, `response.<json-path>`, `file_exists`/`file_absent`,
-    `db.image(...)/album(...)/tag(...).<field>` assertion forms; each maps to exactly
-    one generated assertion.
-  - Escape-hatch policy: **no raw-Rust escape hatch**. A missing assertion form is
-    resolved by adding a reusable verb to the vocabulary, not by inlining code.
-- [ ] Define the DSL's own schema (JSON Schema for the YAML) so scenario files are
-  validated structurally before generation, independent of the contract check.
-- [ ] Reference `docs/scenario-dsl.md` from `docs/test-strategy.md`.
-
-### Generator (xtask gen-scenarios)
-
-- [ ] Parse `scenarios/*.yaml`, load `openapi.json`, validate each scenario:
-  structural (DSL schema) + contract (operation exists, body matches request schema).
-  Fail generation on any violation — bad specs never produce green tests.
-- [ ] Emit one Rust test fn per scenario into `scenarios_generated.rs`, in the
-  existing Rocket-`Client` style, calling the refactored fixture helpers.
-- [ ] Port Scenario H (`assign_album moves file and updates membership`) as the
-  reference scenario; assert the generated test is behaviourally equivalent to the
-  hand-written one before deleting the latter.
-- [ ] **Trust guard — mutation testing**: run `cargo-mutants` against the handlers a
-  scenario covers; a generated suite that stays green under a mutated handler has
-  weak assertions. Track as a periodic check, not necessarily per-commit.
-
-### Playwright extension (full-stack, after the backend loop is proven)
-
-Scenario files are placed by directory: `scenarios/api/*.yaml` for backend
-(Rocket-`Client`) tests, `scenarios/ui/*.yaml` for Playwright browser tests.
-The generator dispatches on the directory. UI scenarios do not depend on
-`openapi.json` — they describe user interactions and visible state only.
-Backend API behaviour is the backend e2e suite's responsibility; UI scenarios
-discover API contract drift naturally (broken interaction → assertion failure).
-
-**API scenarios (`scenarios/api/`)**
-Expands into Rocket-`Client` Rust tests. `given:` seeds redb directly; `when:`
-is an API call (resolved against `openapi.json`); `then:` asserts response
-fields and redb/filesystem state.
-
-**UI scenarios (`scenarios/ui/`)**
-Expands into Playwright TypeScript specs driving a real backend + built frontend.
-Seeding is simple (any working endpoint or redb-direct — UI assertions only
-check visible state, so a seed crash is a setup failure, not a silent false
-pass). No API-call verbs, no response assertions.
-
-- [ ] `given:` seeds state (any working endpoint or redb-direct — no "only
-  endpoints not under test" restriction; UI assertions are independent of
-  seeding mechanism).
-- [ ] `when:` describes browser user actions. Elements are referenced by ARIA
-  role and accessible name, not CSS selectors. Fixed verb set:
-  - `navigate: <route>`
-  - `click: <role>/<label>`
-  - `fill: <role>/<label>, value: <value>`
-  - `select: <role>/<label>, option: <label>`
-  - `submit:`
-  New interactions → extend the vocabulary; no raw-TypeScript escape hatch.
-- [ ] `then:` UI assertions only:
-  - `ui.visible: <role>/<label>` / `ui.hidden: <role>/<label>`
-  - `ui.text: <role>/<label>, contains: <text>`
-  - `ui.toast: type: <error|success|warning>, contains: <text>`
-  - `ui.modal: open | closed`
-  - `ui.route: <pattern>` — current URL matches
-  - `ui.aria_snapshot: <name>` — diff ARIA role/name/state tree of a page
-    region against a committed `.aria` snapshot file; regenerate with
-    `xtask update-snapshots`.
-
-**Frontend element and layout spec**
-
-Playwright's `toMatchAriaSnapshot()` is the mechanism for specifying UI structure:
-it serialises the accessible role/name/state tree of a component or page region
-and diffs it against a committed snapshot. This covers semantic layout — element
-presence, ordering, labelling, nesting — without pixel-level fragility.
-
-- [ ] `ui.aria_snapshot` verbs are the spec-first path for new UI: write a
-  `scenarios/ui/*.yaml` scenario with an `aria_snapshot` assertion before the
-  Vue component exists; the generated Playwright spec fails until the component
-  matches. This is what "specifying the frontend interface" means in practice.
-- [ ] Pixel-level visual regression (`toHaveScreenshot()`) is environment-sensitive
-  (font rendering, GPU, OS). Treat as an optional separate layer if needed, not
-  part of the core spec DSL.
-- [ ] `ui` scenario files live in `scenarios/ui/*.yaml`; generated specs in
-  `tests/playwright/scenarios_generated/`. Snapshots committed at
-  `tests/playwright/snapshots/`.
-
-**Process management**
-
-- [ ] Spawn backend on an ephemeral port with a tempdir `DATA_PATH`; build frontend
-  once per suite run; tear down after. Gate on CI (matches the existing "Playwright
-  E2E — needs running backend; save for CI" deferral above).
-
-### Sequencing
-
-1. Workspace + xtask skeleton; `emit-openapi` for the 3 spike endpoints.
-2. Refactor `e2e.rs` to split fixtures from test code.
-3. Write `docs/scenario-dsl.md` + the DSL JSON Schema; document API and UI
-   scenario vocabularies separately (shared `given:` section, disjoint `when:`/`then:`
-   verb sets per directory), with their respective escape-hatch policies.
-4. Generator: validate + emit API scenarios (`scenarios/api/`); port Scenario H;
-   review generated vs hand-written.
-5. Coverage reporting + `cargo-mutants` wiring.
-6. Backfill `utoipa` across all routes; port remaining API scenarios to the DSL.
-7. Playwright generator: emit UI scenarios (`scenarios/ui/`); wire process
-   management (ephemeral backend + built frontend); port Scenario H as a UI
-   reference scenario.
-8. Write `ui.aria_snapshot` specs for the 3 spike UI flows — album assignment
-   modal, tag editor, message toast area — as spec-first drivers.
-9. Extend UI DSL vocabulary as new interaction patterns arise; update
-   `docs/scenario-dsl.md` for each new verb added.

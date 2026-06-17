@@ -13,6 +13,33 @@ In practice this means:
 
 ---
 
+## Test levels
+
+Tests are organised in a pyramid with increasing integration scope and decreasing count:
+
+| Level | What it exercises | Where | Runs locally? |
+|---|---|---|---|
+| **Unit** | Pure functions with no I/O (filters, transforms, priority logic, schema version dispatch) | `#[cfg(test)]` blocks in the same file as the code | ✅ `cargo nextest` |
+| **Integration** | Multi-component flows with a real redb in a tempdir (index → dedup → flush → album update, schema migration round-trips) | `src/tests/` (separate files per area) | ✅ `cargo nextest` |
+| **E2E — API** | Backend HTTP API + `IMAGE_HOME` filesystem only. Generated from YAML scenarios (`scenarios/api/*.yaml`). No direct DB access — internal redb state is opaque. | `src/tests/scenarios_generated.rs` (via `xtask gen-scenarios`) | ✅ `cargo nextest` |
+| **E2E — UI** (not yet built) | Full stack: real backend on ephemeral port + built frontend driven by Playwright. Generated from `scenarios/ui/*.yaml`. | `tests/playwright/` (via `xtask gen-scenarios`) | ✅ playwright |
+
+All levels run on a dev machine. CI automates them, but nothing is "CI-only".
+
+**E2E API tests observe only what the backend exposes to a client.** They send HTTP
+requests and inspect HTTP responses plus the `IMAGE_HOME` filesystem directory
+structure and file presence. Internal state (redb `DATA_HOME`, `STATE_HOME`,
+bitcode records) is tested at the unit and integration levels.
+
+This boundary enforces that E2E tests remain valid when the internal storage
+representation changes, as long as the exposed behaviour (API responses +
+IMAGE_HOME layout) is preserved. It also means the fixture layer (see
+`docs/scenario-dsl.md`) implements the DSL's backend-facing contract via
+HTTP calls and filesystem operations — it is an *interface adapter*, not a
+DB probe.
+
+---
+
 ## Build configurations: developer vs. production
 
 `just build`/`just run`/`just test` use a **debug build without the
@@ -40,7 +67,9 @@ feedback — see `just run` in the justfile, which uses `UROCISSA_CONFIG_HOME`/
 | Backend format | `cargo fmt --check` | ✅ in precommit |
 | Backend lint | `cargo clippy -- -D warnings` | ✅ in precommit |
 | Unsafe code | `#![deny(unsafe_code)]` in `main.rs` | ✅ enforced at compile time |
-| Backend unit + scenario tests | `cargo nextest run` (~75 tests, `src/tests/e2e.rs` scenarios A–Z + unit tests) | ✅ full suite required on `main`; informational elsewhere (see `justfile`) |
+| Backend unit tests | `cargo nextest run` (unit tests in `#[cfg(test)]` blocks) | ✅ in precommit |
+| Backend hand-written scenarios | `cargo nextest run` (`src/tests/e2e.rs` scenarios A–Z, being ported to DSL) | ✅ in precommit; will be **deleted** once all ported |
+| Backend generated API scenarios | `cargo xtask gen-scenarios` → `cargo nextest run` (`src/tests/scenarios_generated.rs`) | 🟡 4 ported so far (H, G, K, I); remaining 18 in progress |
 | Frontend format | `prettier --check` | ✅ in precommit |
 | Frontend types | `vue-tsc --noEmit` | ✅ in precommit |
 | Frontend lint | `eslint` (strictTypeChecked + vue strongly-recommended) | ✅ in precommit |
@@ -49,13 +78,17 @@ feedback — see `just run` in the justfile, which uses `UROCISSA_CONFIG_HOME`/
 | E2E (Playwright, browser-level) | — | ❌ not started |
 
 `src/tests/e2e.rs` is a single binary that boots a real Rocket instance against a
-tempdir-backed redb, so "E2E" here means full-stack-minus-browser: real HTTP requests,
-real indexing pipeline, real files on disk. A handful of scenarios (`scenario_l`,
-`scenario_m`, `scenario_n`, `scenario_r`, plus two unit tests under
-`extract_keywords::tests`) are *intentionally* red — they pin down known bugs/gaps (see
-`TODO.md`, "Known bugs") so the fix shows up as a green diff later. `just precommit`
-only enforces this passing on `main`; non-main branches can carry red tests while a fix
-is in progress (see `justfile`'s `precommit` recipe).
+tempdir-backed redb — real HTTP requests, real indexing pipeline, real files on disk.
+A handful of scenarios (`scenario_l`, `scenario_m`, `scenario_n`, `scenario_r`, plus two
+unit tests under `extract_keywords::tests`) are *intentionally* red — they pin down known
+bugs/gaps (see `TODO.md`, "Known bugs") so the fix shows up as a green diff later.
+`just precommit` only enforces this passing on `main`; non-main branches can carry red
+tests while a fix is in progress (see `justfile`'s `precommit` recipe).
+
+**This file is being ported to the spec-driven DSL** (see below). Hand-written scenarios
+copied to the DSL are removed from `e2e.rs`. Once all are ported, `e2e.rs` will be
+deleted entirely — only unit tests, integration tests, and generated API/UI scenarios
+will remain.
 
 ---
 
@@ -268,13 +301,21 @@ sweep or CI step.
 The project uses a semi-formal scenario DSL (see `docs/scenario-dsl.md`) to
 generate E2E test code. Two target types:
 
-- **API** (`scenarios/api/*.yaml`): Rocket-`Client` Rust tests seeded via
-  redb-direct helpers. Generated by `cargo xtask gen-scenarios`.
+- **API** (`scenarios/api/*.yaml`): Rocket-`Client` Rust tests. Given state is
+  materialised on `IMAGE_HOME` (filesystem). Assertions check HTTP responses
+  and `IMAGE_HOME` filesystem state only — no direct redb reads. Generated
+  by `cargo xtask gen-scenarios` into `src/tests/scenarios_generated.rs`.
 - **UI** (`scenarios/ui/*.yaml`): Playwright TypeScript specs (deferred —
   requires running backend).
 
 The DSL schema is at `scenarios/schema.json`. Scenario files are validated
 structurally against it before generation.
+
+**Fixtures (`src/tests/fixtures.rs`) are interface adapters.** They translate
+abstract YAML declarations into HTTP calls and `IMAGE_HOME` filesystem
+operations. Their signatures form the generator's stable API. When the backend's
+public interface changes (route response shape, IMAGE_HOME layout), fixtures
+change; the generator's template logic does not.
 
 ---
 
