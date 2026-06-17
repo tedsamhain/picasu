@@ -70,15 +70,9 @@ the request schema.
 | `response.<json-path] absent` | JSON body field is absent |
 | `file_exists: <path>` | File exists on disk |
 | `file_absent: <path>` | File does not exist on disk |
-| `db.image(<hash>).<field>: <value>` | Redb `AbstractData` field on the image record |
-| `db.album(<id>).<field>: <value>` | Redb `AbstractData` field on the album record |
-| `db.tag(<name>).count: <n>` | Tag occurrence count in redb |
 
 `<json-path>` is a dot-separated path into the response JSON, e.g.
 `prefetch.locateTo` or `prefetch.timestamp`.
-
-`<hash>` and `<id>` in `db.*` assertions are either literal values or
-`${var}` references to `id_as` bindings from `given:`.
 
 ### Escape-hatch policy (API)
 
@@ -162,6 +156,6 @@ cargo xtask gen-scenarios --validate
   (use the scenario name as a prefix, e.g. `/e2e_h_*` for Scenario H).
 - `given:` entries that reference `dir_album` without a pre-existing photo
   create the album record only; photos must be added separately.
-- In API scenarios, `db.*` assertions read redb directly (race-free).
+- In API scenarios, all assertions are made through the HTTP API only — no direct redb access.
 - In UI scenarios, state is seeded before the browser navigates to the
   page under test.

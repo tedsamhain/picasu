@@ -1,0 +1,20 @@
+name: create_dir_album creates subdirectory and registers album
+given:
+  - dir_album: /e2e_create_dir_album/parent
+    id_as: $parent
+when:
+  - call: POST /post/create_dir_album
+    body:
+      parentAlbumId: "${parent}"
+      name: child
+    then:
+      - response.status: 200
+  - call: GET /get/get-albums
+then:
+  - response.status: 200
+  - file_exists: /e2e_create_dir_album/parent/child
+  - array_where:
+      where:
+        dirPath: "${data_path}/e2e_create_dir_album/parent/child"
+      assert:
+        parentAlbumId: "${parent}"

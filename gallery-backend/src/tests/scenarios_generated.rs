@@ -223,6 +223,79 @@ mod scenarios_generated {
     }
 
     #[test]
+    fn create_dir_album_creates_subdirectory_and_registers_album() {
+        let _ = &*TEST_ENV;
+        let data = get_resolved_image_path().expect("IMAGE_HOME configured");
+        let data_path = data.to_string_lossy().to_string();
+        std::fs::create_dir_all(&data.join("e2e_create_dir_album/parent"))
+            .expect("create album dir");
+        write_real_jpeg(
+            &data.join("e2e_create_dir_album/parent/.__urocissa_ph__.jpg"),
+            path_color("e2e_create_dir_album/parent/.__urocissa_ph__.jpg"),
+        );
+        let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        assert_eq!(
+            wait_for_import(30000),
+            FolderImportState::Completed,
+            "import"
+        );
+        let parent = discover_album_id(&client, "e2e_create_dir_album/parent");
+        let resp_0 = client
+            .post("/post/create_dir_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(
+                serde_json::json!({"name": "child".to_string(), "parentAlbumId": parent})
+                    .to_string(),
+            )
+            .dispatch();
+        assert_eq!(
+            resp_0.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_0 status"
+        );
+        let resp_1 = client
+            .get("/get/get-albums")
+            .cookie(auth_cookie(&client))
+            .dispatch();
+        assert_eq!(
+            resp_1.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_1 status"
+        );
+        let parsed_final: serde_json::Value =
+            serde_json::from_slice(&resp_1.into_bytes().expect("response body"))
+                .expect("valid JSON");
+        let found = parsed_final
+            .as_array()
+            .expect("response must be an array")
+            .iter()
+            .find(|item| {
+                item["dirPath"]
+                    == serde_json::json!(
+                        data_path.clone() + &"/e2e_create_dir_album/parent/child".to_string()
+                    )
+            })
+            .expect("no element matching array_where conditions");
+        assert_eq!(
+            found["parentAlbumId"],
+            serde_json::json!(parent),
+            "array_where parentAlbumId mismatch"
+        );
+        assert!(
+            data.join("e2e_create_dir_album/parent/child").exists(),
+            "file should exist: e2e_create_dir_album/parent/child"
+        );
+    }
+
+    #[test]
     fn create_empty_album_endpoint_removed() {
         let client = make_client();
         let resp = client
