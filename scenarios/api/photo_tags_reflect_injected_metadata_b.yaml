@@ -1,0 +1,33 @@
+name: photo tags reflect injected metadata
+given:
+  - photo: /e2e_b/2023/summer/beach.jpg
+    tags:
+      - e2e_b_nature
+      - e2e_b_summer
+      - e2e_b_beach
+    exif_date: "2023:07:15 10:00:00"
+  - photo: /e2e_b/2023/summer/sunset.jpg
+    tags:
+      - e2e_b_nature
+      - e2e_b_summer
+    exif_date: "2023:07:16 20:00:00"
+  - photo: /e2e_b/2024/winter/snow.jpg
+    tags:
+      - e2e_b_nature
+      - e2e_b_winter
+    exif_date: "2024:01:10 09:00:00"
+  - photo: /e2e_b/2024/city/skyline.jpg
+    tags:
+      - e2e_b_architecture
+      - e2e_b_city
+when:
+  - call: GET /get/get-tags
+then:
+  - response.status: 200
+  - array_min_counts:
+      e2e_b_nature: 3
+      e2e_b_summer: 2
+      e2e_b_beach: 1
+      e2e_b_winter: 1
+      e2e_b_architecture: 1
+      e2e_b_city: 1

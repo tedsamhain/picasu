@@ -134,6 +134,99 @@ mod scenarios_generated {
     }
 
     #[test]
+    fn photo_tags_reflect_injected_metadata() {
+        let data = {
+            let _ = &*TEST_ENV;
+            DATA_PATH.get().expect("DATA_PATH initialised")
+        };
+        std::fs::create_dir_all(&data.join("e2e_b/2023/summer")).expect("create dir");
+        std::fs::write(
+            &data.join("e2e_b/2023/summer/beach.jpg"),
+            b"\xff\xd8\xff fake jpeg",
+        )
+        .expect("write source file");
+        {
+            let src = data.join("e2e_b/2023/summer/beach.jpg");
+            insert_photos(&[PhotoSpec {
+                path: src.to_str().unwrap(),
+                tags: &["e2e_b_nature", "e2e_b_summer", "e2e_b_beach"],
+                exif_date: Some("2023:07:15 10:00:00"),
+            }]);
+        }
+        std::fs::create_dir_all(&data.join("e2e_b/2023/summer")).expect("create dir");
+        std::fs::write(
+            &data.join("e2e_b/2023/summer/sunset.jpg"),
+            b"\xff\xd8\xff fake jpeg",
+        )
+        .expect("write source file");
+        {
+            let src = data.join("e2e_b/2023/summer/sunset.jpg");
+            insert_photos(&[PhotoSpec {
+                path: src.to_str().unwrap(),
+                tags: &["e2e_b_nature", "e2e_b_summer"],
+                exif_date: Some("2023:07:16 20:00:00"),
+            }]);
+        }
+        std::fs::create_dir_all(&data.join("e2e_b/2024/winter")).expect("create dir");
+        std::fs::write(
+            &data.join("e2e_b/2024/winter/snow.jpg"),
+            b"\xff\xd8\xff fake jpeg",
+        )
+        .expect("write source file");
+        {
+            let src = data.join("e2e_b/2024/winter/snow.jpg");
+            insert_photos(&[PhotoSpec {
+                path: src.to_str().unwrap(),
+                tags: &["e2e_b_nature", "e2e_b_winter"],
+                exif_date: Some("2024:01:10 09:00:00"),
+            }]);
+        }
+        std::fs::create_dir_all(&data.join("e2e_b/2024/city")).expect("create dir");
+        std::fs::write(
+            &data.join("e2e_b/2024/city/skyline.jpg"),
+            b"\xff\xd8\xff fake jpeg",
+        )
+        .expect("write source file");
+        {
+            let src = data.join("e2e_b/2024/city/skyline.jpg");
+            insert_photos(&[PhotoSpec {
+                path: src.to_str().unwrap(),
+                tags: &["e2e_b_architecture", "e2e_b_city"],
+                exif_date: None,
+            }]);
+        }
+        let client = make_client();
+        let resp_0 = client
+            .get("/get/get-tags")
+            .cookie(auth_cookie(&client))
+            .dispatch();
+        assert_eq!(
+            resp_0.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_0 status"
+        );
+        let parsed_final: serde_json::Value =
+            serde_json::from_slice(&resp_0.into_bytes().expect("response body"))
+                .expect("valid JSON");
+        let tags = parsed_final.as_array().expect("response must be an array");
+        for (tag, min) in [
+            ("e2e_b_architecture", 1u64),
+            ("e2e_b_beach", 1u64),
+            ("e2e_b_city", 1u64),
+            ("e2e_b_nature", 3u64),
+            ("e2e_b_summer", 2u64),
+            ("e2e_b_winter", 1u64),
+        ] {
+            let got = tags
+                .iter()
+                .find(|t| t["tag"].as_str() == Some(tag))
+                .and_then(|t| t["number"].as_u64())
+                .unwrap_or(0);
+            assert!(got >= min, "tag '{tag}': expected >= {min}, got {got}");
+        }
+    }
+
+    #[test]
     fn tags_visible_via_get_data() {
         let data = {
             let _ = &*TEST_ENV;

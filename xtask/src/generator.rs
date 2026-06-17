@@ -166,13 +166,23 @@ fn emit_api_test(name: &str, scenario: &serde_json::Value) -> String {
                     .map(|d| format!("Some({d:?})"))
                     .unwrap_or_else(|| "None".to_string());
 
-                lines.push(format!(
-                    "let {v} = {{\n\
-                         let src = data.join(\"{photo_relative}\");\n\
-                         let hashes = insert_photos(&[PhotoSpec {{ path: src.to_str().unwrap(), tags: {tags_arr}, exif_date: {exif_date} }}]);\n\
-                         hashes[0].clone()\n\
-                     }};"
-                ));
+                let has_var = item.get("id_as").is_some();
+                if has_var {
+                    lines.push(format!(
+                        "let {v} = {{\n\
+                             let src = data.join(\"{photo_relative}\");\n\
+                             let hashes = insert_photos(&[PhotoSpec {{ path: src.to_str().unwrap(), tags: {tags_arr}, exif_date: {exif_date} }}]);\n\
+                             hashes[0].clone()\n\
+                         }};"
+                    ));
+                } else {
+                    lines.push(format!(
+                        "{{\n\
+                             let src = data.join(\"{photo_relative}\");\n\
+                             insert_photos(&[PhotoSpec {{ path: src.to_str().unwrap(), tags: {tags_arr}, exif_date: {exif_date} }}]);\n\
+                         }}"
+                    ));
+                }
 
                 vars.insert(photo.to_string(), v);
             }
@@ -377,7 +387,7 @@ fn emit_then_assertions(
         .filter_map(|item| {
             item.as_object().and_then(|m| m.iter().next()).and_then(
                 |(key, val)| {
-                    if key.starts_with("response.json.") {
+                    if key.starts_with("response.json.") || key == "array_min_counts" {
                         Some((key.clone(), val))
                     } else {
                         None
@@ -395,6 +405,29 @@ fn emit_then_assertions(
                  ).expect(\"valid JSON\");"
         ));
         for (key, val) in &json_checks {
+            if key == "array_min_counts" {
+                let pairs: Vec<String> = val
+                    .as_object()
+                    .unwrap()
+                    .iter()
+                    .map(|(tag, count)| {
+                        let c = count.as_u64().unwrap_or(0);
+                        format!("({tag:?}, {c}u64)")
+                    })
+                    .collect();
+                lines.push(format!(
+                    "let tags = parsed_final.as_array().expect(\"response must be an array\");\n\
+                     for (tag, min) in [{}] {{\n\
+                         let got = tags.iter()\n\
+                             .find(|t| t[\"tag\"].as_str() == Some(tag))\n\
+                             .and_then(|t| t[\"number\"].as_u64())\n\
+                             .unwrap_or(0);\n\
+                         assert!(got >= min, \"tag '{{tag}}': expected >= {{min}}, got {{got}}\");\n\
+                     }}",
+                    pairs.join(", ")
+                ));
+                continue;
+            }
             let field_path = key.strip_prefix("response.json.").unwrap();
             let access = field_path
                 .split('.')
