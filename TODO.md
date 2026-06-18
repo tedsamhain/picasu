@@ -20,10 +20,6 @@
 
 ## CI
 
-- [x] resolved: 'just build'/'just run'/'just test' now use a debug build without embed-frontend
-  (the developer default, matching check/test); 'just build-release' is the production
-  configuration (release + embed-frontend), matching CI's release workflow and the installer
-  scripts. See `docs/test-strategy.md` "Build configurations: developer vs. production".
 - [ ] CI should be expanded to test all supported configurations on PR and release:
   - PR/merge CI: developer config (debug, no embed-frontend) — matches local precommit
   - release CI: production config (release + embed-frontend) — already done in
@@ -73,10 +69,6 @@
 
 ## Code conventions and tooling notes
 
-### Review `mini_executor::Task` abstraction
-
-**Done.** The album-index chain now uses `tokio::spawn` + inline walk loop in `gallery-backend/src/tasks/actor/album_index.rs`. The old `FolderImportTask`/`FolderImportFileTask` two-level mini_executor dispatch has been removed.
-
 ### Pre-commit hook order
 `just precommit` runs in this order: `cargo fmt --check` → `cargo clippy` → `cargo nextest` → `prettier --check` → `vue-tsc + eslint` → `vitest`. Run `cargo fmt` and `npx prettier --write` before staging to avoid the most common late failures. ESLint and vue-tsc run after prettier, so formatting errors mask type/lint errors until fixed.
 
@@ -90,7 +82,6 @@
 
 ## Album feature — open items
 
-- [ ] **E2E test for `create_dir_album`** — endpoint has no scenario coverage. Should verify: subdir is created on disk, returns new album ID, parent album updates.
 - [ ] **Stale `DIR_ALBUM_CACHE` scenario** — if a directory is deleted externally while the cache still holds its entry, `assign_album` will attempt to move a file into a non-existent path. Decide: detect and evict stale entries at startup, or return a clear 400 with a meaningful message at request time.
 - [ ] **`assign_album` file-move verification in tests** — Scenario H checks album membership after assignment but does not verify the file moved to the correct directory on disk. Add a filesystem assertion to close this gap.
 
@@ -297,76 +288,24 @@ gallery-backend/
 
 ### Architecture decisions
 
-- [x] **Standalone tool via cargo xtask**
-- [x] **E2E tests observe only exposed interfaces** — HTTP API + `IMAGE_HOME`
-- [x] **Fixtures are interface adapters** — `internal.rs` deleted; only `api.rs` remains
-- [x] **Generator emits calls to fixture helpers only** — no inline redb code
-- [x] **No raw-Rust escape hatch** in the DSL
-- [x] **`e2e.rs` deleted** — placeholder only
 - [ ] **Backend-authoritative contract** (`utoipa`) — `openapi.json` exists but no routes
   are annotated yet; generator loads it but doesn't validate against it
 - [ ] **Fixtures moved to xtask crate** — still live in `gallery-backend`
 - [ ] **Scenarios + schema live under xtask** — currently in workspace-root `scenarios/`
 
-### Current state — DONE
-
-- [x] `e2e.rs` deleted (placeholder remains)
-- [x] **14 scenarios ported to DSL:** B, D, G, H, I, J, K, O, P, Q, S, T, V, create_dir_album
-- [x] Watcher/upload/scan scenarios (A, E, L, M, N, R, U, W, X, Y, Z) dropped from plan
-- [x] `internal.rs` deleted; `api.rs` contains only HTTP/filesystem interface adapters
-- [x] Generator: no `db.*` code paths remain (Phase 1 done)
-- [x] Generated `scenarios_generated.rs`: no `db.` references (verified)
-
 ### Immediate actions (before writing new features)
 
-#### 0. Reorganize into xtask layout
 
-- [ ] Move `scenarios/api/*.yaml` → `xtask/data/scenarios/backend/`
-- [ ] Move `scenarios/schema.json` → `xtask/data/schema.json`
-- [ ] Create `xtask/data/scenarios/generator/` (empty dir)
-- [ ] Create `xtask/data/scenarios/frontend/` (empty dir)
-- [ ] Update `generator.rs` paths: `workspace_root().join("scenarios/api")` →
-  `workspace_root().join("xtask/data/scenarios/backend")`
-- [ ] Delete workspace-root `scenarios/` directory
-- [x] Re-generate: `cargo xtask test-backend --generate-only` → verify `cargo nextest run` passes
-
-#### 1. Generator pipeline validation
-
-The generator is a pure-YAML-to-Rust translator with no test coverage of its own.
-Bugs (incorrect variable substitution, wrong assertion emission, silently swallowing
-unknown YAML keys) produce passing-but-wrong tests.
-
-- [ ] **Unit-test the generator** — `#[cfg(test)]` blocks in `xtask/src/generator.rs`
-  that feed known YAML fragments and assert the exact emitted Rust string.  Covers:
-  `emit_single_call`, `emit_then_assertions`, `build_json_access`,
-  `body_to_json_expr`, `value_to_json_expr`, `substitute_path_vars`,
-  `body_raw_to_expr`, `fresh_var`, and the `capture` + `calc` paths.
-- [ ] **`cargo xtask test-generator` subcommand** — reads `data/scenarios/generator/*.yaml`
-  (each encodes a deliberately false assertion, e.g. `response.status: 404` on a
-  known-200 route), generates temp `.rs` files, compiles + runs each, and asserts the
-  test **panics**.  If any generated test passes (the bad assertion wasn't caught),
-  the subcommand exits non-zero.
-- [ ] **Schema validation at generation time** — `schema.json` is loaded but never
-  used.  Validate every YAML against it before emitting Rust.  Reject unknown
-  top-level keys, unknown assertion verbs, and type mismatches.
 
 #### 2. CI guard against generated-code drift
 
-- [x] `cargo xtask test-backend` generates → runs `cargo nextest run -- scenarios_generated`.
-  Drift check: `just check-generated` (generate-only + git diff --exit-code).
-
 ### Remaining items sorted by RoI
 
-#### 3. Port deferred scenarios J, V
-
-- [x] Scenario J — `assign_album_rejects_stale_file_path` — 4xx on ghost record
-- [x] Scenario V — `image_serving_survives_album_move` — binary serving after album move
 
 #### 4. Fill highest-value regression gaps
 
 From `docs/test-strategy.md` regression matrix:
 
-- [ ] `GuardReadOnlyMode` on mutating routes → 405
 - [ ] Share capability flags: `show_metadata`, `show_download`, `show_upload`
 - [ ] `assign_album` targeting a manual album (no `dir_path`) → 4xx
 - [ ] Stale `DIR_ALBUM_CACHE` — dir deleted externally → clear error
