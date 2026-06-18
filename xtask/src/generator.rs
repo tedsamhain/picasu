@@ -239,8 +239,9 @@ fn emit_then_assertions(
     let json_checks: Vec<(String, &serde_json::Value)> = then_items
         .iter()
         .filter_map(|item| {
-            item.as_object().and_then(|m| m.iter().next()).and_then(
-                |(key, val)| {
+            item.as_object()
+                .and_then(|m| m.iter().next())
+                .and_then(|(key, val)| {
                     if key.starts_with("response.json.")
                         || key == "array_min_counts"
                         || key == "array_where"
@@ -249,8 +250,7 @@ fn emit_then_assertions(
                     } else {
                         None
                     }
-                },
-            )
+                })
         })
         .collect();
 
@@ -286,10 +286,19 @@ fn emit_then_assertions(
                 continue;
             }
             if key == "array_where" {
-                let aw = val.as_object().expect("array_where value must be an object");
-                let where_obj = aw.get("where").and_then(|w| w.as_object()).expect("array_where requires 'where' object");
-                let assert_obj = aw.get("assert").and_then(|a| a.as_object()).expect("array_where requires 'assert' object");
-                let where_pairs: Vec<String> = where_obj.iter()
+                let aw = val
+                    .as_object()
+                    .expect("array_where value must be an object");
+                let where_obj = aw
+                    .get("where")
+                    .and_then(|w| w.as_object())
+                    .expect("array_where requires 'where' object");
+                let assert_obj = aw
+                    .get("assert")
+                    .and_then(|a| a.as_object())
+                    .expect("array_where requires 'assert' object");
+                let where_pairs: Vec<String> = where_obj
+                    .iter()
                     .map(|(field, cond)| {
                         let cond_expr = value_to_json_expr(cond, vars);
                         format!("item[{field:?}] == serde_json::json!({cond_expr})")
@@ -516,8 +525,15 @@ fn validate_scenario(schema: &serde_json::Value, scenario: &serde_json::Value, p
         for (i, item) in given.iter().enumerate() {
             if let Some(obj) = item.as_object() {
                 let known_keys = &[
-                    "dir_album", "photo", "empty", "remove", "config", "id_as",
-                    "tags", "exif_date", "color",
+                    "dir_album",
+                    "photo",
+                    "empty",
+                    "remove",
+                    "config",
+                    "id_as",
+                    "tags",
+                    "exif_date",
+                    "color",
                 ];
                 for key in obj.keys() {
                     if !known_keys.contains(&key.as_str()) {
@@ -542,7 +558,9 @@ fn validate_scenario(schema: &serde_json::Value, scenario: &serde_json::Value, p
                         i
                     );
                 }
-                if obj.contains_key("empty") && !matches!(obj["empty"], serde_json::Value::Bool(true)) {
+                if obj.contains_key("empty")
+                    && !matches!(obj["empty"], serde_json::Value::Bool(true))
+                {
                     panic!("{}: given[{}]: empty must be true", path.display(), i);
                 }
             }
@@ -553,8 +571,13 @@ fn validate_scenario(schema: &serde_json::Value, scenario: &serde_json::Value, p
     if let Some(then_items) = scenario["then"].as_array() {
         for (i, item) in then_items.iter().enumerate() {
             let known_keys = &[
-                "response.status", "response.status_not", "file_exists", "file_absent",
-                "array_min_counts", "array_where", "serve_image_ok",
+                "response.status",
+                "response.status_not",
+                "file_exists",
+                "file_absent",
+                "array_min_counts",
+                "array_where",
+                "serve_image_ok",
             ];
             if let Some(obj) = item.as_object() {
                 for key in obj.keys() {
@@ -713,21 +736,20 @@ fn emit_api_test_body(_name: &str, scenario: &serde_json::Value) -> String {
     let mut has_id_as = false;
 
     let needs_data = given.map(|items| !items.is_empty()).unwrap_or(false)
-        || then.iter().any(|item| {
-            item.get("file_exists").is_some() || item.get("file_absent").is_some()
-        });
+        || then
+            .iter()
+            .any(|item| item.get("file_exists").is_some() || item.get("file_absent").is_some());
 
     if needs_data {
         lines.push(
             "let _ = &*TEST_ENV;\n\
-             let data = test_image_home();"
+             let data = test_image_home();\n\
+             set_image_home(data.clone());"
                 .to_string(),
         );
         let scenario_text = serde_json::to_string(&scenario).unwrap_or_default();
         if scenario_text.contains("${data_path}") {
-            lines.push(
-                "let data_path = data.to_string_lossy().to_string();".to_string()
-            );
+            lines.push("let data_path = data.to_string_lossy().to_string();".to_string());
             vars.insert("data_path".to_string(), "data_path".to_string());
         }
     }
@@ -850,7 +872,9 @@ fn emit_api_test_body(_name: &str, scenario: &serde_json::Value) -> String {
             } else if let Some(config) = item.get("config").and_then(|c| c.as_object()) {
                 if let Some(enabled) = config.get("read_only_mode").and_then(|v| v.as_bool()) {
                     let val_str = if enabled { "true" } else { "false" };
-                    lines.push(format!("write_config(&serde_json::json!({{ \"read_only_mode\": {val_str} }}));"));
+                    lines.push(format!(
+                        "write_config(&serde_json::json!({{ \"read_only_mode\": {val_str} }}));"
+                    ));
                 }
             }
         }
@@ -998,7 +1022,13 @@ fn scenario_fn_name(name: &str) -> String {
 fn indent_lines(text: &str, spaces: usize) -> String {
     let prefix = " ".repeat(spaces);
     text.lines()
-        .map(|line| if line.is_empty() { String::new() } else { format!("{prefix}{line}") })
+        .map(|line| {
+            if line.is_empty() {
+                String::new()
+            } else {
+                format!("{prefix}{line}")
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -1033,17 +1063,26 @@ mod tests {
 
     #[test]
     fn build_json_access_simple_field() {
-        assert_eq!(build_json_access("response.prefetch.timestamp"), "[\"prefetch\"][\"timestamp\"]".to_string());
+        assert_eq!(
+            build_json_access("response.prefetch.timestamp"),
+            "[\"prefetch\"][\"timestamp\"]".to_string()
+        );
     }
 
     #[test]
     fn build_json_access_array_index() {
-        assert_eq!(build_json_access("response.[0].tags"), "[0][\"tags\"]".to_string());
+        assert_eq!(
+            build_json_access("response.[0].tags"),
+            "[0][\"tags\"]".to_string()
+        );
     }
 
     #[test]
     fn build_json_access_strips_response_prefix() {
-        assert_eq!(build_json_access("response.status"), "[\"status\"]".to_string());
+        assert_eq!(
+            build_json_access("response.status"),
+            "[\"status\"]".to_string()
+        );
     }
 
     #[test]

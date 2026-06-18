@@ -14,7 +14,14 @@ fn main() {
                 return;
             }
             let status = Command::new("cargo")
-                .args(["nextest", "run", "--package", "urocissa", "--", "scenarios_generated"])
+                .args([
+                    "nextest",
+                    "run",
+                    "--package",
+                    "urocissa",
+                    "--",
+                    "scenarios_generated",
+                ])
                 .current_dir(workspace_root())
                 .status()
                 .expect("failed to run cargo nextest for backend scenarios");
@@ -55,10 +62,12 @@ fn main() {
 }
 
 fn workspace_root() -> std::path::PathBuf {
-    let dir = std::path::PathBuf::from(
-        std::env::var("CARGO_MANIFEST_DIR")
-            .unwrap_or_else(|_| std::env::current_dir().unwrap().to_string_lossy().to_string()),
-    );
+    let dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| {
+        std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string()
+    }));
     // CARGO_MANIFEST_DIR is xtask/; workspace root is one level up
     dir.parent().unwrap().to_path_buf()
 }

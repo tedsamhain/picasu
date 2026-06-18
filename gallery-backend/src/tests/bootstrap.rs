@@ -18,9 +18,10 @@ pub struct TestEnv {
 
 pub static TEST_ENV: LazyLock<TestEnv> = LazyLock::new(|| {
     let dir = tempfile::tempdir().expect("create tempdir");
+    let data_path = dir.path().to_path_buf();
 
     DATA_PATH
-        .set(dir.path().to_path_buf())
+        .set(data_path.clone())
         .expect("DATA_PATH already set");
 
     let mut test_config = AppConfig::default();

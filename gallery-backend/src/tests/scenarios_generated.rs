@@ -12,6 +12,7 @@ mod scenarios_generated {
     fn album_membership_is_singular() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("gen_e2e_i_album_a")).expect("create album dir");
         write_real_jpeg(
             &data.join("gen_e2e_i_album_a/.__urocissa_ph__.jpg"),
@@ -68,6 +69,7 @@ mod scenarios_generated {
     fn album_visible_via_get_data_after_assign() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("e2e_q_album")).expect("create album dir");
         write_real_jpeg(
             &data.join("e2e_q_album/.__urocissa_ph__.jpg"),
@@ -155,6 +157,7 @@ mod scenarios_generated {
     fn assign_album_moves_file_and_updates_membership() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("gen_e2e_h_album")).expect("create album dir");
         write_real_jpeg(
             &data.join("gen_e2e_h_album/.__urocissa_ph__.jpg"),
@@ -218,6 +221,7 @@ mod scenarios_generated {
     fn assign_album_rejects_manual_album() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("manual_album_test")).expect("create dir");
         write_real_jpeg(
             &data.join("manual_album_test/photo.jpg"),
@@ -254,6 +258,7 @@ mod scenarios_generated {
     fn assign_album_rejects_stale_file_path() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("e2e_j/album")).expect("create album dir");
         write_real_jpeg(
             &data.join("e2e_j/album/.__urocissa_ph__.jpg"),
@@ -291,6 +296,7 @@ mod scenarios_generated {
     fn create_dir_album_creates_subdirectory_and_registers_album() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         let data_path = data.to_string_lossy().to_string();
         std::fs::create_dir_all(&data.join("e2e_create_dir_album/parent"))
             .expect("create album dir");
@@ -376,6 +382,7 @@ mod scenarios_generated {
     fn dir_album_parent_child_relationship() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         let data_path = data.to_string_lossy().to_string();
         std::fs::create_dir_all(&data.join("e2e_d")).expect("create album dir");
         write_real_jpeg(
@@ -506,6 +513,7 @@ mod scenarios_generated {
     fn image_serving_survives_album_move() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("e2e_v/album")).expect("create album dir");
         write_real_jpeg(
             &data.join("e2e_v/album/.__urocissa_ph__.jpg"),
@@ -596,6 +604,7 @@ mod scenarios_generated {
     fn photo_tags_reflect_injected_metadata() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("e2e_b/2023/summer")).expect("create dir");
         write_real_jpeg_with_xmp_and_exif(
             &data.join("e2e_b/2023/summer/beach.jpg"),
@@ -667,6 +676,7 @@ mod scenarios_generated {
     fn read_only_mode_blocks_mutating_routes() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         write_config(&serde_json::json!({ "read_only_mode": true }));
         let client = make_client();
         let resp = client
@@ -687,6 +697,7 @@ mod scenarios_generated {
     fn reindex_preserves_album_and_tags() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("e2e_s_album")).expect("create album dir");
         write_real_jpeg(
             &data.join("e2e_s_album/.__urocissa_ph__.jpg"),
@@ -853,6 +864,7 @@ mod scenarios_generated {
     fn tags_modifiable_via_edit_tag_api() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("e2e_p")).expect("create dir");
         write_real_jpeg(&data.join("e2e_p/photo.jpg"), path_color("e2e_p/photo.jpg"));
         let client = make_client();
@@ -958,6 +970,7 @@ mod scenarios_generated {
     fn tags_visible_via_get_data() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("e2e_o")).expect("create dir");
         write_real_jpeg_with_xmp_keywords(
             &data.join("e2e_o/tagged.jpg"),
@@ -1038,6 +1051,7 @@ mod scenarios_generated {
     fn watcher_discovers_new_file_in_subdirectory() {
         let _ = &*TEST_ENV;
         let data = test_image_home();
+        set_image_home(data.clone());
         std::fs::create_dir_all(&data.join("watcher_import")).expect("create dir");
         write_real_jpeg(
             &data.join("watcher_import/photo.jpg"),

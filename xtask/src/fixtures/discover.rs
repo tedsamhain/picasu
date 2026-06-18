@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use rocket::http::{ContentType, Status};
 use rocket::local::blocking::Client;
@@ -6,16 +7,20 @@ use serde_json::Value;
 
 use crate::fixtures::auth::auth_cookie;
 
+static IMAGE_HOME: OnceLock<PathBuf> = OnceLock::new();
+
+/// Set the image home directory used by [`discover_photo_hash`] and
+/// [`serve_compressed_image`].  Must be called before these functions;
+/// safe to call multiple times (subsequent calls are ignored).
+pub fn set_image_home(path: PathBuf) {
+    IMAGE_HOME.set(path).ok();
+}
+
 fn image_home() -> PathBuf {
-    std::env::var("UROCISSA_IMAGE_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            // Fallback: resolve relative to the data directory used in tests.
-            let data = std::env::var("UROCISSA_DATA_HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("/tmp"));
-            data.join("images")
-        })
+    IMAGE_HOME
+        .get()
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from("/tmp/images"))
 }
 
 pub fn discover_photo_hash(client: &Client, relative_path: &str) -> String {
@@ -124,9 +129,15 @@ pub fn serve_compressed_image(client: &Client, hash: &str) -> Status {
         .as_str()
         .expect("prefetch.token")
         .to_owned();
+    let data_length = prefetch_body["prefetch"]["dataLength"]
+        .as_u64()
+        .expect("prefetch.dataLength");
 
+    // Fetch all items so we can find the one matching `hash` by ID.
     let data_resp = client
-        .get(format!("/get/get-data?timestamp={timestamp}&start=0&end=1"))
+        .get(format!(
+            "/get/get-data?timestamp={timestamp}&start=0&end={data_length}"
+        ))
         .header(rocket::http::Header::new(
             "Authorization",
             format!("Bearer {token}"),
@@ -139,7 +150,12 @@ pub fn serve_compressed_image(client: &Client, hash: &str) -> Status {
     );
     let data_body: Value = serde_json::from_slice(&data_resp.into_bytes().expect("get-data body"))
         .expect("valid get-data JSON");
-    let hash_token = data_body[0]["token"].as_str().expect("hash token");
+    let items = data_body.as_array().expect("get-data must be an array");
+    let matching = items
+        .iter()
+        .find(|item| item["abstractData"]["id"].as_str() == Some(hash))
+        .unwrap_or_else(|| panic!("no item found for hash {hash}"));
+    let hash_token = matching["token"].as_str().expect("hash token");
 
     let hash_prefix = &hash[0..2];
     let resp = client
