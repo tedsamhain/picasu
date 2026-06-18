@@ -293,6 +293,444 @@ mod scenarios_generated {
     }
 
     #[test]
+    fn complex_import_create_album_assign_and_verify_tags_and_files() {
+        let _ = &*TEST_ENV;
+        let data = test_image_home();
+        set_image_home(data.clone());
+        std::fs::create_dir_all(&data.join("e2e_w/parent")).expect("create album dir");
+        write_real_jpeg(
+            &data.join("e2e_w/parent/.__urocissa_ph__.jpg"),
+            path_color("e2e_w/parent/.__urocissa_ph__.jpg"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_w")).expect("create dir");
+        write_real_jpeg_with_xmp_keywords(
+            &data.join("e2e_w/photo1.jpg"),
+            [128, 128, 128],
+            &["e2e_w_city", "e2e_w_travel"],
+        );
+        std::fs::create_dir_all(&data.join("e2e_w")).expect("create dir");
+        write_real_jpeg_with_xmp_keywords(
+            &data.join("e2e_w/photo2.jpg"),
+            [128, 128, 128],
+            &["e2e_w_city", "e2e_w_architecture"],
+        );
+        let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index/album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        wait_for_album_index(&client, 30000);
+        let parent = discover_album_id(&client, "e2e_w/parent");
+        let photo1 = discover_photo_hash(&client, "e2e_w/photo1.jpg");
+        let photo2 = discover_photo_hash(&client, "e2e_w/photo2.jpg");
+        let resp_0 = client
+            .post("/post/create_dir_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(
+                serde_json::json!({"name": "vacation".to_string(), "parentAlbumId": parent})
+                    .to_string(),
+            )
+            .dispatch();
+        assert_eq!(
+            resp_0.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_0 status"
+        );
+        let resp_1 = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"albumId": parent, "hash": photo1}).to_string())
+            .dispatch();
+        assert_eq!(
+            resp_1.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_1 status"
+        );
+        let resp_2 = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"albumId": parent, "hash": photo2}).to_string())
+            .dispatch();
+        assert_eq!(
+            resp_2.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_2 status"
+        );
+        let resp_3 = client
+            .get("/get/get-tags")
+            .cookie(auth_cookie(&client))
+            .dispatch();
+        assert_eq!(
+            resp_3.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_3 status"
+        );
+        let parsed_final: serde_json::Value =
+            serde_json::from_slice(&resp_3.into_bytes().expect("response body"))
+                .expect("valid JSON");
+        let tags = parsed_final.as_array().expect("response must be an array");
+        for (tag, min) in [
+            ("e2e_w_architecture", 1u64),
+            ("e2e_w_city", 2u64),
+            ("e2e_w_travel", 1u64),
+        ] {
+            let got = tags
+                .iter()
+                .find(|t| t["tag"].as_str() == Some(tag))
+                .and_then(|t| t["number"].as_u64())
+                .unwrap_or(0);
+            assert!(got >= min, "tag '{tag}': expected >= {min}, got {got}");
+        }
+        assert!(
+            data.join("e2e_w/parent/photo1.jpg").exists(),
+            "file should exist: e2e_w/parent/photo1.jpg"
+        );
+        assert!(
+            !data.join("e2e_w/photo1.jpg").exists(),
+            "file should be absent: e2e_w/photo1.jpg"
+        );
+        assert!(
+            data.join("e2e_w/parent/photo2.jpg").exists(),
+            "file should exist: e2e_w/parent/photo2.jpg"
+        );
+        assert!(
+            !data.join("e2e_w/photo2.jpg").exists(),
+            "file should be absent: e2e_w/photo2.jpg"
+        );
+        assert!(
+            data.join("e2e_w/parent/vacation").exists(),
+            "file should exist: e2e_w/parent/vacation"
+        );
+    }
+
+    #[test]
+    fn complex_photo_moves_between_albums_verified_via_api_and_filesystem() {
+        let _ = &*TEST_ENV;
+        let data = test_image_home();
+        set_image_home(data.clone());
+        std::fs::create_dir_all(&data.join("e2e_x/album_a")).expect("create album dir");
+        write_real_jpeg(
+            &data.join("e2e_x/album_a/.__urocissa_ph__.jpg"),
+            path_color("e2e_x/album_a/.__urocissa_ph__.jpg"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_x/album_b")).expect("create album dir");
+        write_real_jpeg(
+            &data.join("e2e_x/album_b/.__urocissa_ph__.jpg"),
+            path_color("e2e_x/album_b/.__urocissa_ph__.jpg"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_x/import")).expect("create dir");
+        write_real_jpeg(
+            &data.join("e2e_x/import/photo.jpg"),
+            path_color("e2e_x/import/photo.jpg"),
+        );
+        let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index/album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        wait_for_album_index(&client, 30000);
+        let album_a = discover_album_id(&client, "e2e_x/album_a");
+        let album_b = discover_album_id(&client, "e2e_x/album_b");
+        let photo = discover_photo_hash(&client, "e2e_x/import/photo.jpg");
+        let resp_0 = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"albumId": album_a, "hash": photo}).to_string())
+            .dispatch();
+        assert_eq!(
+            resp_0.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_0 status"
+        );
+        let resp_1 = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"albumId": album_b, "hash": photo}).to_string())
+            .dispatch();
+        assert_eq!(
+            resp_1.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_1 status"
+        );
+        let resp_2 = client
+            .post(format!(r#"/get/prefetch?locate={photo}"#))
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        let parsed_body: serde_json::Value =
+            serde_json::from_slice(&resp_2.into_bytes().expect("response body")).unwrap();
+        let idx = {
+            let val = &parsed_body["prefetch"]["locateTo"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let token = {
+            let val = &parsed_body["token"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let ts = {
+            let val = &parsed_body["prefetch"]["timestamp"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let end = (idx.parse::<i64>().unwrap() + 1).to_string();
+        let resp_3 = client
+            .get(format!(
+                r#"/get/get-data?timestamp={ts}&start={idx}&end={end}"#
+            ))
+            .header(rocket::http::Header::new(
+                "Authorization",
+                "Bearer ".to_string() + &token.clone(),
+            ))
+            .dispatch();
+        assert_eq!(
+            resp_3.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_3 status"
+        );
+        let parsed_final: serde_json::Value =
+            serde_json::from_slice(&resp_3.into_bytes().expect("response body"))
+                .expect("valid JSON");
+        assert_eq!(
+            parsed_final[0]["abstractData"]["album"],
+            serde_json::json!(album_b),
+            "response.json.[0].abstractData.album mismatch"
+        );
+        assert!(
+            data.join("e2e_x/album_b/photo.jpg").exists(),
+            "file should exist: e2e_x/album_b/photo.jpg"
+        );
+        assert!(
+            !data.join("e2e_x/album_a/photo.jpg").exists(),
+            "file should be absent: e2e_x/album_a/photo.jpg"
+        );
+        assert!(
+            !data.join("e2e_x/import/photo.jpg").exists(),
+            "file should be absent: e2e_x/import/photo.jpg"
+        );
+    }
+
+    #[test]
+    fn complex_tags_and_album_survive_assign_and_reindex() {
+        let _ = &*TEST_ENV;
+        let data = test_image_home();
+        set_image_home(data.clone());
+        std::fs::create_dir_all(&data.join("e2e_y/album")).expect("create album dir");
+        write_real_jpeg(
+            &data.join("e2e_y/album/.__urocissa_ph__.jpg"),
+            path_color("e2e_y/album/.__urocissa_ph__.jpg"),
+        );
+        std::fs::create_dir_all(&data.join("e2e_y/import")).expect("create dir");
+        write_real_jpeg_with_xmp_and_exif(
+            &data.join("e2e_y/import/sunset.jpg"),
+            [128, 128, 128],
+            &["e2e_y_scenic", "e2e_y_sunset"],
+            Some("2025:06:15 19:30:00"),
+        );
+        let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index/album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        wait_for_album_index(&client, 30000);
+        let album = discover_album_id(&client, "e2e_y/album");
+        let photo = discover_photo_hash(&client, "e2e_y/import/sunset.jpg");
+        let resp_0 = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"albumId": album, "hash": photo}).to_string())
+            .dispatch();
+        assert_eq!(
+            resp_0.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_0 status"
+        );
+        let resp_1 = client
+            .post(format!(r#"/get/prefetch?locate={photo}"#))
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        let parsed_body: serde_json::Value =
+            serde_json::from_slice(&resp_1.into_bytes().expect("response body")).unwrap();
+        let idx = {
+            let val = &parsed_body["prefetch"]["locateTo"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let token = {
+            let val = &parsed_body["token"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let ts = {
+            let val = &parsed_body["prefetch"]["timestamp"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let end = (idx.parse::<i64>().unwrap() + 1).to_string();
+        let resp_2 = client
+            .get(format!(
+                r#"/get/get-data?timestamp={ts}&start={idx}&end={end}"#
+            ))
+            .header(rocket::http::Header::new(
+                "Authorization",
+                "Bearer ".to_string() + &token.clone(),
+            ))
+            .dispatch();
+        assert_eq!(
+            resp_2.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_2 status"
+        );
+        let parsed_final: serde_json::Value =
+            serde_json::from_slice(&resp_2.into_bytes().expect("response body"))
+                .expect("valid JSON");
+        assert_eq!(
+            parsed_final[0]["abstractData"]["album"],
+            serde_json::json!(album),
+            "response.json.[0].abstractData.album mismatch"
+        );
+        let arr = parsed_final[0]["abstractData"]["tags"]
+            .as_array()
+            .expect("response.json.[0].abstractData.tags must be an array");
+        assert!(
+            arr.contains(&serde_json::json!("e2e_y_scenic".to_string())),
+            "response.json.[0].abstractData.tags does not contain e2e_y_scenic"
+        );
+        let resp_3 = client
+            .post(format!(r#"/get/prefetch?locate={photo}"#))
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        let parsed_body: serde_json::Value =
+            serde_json::from_slice(&resp_3.into_bytes().expect("response body")).unwrap();
+        let idx = {
+            let val = &parsed_body["prefetch"]["locateTo"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let token = {
+            let val = &parsed_body["token"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let ts = {
+            let val = &parsed_body["prefetch"]["timestamp"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let resp_4 = client
+            .post("/put/reindex")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(format!(r#"{{"indexArray":[{idx}],"timestamp":{ts}}}"#))
+            .dispatch();
+        assert_eq!(
+            resp_4.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_4 status"
+        );
+        let resp_5 = client
+            .post(format!(r#"/get/prefetch?locate={photo}"#))
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .dispatch();
+        let parsed_body: serde_json::Value =
+            serde_json::from_slice(&resp_5.into_bytes().expect("response body")).unwrap();
+        let idx = {
+            let val = &parsed_body["prefetch"]["locateTo"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let token = {
+            let val = &parsed_body["token"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let ts = {
+            let val = &parsed_body["prefetch"]["timestamp"];
+            val.as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| val.to_string())
+        };
+        let end = (idx.parse::<i64>().unwrap() + 1).to_string();
+        let resp_6 = client
+            .get(format!(
+                r#"/get/get-data?timestamp={ts}&start={idx}&end={end}"#
+            ))
+            .header(rocket::http::Header::new(
+                "Authorization",
+                "Bearer ".to_string() + &token.clone(),
+            ))
+            .dispatch();
+        assert_eq!(
+            resp_6.status(),
+            Status::from_code(200).unwrap(),
+            "call resp_6 status"
+        );
+        let parsed_final: serde_json::Value =
+            serde_json::from_slice(&resp_6.into_bytes().expect("response body"))
+                .expect("valid JSON");
+        assert_eq!(
+            parsed_final[0]["abstractData"]["album"],
+            serde_json::json!(album),
+            "response.json.[0].abstractData.album mismatch"
+        );
+        let arr = parsed_final[0]["abstractData"]["tags"]
+            .as_array()
+            .expect("response.json.[0].abstractData.tags must be an array");
+        assert!(
+            arr.contains(&serde_json::json!("e2e_y_scenic".to_string())),
+            "response.json.[0].abstractData.tags does not contain e2e_y_scenic"
+        );
+        let arr = parsed_final[0]["abstractData"]["tags"]
+            .as_array()
+            .expect("response.json.[0].abstractData.tags must be an array");
+        assert!(
+            arr.contains(&serde_json::json!("e2e_y_sunset".to_string())),
+            "response.json.[0].abstractData.tags does not contain e2e_y_sunset"
+        );
+        assert!(
+            data.join("e2e_y/album/sunset.jpg").exists(),
+            "file should exist: e2e_y/album/sunset.jpg"
+        );
+        assert!(
+            !data.join("e2e_y/import/sunset.jpg").exists(),
+            "file should be absent: e2e_y/import/sunset.jpg"
+        );
+    }
+
+    #[test]
     fn create_dir_album_creates_subdirectory_and_registers_album() {
         let _ = &*TEST_ENV;
         let data = test_image_home();

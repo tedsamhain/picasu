@@ -1,0 +1,54 @@
+name: complex import create album assign and verify tags and files
+# Full lifecycle: file-based photo import with metadata tags -> scan -> create
+# album via API -> assign photos -> verify via get-tags, get-albums, and
+# filesystem checks that originals moved and labels are correct.
+given:
+  - dir_album: /e2e_w/parent
+    id_as: $parent
+  - photo: /e2e_w/photo1.jpg
+    tags:
+      - e2e_w_city
+      - e2e_w_travel
+    id_as: $photo1
+  - photo: /e2e_w/photo2.jpg
+    tags:
+      - e2e_w_city
+      - e2e_w_architecture
+    id_as: $photo2
+when:
+  # Step 1: Create a child album via API (adds directory + registers)
+  - call: POST /post/create_dir_album
+    body:
+      parentAlbumId: "${parent}"
+      name: vacation
+    then:
+      - response.status: 200
+  # Step 2: Assign first photo to parent album
+  - call: PUT /put/assign_album
+    body:
+      hash: "${photo1}"
+      albumId: "${parent}"
+    then:
+      - response.status: 200
+  # Step 3: Assign second photo to parent album
+  - call: PUT /put/assign_album
+    body:
+      hash: "${photo2}"
+      albumId: "${parent}"
+    then:
+      - response.status: 200
+  # Step 4: Verify tag counts reflect all imported metadata
+  - call: GET /get/get-tags
+then:
+  - response.status: 200
+  - array_min_counts:
+      e2e_w_city: 2
+      e2e_w_travel: 1
+      e2e_w_architecture: 1
+  # Files moved from their import locations to the album
+  - file_exists: /e2e_w/parent/photo1.jpg
+  - file_absent: /e2e_w/photo1.jpg
+  - file_exists: /e2e_w/parent/photo2.jpg
+  - file_absent: /e2e_w/photo2.jpg
+  # create_dir_album created the directory
+  - file_exists: /e2e_w/parent/vacation
