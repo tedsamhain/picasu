@@ -19,6 +19,17 @@ pub enum CompressedFileResponse<'a> {
     NamedFile(NamedFile),
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        get,
+        path = "/object/compressed/{file_path}",
+        responses(
+            (status = 200, description = "Compressed file"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[get("/object/compressed/<file_path..>")]
 pub async fn compressed_file(
     auth_guard: GuardResult<GuardShare>,
@@ -83,6 +94,17 @@ pub async fn compressed_file(
 /// the frontend and `GuardHashOriginal`'s validation, but only the hash
 /// (the file stem) is actually used, to look up the record's current
 /// `source_path()`.
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        get,
+        path = "/object/imported/{file_path}",
+        responses(
+            (status = 200, description = "Imported original file"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[get("/object/imported/<file_path..>")]
 pub async fn imported_file(
     auth: GuardResult<GuardShare>,

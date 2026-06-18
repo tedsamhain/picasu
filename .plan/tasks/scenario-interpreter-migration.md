@@ -73,5 +73,5 @@ Currently each generated `#[test]` function holds these `Mutex` guards. The inte
 
 - All 20 backend scenarios + 4 negative scenarios pass via `backend_api`
 - Fixed `read_only_mode` config cleanup ordering bug (moved after when/then)
-- xtask shrunk to `emit-openapi` and `plan` subcommands only
+- xtask shrunk to `openapi-gen` and `plan` subcommands only
 - `cargo test -p urocissa -- backend_api` is the replacement for the old codegen test suite

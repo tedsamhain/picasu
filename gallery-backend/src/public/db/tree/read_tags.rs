@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use super::Tree;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct TagInfo {
     pub tag: String,
     pub number: usize,

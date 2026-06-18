@@ -17,13 +17,28 @@ use serde::Serialize;
 /// Payload for updating a specific album's cover image.
 #[derive(Debug, Clone, Deserialize, Default, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct SetAlbumCover {
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
     pub album_id: ArrayString<64>,
     /// The hash of the image to set as cover.
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
     pub cover_hash: ArrayString<64>,
 }
 
 /// Updates the cover image of a specific album.
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        put,
+        path = "/put/set_album_cover",
+        request_body = SetAlbumCover,
+        responses(
+            (status = 200, description = "Album cover updated"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[put("/put/set_album_cover", data = "<set_album_cover>")]
 pub async fn set_album_cover(
     auth: GuardResult<GuardAuth>,
@@ -86,12 +101,26 @@ pub async fn set_album_cover(
 /// Payload for renaming an album.
 #[derive(Debug, Clone, Deserialize, Default, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct SetAlbumTitle {
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
     pub album_id: ArrayString<64>,
     pub title: Option<String>,
 }
 
 /// Updates the display title of a specific album.
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        put,
+        path = "/put/set_album_title",
+        request_body = SetAlbumTitle,
+        responses(
+            (status = 200, description = "Album title updated"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[put("/put/set_album_title", data = "<set_album_title>")]
 pub async fn set_album_title(
     auth: GuardResult<GuardShare>,

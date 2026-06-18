@@ -13,15 +13,28 @@ use crate::tasks::{BATCH_COORDINATOR, INDEX_COORDINATOR};
 use anyhow::Result;
 use arrayvec::ArrayString;
 use futures::future::try_join_all;
-use rocket::serde::{Deserialize, json::Json};
+use rocket::serde::{Deserialize, Serialize, json::Json};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct DeleteList {
     delete_list: Vec<usize>,
     timestamp: i64,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        delete,
+        path = "/delete/delete-data",
+        request_body = DeleteList,
+        responses(
+            (status = 200, description = "Data deleted"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[delete("/delete/delete-data", format = "json", data = "<json_data>")]
 pub async fn delete_data(
     auth: GuardResult<GuardAuth>,

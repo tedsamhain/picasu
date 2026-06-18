@@ -31,14 +31,9 @@ pub enum Expression {
     Path(String),
     Album(AlbumFilterValue),
     Any(String),
-    // Boolean field filters
     Favorite(bool),
     Archived(bool),
     Trashed(bool),
-    /// Matches album objects with no parent (top-level dir albums + all manual albums).
-    /// Always false for image/video items.
     RootAlbum(bool),
-    /// Matches album objects whose direct parent dir album has the given ID.
-    /// Always false for image/video items.
     ParentAlbum(ArrayString<64>),
 }

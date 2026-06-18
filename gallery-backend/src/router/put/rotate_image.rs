@@ -13,15 +13,28 @@ use anyhow::Result;
 // use anyhow::anyhow;
 use arrayvec::ArrayString;
 use log::info;
-use rocket::serde::{Deserialize, json::Json};
+use rocket::serde::{Deserialize, Serialize, json::Json};
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(crate = "rocket::serde")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct RotateImageRequest {
     /// Hash of the image to rotate
     pub hash: String,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        put,
+        path = "/put/rotate-image",
+        request_body = RotateImageRequest,
+        responses(
+            (status = 200, description = "Image rotated"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[put("/put/rotate-image", data = "<request>")]
 pub async fn rotate_image(
     auth: GuardResult<GuardAuth>,

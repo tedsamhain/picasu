@@ -31,6 +31,7 @@ use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, Decode, Encode)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Prefetch {
     pub timestamp: i64,
     pub locate_to: Option<usize>,
@@ -49,6 +50,7 @@ impl Prefetch {
 
 #[derive(Debug, Clone, Deserialize, Serialize, Decode, Encode)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct PrefetchReturn {
     pub prefetch: Prefetch,
     pub token: String,
@@ -284,6 +286,18 @@ fn execute_prefetch_logic(
     Ok(json)
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        post,
+        path = "/get/prefetch",
+        request_body = serde_json::Value,
+        responses(
+            (status = 200, description = "Prefetch result", body = PrefetchReturn),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[post("/get/prefetch?<locate>", format = "json", data = "<query_data>")]
 pub async fn prefetch(
     auth_guard: GuardResult<GuardShare>,

@@ -18,8 +18,10 @@ pub struct Share {
 
 #[derive(Debug, Clone, Deserialize, Default, Serialize, Decode, Encode, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ResolvedShare {
     pub share: Share,
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
     pub album_id: ArrayString<64>,
     pub album_title: Option<String>,
 }

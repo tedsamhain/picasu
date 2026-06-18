@@ -49,6 +49,7 @@ fn default_upload_folder() -> String {
 /// touching this file. See <https://rocket.rs/guide/configuration/>.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct PublicConfig {
     pub address: String,
     pub port: u16,
@@ -59,6 +60,7 @@ pub struct PublicConfig {
     /// libraries are expected to be aggregated at the filesystem layer
     /// (bind mounts/symlinks under this one root) rather than configured
     /// here as a list.
+    #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
     pub image_path: Option<PathBuf>,
     /// Subfolder name (relative to the resolved `imagePath`) that uploads
     /// with no target album land in — it becomes its own top-level album
@@ -72,6 +74,7 @@ pub struct PublicConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct PrivateConfig {
     pub password: Option<String>,
     pub auth_key: Option<String>,
@@ -80,6 +83,7 @@ pub struct PrivateConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AppConfig {
     pub public: PublicConfig,
     pub private: PrivateConfig,

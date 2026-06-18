@@ -11,11 +11,12 @@ use crate::tasks::batcher::flush_tree::FlushTreeTask;
 use crate::tasks::batcher::update_tree::UpdateTreeTask;
 use anyhow::Result;
 use arrayvec::ArrayString;
-use rocket::serde::{Deserialize, json::Json};
+use rocket::serde::{Deserialize, Serialize, json::Json};
 use std::collections::HashSet;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct EditFlagsData {
     index_array: Vec<usize>,
     timestamp: i64,
@@ -27,6 +28,18 @@ pub struct EditFlagsData {
     is_trashed: Option<bool>,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        put,
+        path = "/put/edit_flags",
+        request_body = EditFlagsData,
+        responses(
+            (status = 200, description = "Flags updated"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[put("/put/edit_flags", format = "json", data = "<json_data>")]
 pub async fn edit_flags(
     auth: GuardResult<GuardAuth>,

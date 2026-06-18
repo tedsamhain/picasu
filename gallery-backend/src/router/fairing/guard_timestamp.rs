@@ -77,18 +77,32 @@ impl<'r> FromRequest<'r> for GuardTimestamp {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct RenewTimestampToken {
     pub token: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct RenewTimestampTokenReturn {
     pub token: String,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        post,
+        path = "/post/renew-timestamp-token",
+        request_body = RenewTimestampToken,
+        responses(
+            (status = 200, description = "Timestamp token renewed", body = RenewTimestampTokenReturn),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[post(
     "/post/renew-timestamp-token",
     format = "json",

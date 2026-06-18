@@ -17,7 +17,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Default, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CreateShare {
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
     pub album_id: ArrayString<64>,
     pub description: String,
     pub password: Option<String>,
@@ -27,6 +29,18 @@ pub struct CreateShare {
     pub exp: i64,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        post,
+        path = "/post/create_share",
+        request_body = CreateShare,
+        responses(
+            (status = 200, description = "Share link created", body = String),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[post("/post/create_share", data = "<create_share>")]
 pub async fn create_share(
     auth: GuardResult<GuardAuth>,

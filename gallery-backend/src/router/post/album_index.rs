@@ -1,7 +1,7 @@
 use rocket::http::Status;
 use rocket::post;
 use rocket::serde::json::Json;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::router::fairing::guard_auth::GuardAuth;
 use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
@@ -10,12 +10,14 @@ use crate::tasks::actor::album_index::{cancel_album_index, index_album};
 use crate::workflow::index_image;
 use std::path::PathBuf;
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct IndexAlbumRequest {
     album: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct IndexImageRequest {
     image: String,
     album: Option<String>,
@@ -24,6 +26,18 @@ pub struct IndexImageRequest {
 /// Walk a directory under `IMAGE_HOME` and index all media files in the
 /// background.  `album` is a path relative to `IMAGE_HOME` — use `"/"` for
 /// the root.  Status can be polled via `GET /get/index/status`.
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        post,
+        path = "/post/index/album",
+        request_body = IndexAlbumRequest,
+        responses(
+            (status = 200, description = "Album indexing started"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[post("/post/index/album", data = "<req>")]
 pub fn index_album_handler(
     _auth: GuardAuth,
@@ -37,6 +51,18 @@ pub fn index_album_handler(
 
 /// Index a single image by its path relative to `IMAGE_HOME`.  Runs in the
 /// background; returns `202 Accepted` immediately.
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        post,
+        path = "/post/index/image",
+        request_body = IndexImageRequest,
+        responses(
+            (status = 200, description = "Image indexing started"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[post("/post/index/image", data = "<req>")]
 pub fn index_image_handler(
     _auth: GuardAuth,
@@ -56,6 +82,17 @@ pub fn index_image_handler(
 }
 
 /// Cancel a running album index job.
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        post,
+        path = "/post/index/cancel",
+        responses(
+            (status = 200, description = "Album index cancelled"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[post("/post/index/cancel")]
 pub fn cancel_album_index_handler(_auth: GuardAuth) -> AppResult<Status> {
     cancel_album_index()?;

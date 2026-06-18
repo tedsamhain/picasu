@@ -15,12 +15,25 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, Deserialize, Default, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct SetUserDefinedDescription {
     pub index: usize,
     pub description: Option<String>,
     pub timestamp: i64,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        put,
+        path = "/put/set_user_defined_description",
+        request_body = SetUserDefinedDescription,
+        responses(
+            (status = 200, description = "Description updated"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[put(
     "/put/set_user_defined_description",
     data = "<set_user_defined_description>"

@@ -15,10 +15,11 @@ use crate::public::structure::config::{APP_CONFIG, AppConfig};
 use crate::router::fairing::guard_auth::GuardAuth;
 use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
 use crate::router::{AppResult, GuardResult};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct PartialUpdateConfigRequest {
     pub address: Option<String>,
     pub port: Option<u16>,
@@ -33,6 +34,18 @@ pub struct PartialUpdateConfigRequest {
     pub discord_hook_url: Option<String>,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        put,
+        path = "/put/config",
+        request_body = PartialUpdateConfigRequest,
+        responses(
+            (status = 200, description = "Config updated"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[put("/put/config", data = "<req>")]
 pub async fn update_config_handler(
     _auth: GuardAuth,
@@ -110,13 +123,26 @@ pub async fn update_config_handler(
     .or_raise(|| (ErrorKind::Internal, "Task join error"))?
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UpdatePasswordRequest {
     pub password: Option<String>,
     pub old_password: Option<String>,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        put,
+        path = "/put/config/password",
+        request_body = UpdatePasswordRequest,
+        responses(
+            (status = 200, description = "Password updated"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[put("/put/config/password", data = "<req>")]
 pub async fn update_password_handler(
     _auth: GuardAuth,

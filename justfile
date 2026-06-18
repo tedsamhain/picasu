@@ -72,10 +72,22 @@ frontend-audit:
 
 # ── Xtask tooling ───────────────────────────────────────────────────────────────
 
-# Emit openapi.json from utoipa annotations (3 spike endpoints first)
+# Generate openapi.rs + openapi.json from utoipa annotations
 [group('xtask')]
-emit-openapi:
-    cargo xtask emit-openapi
+openapi-gen:
+    RUST_MIN_STACK=16777216 cargo xtask openapi-gen
+
+# Generate full API docs: openapi.json + markdown reference
+[group('xtask')]
+openapi-docs: openapi-gen
+    npx --yes widdershins --summary gallery-backend/openapi.json -o docs/openapi-reference.md
+    npx prettier --write docs/openapi-reference.md
+
+# Verify committed generated files match annotations (CI / precommit)
+[group('xtask')]
+openapi-docs-check: openapi-docs
+    cargo xtask openapi-coverage
+    git diff --exit-code gallery-backend/src/openapi.rs gallery-backend/openapi.json docs/openapi-reference.md
 
 # Auto-format .plan task frontmatter and body
 [group('xtask')]
@@ -120,6 +132,7 @@ install-dev:
     cargo install cargo-deny cargo-audit
     cargo install --locked cargo-nextest
     npm ci --prefix gallery-frontend
+    npm install --prefix gallery-frontend --save-dev --save-exact widdershins
 
 # Build frontend then backend (debug, no embedded frontend) — developer default
 [group('global')]
@@ -167,6 +180,7 @@ precommit:
         just format
         just check
         just test
+        just openapi-docs-check
         exit 0
     fi
 

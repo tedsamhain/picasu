@@ -23,7 +23,9 @@ impl DatabaseTimestamp {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct DataBaseTimestampReturn {
+    #[cfg_attr(feature = "openapi", schema(value_type = Object))]
     pub abstract_data: AbstractData,
     pub timestamp: i64,
     pub token: String,

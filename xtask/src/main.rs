@@ -1,3 +1,4 @@
+mod openapi;
 mod plan;
 
 use std::process::Command;
@@ -11,7 +12,8 @@ fn main() {
     }
 
     match subcommand.as_deref() {
-        Some("emit-openapi") => emit_openapi(),
+        Some("openapi-gen") => emit_openapi(),
+        Some("openapi-coverage") => openapi::run_coverage(),
         Some("plan") => {
             let args: Vec<String> = std::env::args().skip(2).collect();
             let mut status_filter: Option<&str> = None;
@@ -149,18 +151,21 @@ fn print_help(sub: &str) {
         }
         _ => {
             println!("cargo xtask <subcommand>\n");
-            println!("  emit-openapi    write gallery-backend/openapi.json from utoipa annotations");
+            println!("  openapi-gen     generate openapi.rs and openapi.json from utoipa annotations");
+            println!("                  (see `just openapi-docs` for full pipeline)");
             println!("  plan            list/search/validate .plan tasks (see `cargo xtask plan --help`)");
         }
     }
 }
 
 fn print_help_summary() {
-    eprintln!("available: emit-openapi, plan");
+    eprintln!("available: openapi-gen, openapi-coverage, plan");
     eprintln!("use --help for details");
 }
 
 fn emit_openapi() {
+    openapi::generate_openapi_rs();
+
     let output = Command::new("cargo")
         .args([
             "run",

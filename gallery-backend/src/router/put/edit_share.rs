@@ -11,14 +11,28 @@ use crate::{public::constant::redb::DATA_TABLE, router::AppResult};
 
 use arrayvec::ArrayString;
 use redb::ReadableTable;
-use rocket::serde::{Deserialize, json::Json};
-#[derive(Debug, Deserialize)]
+use rocket::serde::{Deserialize, Serialize, json::Json};
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct EditShare {
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
     album_id: ArrayString<64>,
     share: Share,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        put,
+        path = "/put/edit_share",
+        request_body = EditShare,
+        responses(
+            (status = 200, description = "Share updated"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[put("/put/edit_share", format = "json", data = "<json_data>")]
 pub async fn edit_share(
     auth: GuardResult<GuardAuth>,
@@ -71,13 +85,28 @@ pub async fn edit_share(
     Ok(())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct DeleteShare {
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
     album_id: ArrayString<64>,
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
     share_id: ArrayString<64>,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        put,
+        path = "/put/delete_share",
+        request_body = DeleteShare,
+        responses(
+            (status = 200, description = "Share deleted"),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[put("/put/delete_share", format = "json", data = "<json_data>")]
 pub async fn delete_share(
     auth: GuardResult<GuardAuth>,

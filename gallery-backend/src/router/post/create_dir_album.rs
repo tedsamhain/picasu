@@ -8,18 +8,32 @@ use crate::router::{AppResult, GuardResult};
 use crate::tasks::INDEX_COORDINATOR;
 use crate::tasks::actor::album::AlbumSelfUpdateTask;
 use arrayvec::ArrayString;
-use rocket::serde::{Deserialize, json::Json};
+use rocket::serde::{Deserialize, Serialize, json::Json};
 use std::fs;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CreateDirAlbumData {
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
     pub parent_album_id: ArrayString<64>,
     pub name: String,
 }
 
 /// Create a new subdirectory under an existing dir-album's directory and
 /// register it as a new album. Returns the new album's ID.
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        post,
+        path = "/post/create_dir_album",
+        request_body = CreateDirAlbumData,
+        responses(
+            (status = 200, description = "New album ID", body = String),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[post("/post/create_dir_album", format = "json", data = "<json_data>")]
 pub async fn create_dir_album(
     auth: GuardResult<GuardAuth>,

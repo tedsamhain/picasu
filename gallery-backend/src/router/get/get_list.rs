@@ -11,6 +11,17 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        get,
+        path = "/get/get-tags",
+        responses(
+            (status = 200, description = "List of tags", body = Vec<TagInfo>),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[get("/get/get-tags")]
 pub async fn get_tags(auth: GuardResult<GuardAuth>) -> AppResult<Json<Vec<TagInfo>>> {
     let _ = auth?;

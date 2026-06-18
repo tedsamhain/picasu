@@ -15,6 +15,7 @@ use crate::router::{AppResult, GuardResult};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct PublicConfigResponse {
     #[serde(flatten)]
     pub public: PublicConfig,
@@ -23,6 +24,17 @@ pub struct PublicConfigResponse {
     pub has_auth_key: bool,
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        get,
+        path = "/get/config",
+        responses(
+            (status = 200, description = "Public configuration", body = PublicConfigResponse),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[get("/get/config")]
 pub fn get_config_handler(auth: GuardResult<GuardShare>) -> AppResult<Json<PublicConfigResponse>> {
     let _ = auth?;
@@ -37,6 +49,17 @@ pub fn get_config_handler(auth: GuardResult<GuardShare>) -> AppResult<Json<Publi
     Ok(Json(response))
 }
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        get,
+        path = "/get/config/export",
+        responses(
+            (status = 200, description = "Exported configuration", body = String),
+            (status = 400, description = "Invalid input"),
+        )
+    )
+)]
 #[get("/get/config/export")]
 pub fn export_config_handler(auth: GuardResult<GuardAuth>) -> AppResult<(ContentType, String)> {
     let _ = auth?;
