@@ -5,13 +5,10 @@ use rocket::http::{ContentType, Status};
 use rocket::local::blocking::Client;
 use serde_json::Value;
 
-use crate::fixtures::auth::auth_cookie;
+use super::auth::auth_cookie;
 
 static IMAGE_HOME: OnceLock<PathBuf> = OnceLock::new();
 
-/// Set the image home directory used by [`discover_photo_hash`] and
-/// [`serve_compressed_image`].  Must be called before these functions;
-/// safe to call multiple times (subsequent calls are ignored).
 pub fn set_image_home(path: PathBuf) {
     IMAGE_HOME.set(path).ok();
 }
@@ -98,10 +95,6 @@ pub fn discover_album_id(client: &Client, relative_dir: &str) -> String {
     album["albumId"].as_str().expect("albumId").to_owned()
 }
 
-/// Serve a compressed image via `/object/compressed/<hash_prefix>/<hash>.jpg`.
-/// Handles the full token flow: admin auth -> Path-based prefetch ->
-/// timestamp token -> get-data (hash token) -> serve image.
-/// Returns the HTTP status code of the final image request.
 pub fn serve_compressed_image(client: &Client, hash: &str) -> Status {
     let cookie = auth_cookie(client);
     let image_home = image_home();
@@ -133,7 +126,6 @@ pub fn serve_compressed_image(client: &Client, hash: &str) -> Status {
         .as_u64()
         .expect("prefetch.dataLength");
 
-    // Fetch all items so we can find the one matching `hash` by ID.
     let data_resp = client
         .get(format!(
             "/get/get-data?timestamp={timestamp}&start=0&end={data_length}"

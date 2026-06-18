@@ -1,10 +1,8 @@
 use rocket::local::blocking::Client;
 use serde_json::Value;
 
-use crate::fixtures::auth::auth_cookie;
+use super::auth::auth_cookie;
 
-/// Poll `GET /get/index/status` until the index reaches a terminal state
-/// or the timeout expires.  Panics with a descriptive message on failure.
 pub fn wait_for_album_index(client: &Client, timeout_ms: u64) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
     let cookie = auth_cookie(client);

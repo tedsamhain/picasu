@@ -1,4 +1,3 @@
-mod generator;
 mod plan;
 
 use std::process::Command;
@@ -13,45 +12,6 @@ fn main() {
 
     match subcommand.as_deref() {
         Some("emit-openapi") => emit_openapi(),
-        Some("test-backend") => {
-            let just_generate = std::env::args().any(|a| a == "--generate-only");
-            generator::generate_all();
-            if just_generate {
-                return;
-            }
-            let status = Command::new("cargo")
-                .args([
-                    "nextest",
-                    "run",
-                    "--package",
-                    "urocissa",
-                    "--",
-                    "scenarios_generated",
-                ])
-                .current_dir(workspace_root())
-                .status()
-                .expect("failed to run cargo nextest for backend scenarios");
-            if !status.success() {
-                std::process::exit(status.code().unwrap_or(1));
-            }
-        }
-        Some("test-generator") => {
-            generator::generate_negative_tests();
-            let status = Command::new("cargo")
-                .args(["nextest", "run", "--", "test_generator_generated"])
-                .current_dir(workspace_root())
-                .status()
-                .expect("failed to run cargo nextest for negative tests");
-            let out_path =
-                workspace_root().join("gallery-backend/src/tests/test_generator_generated.rs");
-            let empty = "// @generated — empty placeholder; re-run `cargo xtask test-generator`\n";
-            let _ = std::fs::write(&out_path, empty);
-            if !status.success() {
-                eprintln!("negative tests FAILED — assertion machinery may not be catching errors");
-                std::process::exit(1);
-            }
-            eprintln!("all negative tests passed (each panicked as expected)");
-        }
         Some("plan") => {
             let args: Vec<String> = std::env::args().skip(2).collect();
             let mut status_filter: Option<&str> = None;
@@ -190,27 +150,14 @@ fn print_help(sub: &str) {
         _ => {
             println!("cargo xtask <subcommand>\n");
             println!("  emit-openapi    write gallery-backend/openapi.json from utoipa annotations");
-            println!("  test-backend    generate E2E scenarios from YAML and run via nextest");
-            println!("  test-generator  run negative self-tests for the assertion pipeline");
             println!("  plan            list/search/validate .plan tasks (see `cargo xtask plan --help`)");
         }
     }
 }
 
 fn print_help_summary() {
-    eprintln!("available: emit-openapi, test-backend, test-generator, plan");
+    eprintln!("available: emit-openapi, plan");
     eprintln!("use --help for details");
-}
-
-fn workspace_root() -> std::path::PathBuf {
-    let dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| {
-        std::env::current_dir()
-            .unwrap()
-            .to_string_lossy()
-            .to_string()
-    }));
-    // CARGO_MANIFEST_DIR is xtask/; workspace root is one level up
-    dir.parent().unwrap().to_path_buf()
 }
 
 fn emit_openapi() {

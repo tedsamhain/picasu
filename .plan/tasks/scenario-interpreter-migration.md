@@ -1,5 +1,5 @@
 ---
-status: open
+status: done
 type: chore
 priority: high
 area: testing
@@ -68,3 +68,10 @@ Currently each generated `#[test]` function holds these `Mutex` guards. The inte
 6. Update `gallery-backend/src/tests/mod.rs` — replace `mod scenarios_generated` and `mod test_generator_generated` with `mod scenario_interpreter`
 7. Update `docs/test-strategy.md` to reflect the new architecture
 8. Clean up `gallery-backend/Cargo.toml` — remove `xtask` dev-dependency
+
+**Done notes** (June 2026):
+
+- All 20 backend scenarios + 4 negative scenarios pass via `backend_api`
+- Fixed `read_only_mode` config cleanup ordering bug (moved after when/then)
+- xtask shrunk to `emit-openapi` and `plan` subcommands only
+- `cargo test -p urocissa -- backend_api` is the replacement for the old codegen test suite

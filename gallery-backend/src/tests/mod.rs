@@ -2,7 +2,7 @@
 pub mod bootstrap;
 
 #[cfg(test)]
-mod scenarios_generated;
+mod fixtures;
 
 #[cfg(test)]
-mod test_generator_generated;
+mod backend_api;

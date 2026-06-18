@@ -70,51 +70,48 @@ frontend-build:
 frontend-audit:
     cd gallery-frontend && npm audit
 
-# ── Spec tooling ───────────────────────────────────────────────────────────────
+# ── Xtask tooling ───────────────────────────────────────────────────────────────
 
 # Emit openapi.json from utoipa annotations (3 spike endpoints first)
-[group('spec')]
+[group('xtask')]
 emit-openapi:
     cargo xtask emit-openapi
 
-# Generate scenario test code from YAML specs and run
-[group('spec')]
-test-backend:
-    cargo xtask test-backend
+# Auto-format .plan task frontmatter and body
+[group('xtask')]
+plan-format:
+    cargo xtask plan --format
 
-# Generate scenario test code without running tests
-[group('spec')]
-gen:
-    cargo xtask test-backend --generate-only
+# Validate .plan task frontmatter structure
+[group('xtask')]
+plan-lint:
+    cargo xtask plan --lint
 
-# Generate and run negative self-tests for the assertion pipeline
-[group('spec')]
-test-generator:
-    cargo xtask test-generator
+# List / filter / search .plan tasks (passes through all flags — e.g. `just plan -k`, `just plan -s open`)
+[group('xtask')]
+plan *args:
+    cargo xtask plan {{args}}
 
-# Verify generated code is in sync with YAML sources (for CI / precommit)
-[group('spec')]
-check-generated:
-    cargo xtask test-backend --generate-only
-    git diff --exit-code -- gallery-backend/src/tests/scenarios_generated.rs
+# ── Documentation ───────────────────────────────────────────────────────────────
+
+# Format markdown files (README, docs, .plan)
+[group('docs')]
+docs-format:
+    npx prettier --write --no-error-on-unmatched-pattern '*.md' 'docs/**/*.md' '.plan/**/*.md'
 
 # ── Global ─────────────────────────────────────────────────────────────────────
 
-# Format everything (backend + frontend + markdown + .plan)
+# Format everything (backend + frontend + docs + .plan)
 [group('global')]
-format: backend-format frontend-format
-    npx prettier --write '*.md' 'docs/**/*.md' '.plan/**/*.md'
-    cargo xtask plan --format
+format: backend-format frontend-format docs-format plan-format
 
-# Run linters (backend + frontend)
+# Run linters (backend + frontend + .plan)
 [group('global')]
-check: backend-check frontend-check
-    cargo xtask plan --lint
+check: backend-check frontend-check plan-lint
 
 # Run tests (backend + frontend)
 [group('global')]
 test: backend-test frontend-test
-    cargo test -p xtask
 
 # Install all dev tooling (cargo tools + frontend deps including prettier)
 [group('global')]
@@ -170,7 +167,6 @@ precommit:
         just format
         just check
         just test
-        just check-generated
         exit 0
     fi
 
@@ -181,10 +177,10 @@ precommit:
     fi
     if echo "$changed" | grep -qE '^(\.plan/|docs/|[^/]+\.md$)'; then
         cargo xtask plan --format
-        npx prettier --write '*.md' 'docs/**/*.md' '.plan/**/*.md'
+        npx prettier --write --no-error-on-unmatched-pattern '*.md' 'docs/**/*.md' '.plan/**/*.md'
     fi
-    if echo "$changed" | grep -qE '^(xtask/data|xtask/src|gallery-backend/src/tests/scenarios_generated)'; then
-        just check-generated
+    if echo "$changed" | grep -qE '^xtask/data/'; then
+        echo "[ precommit ] YAML scenarios changed — run tests manually: cargo test -p urocissa -- backend_api"
     fi
     if echo "$changed" | grep -q '^gallery-frontend/'; then
         npx prettier --write gallery-frontend/
