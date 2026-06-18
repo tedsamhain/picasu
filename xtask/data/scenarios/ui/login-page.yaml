@@ -1,0 +1,7 @@
+name: Login page renders password form
+given:
+  - empty: true
+when:
+  - navigate: /login
+then:
+  - ui.visible: textbox/Password

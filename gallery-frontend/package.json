@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "generateLexer": "ts-node-esm ./src/script/lexer/generateCstDts.ts",
-    "test": "vitest run --reporter=verbose"
+    "test": "vitest run --reporter=verbose",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
@@ -39,10 +40,12 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.0",
     "@types/eslint-config-prettier": "^6.11.3",
     "@types/file-saver": "^2.0.7",
     "@types/humanize-duration": "^3.27.4",
     "@types/js-cookie": "^3.0.6",
+    "@types/js-yaml": "^4.0.9",
     "@types/lodash": "^4.17.24",
     "@types/node": "^25.9.3",
     "@vitejs/plugin-vue": "^6.0.7",
@@ -50,6 +53,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.9.2",
     "globals": "^17.6.0",
+    "js-yaml": "^4.2.0",
     "path-browserify": "^1.0.1",
     "sass-embedded": "^1.100.0",
     "ts-node": "^10.9.2",

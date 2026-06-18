@@ -62,4 +62,31 @@ tests/playwright/
 
 ## Progress
 
-2026-06-18: Created task. Starting Phase 1.
+2026-06-18: All 4 phases complete. 3 scenarios passing. Full stack verified.
+
+## What was built
+
+| File | Purpose |
+|------|---------|
+| `gallery-frontend/playwright.config.ts` | Playwright config with webServer (backend + vite), JSON+HTML reporters, screenshot on failure |
+| `gallery-frontend/tests/playwright/types.ts` | Zod schemas matching the UI DSL vocabulary from `schema.json` |
+| `gallery-frontend/tests/playwright/paths.ts` | Shared paths (E2E_DIR, IMAGE_HOME, BACKEND_URL, etc.) |
+| `gallery-frontend/tests/playwright/loadScenarios.ts` | Reads YAML from `xtask/data/scenarios/ui/`, validates with Zod |
+| `gallery-frontend/tests/playwright/executeGiven.ts` | Filesystem seeding + API indexing, auth, variable binding |
+| `gallery-frontend/tests/playwright/interpreter.ts` | Maps YAML verbs (navigate/click/fill/submit) and assertions (visible/hidden/text/route/modal) to Playwright API |
+| `gallery-frontend/tests/playwright/interpreter.spec.ts` | Main test file — loads all scenarios, runs given→when→then |
+| `xtask/data/scenarios/ui/home-page.yaml` | Smoke test: navigate to `/`, assert `<main>` visible |
+| `xtask/data/scenarios/ui/albums-page.yaml` | Smoke test: navigate to `/albums`, assert `<main>` visible |
+| `xtask/data/scenarios/ui/login-page.yaml` | Smoke test: navigate to `/login`, assert password textbox visible |
+
+## How to run
+
+```
+just frontend-e2e          # full run with clean sandbox
+cd gallery-frontend && npm run test:e2e  # reuse running servers
+cd gallery-frontend && npx playwright test --reporter=json  # AI-friendly JSON output
+```
+
+## AI feedback format
+
+Playwright's built-in JSON reporter outputs per-scenario results with test names, pass/fail status, durations, and error messages (with screenshots on failure via config). This is the structured feedback for the AI loop: write spec → implement → run tests → parse JSON → course-correct.

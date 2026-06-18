@@ -25,6 +25,10 @@ gallery-backend/object
 # `just run`'s dev sandbox (data dir + test galleries, see docs/CONFIG.md)
 /sandbox/
 
+# Playwright test artifacts
+gallery-frontend/playwright-report/
+gallery-frontend/test-results/
+
 # Local compose overrides + the bind-mounted volume dirs from compose.yaml
 compose.override.yaml
 urocissa-data/

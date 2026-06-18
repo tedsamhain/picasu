@@ -60,6 +60,13 @@ frontend-check:
 frontend-test:
     cd gallery-frontend && npm test
 
+# Playwright E2E scenarios (starts backend + frontend automatically)
+[group('frontend')]
+frontend-e2e:
+    rm -rf sandbox/e2e
+    mkdir -p sandbox/e2e/config sandbox/e2e/data sandbox/e2e/images
+    cd gallery-frontend && npm run test:e2e
+
 # npm run build (npm ci + vue-tsc + vite build)
 [group('frontend')]
 frontend-build:

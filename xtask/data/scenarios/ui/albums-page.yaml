@@ -1,0 +1,7 @@
+name: Albums page renders with heading
+given:
+  - empty: true
+when:
+  - navigate: /albums
+then:
+  - ui.visible: main/
