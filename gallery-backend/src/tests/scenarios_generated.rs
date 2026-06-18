@@ -226,6 +226,46 @@ mod scenarios_generated {
     }
 
     #[test]
+    fn assign_album_rejects_manual_album() {
+        let _ = &*TEST_ENV;
+        let data = get_resolved_image_path().expect("IMAGE_HOME configured");
+        std::fs::create_dir_all(&data.join("manual_album_test")).expect("create dir");
+        write_real_jpeg(
+            &data.join("manual_album_test/photo.jpg"),
+            path_color("manual_album_test/photo.jpg"),
+        );
+        let client = make_client();
+        let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let _scan_resp = client
+            .post("/post/index/album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
+            .dispatch();
+        assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
+        assert_eq!(
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
+        );
+        let photo = discover_photo_hash(&client, "manual_album_test/photo.jpg");
+        let resp = client
+            .put("/put/assign_album")
+            .cookie(auth_cookie(&client))
+            .header(ContentType::JSON)
+            .body(
+                serde_json::json!({"albumId": "bogus-manual-album".to_string(), "hash": photo})
+                    .to_string(),
+            )
+            .dispatch();
+        assert_eq!(
+            resp.status(),
+            Status::from_code(400).unwrap(),
+            "call resp status"
+        );
+    }
+
+    #[test]
     fn assign_album_rejects_stale_file_path() {
         let _ = &*TEST_ENV;
         let data = get_resolved_image_path().expect("IMAGE_HOME configured");

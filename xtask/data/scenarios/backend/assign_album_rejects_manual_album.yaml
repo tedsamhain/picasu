@@ -1,0 +1,11 @@
+name: assign_album rejects manual album
+given:
+  - photo: /manual_album_test/photo.jpg
+    id_as: $photo
+when:
+  call: PUT /put/assign_album
+  body:
+    hash: "${photo}"
+    albumId: "bogus-manual-album"
+then:
+  - response.status: 400
