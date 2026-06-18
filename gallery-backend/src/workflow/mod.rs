@@ -12,7 +12,7 @@ use arrayvec::ArrayString;
 use dashmap::DashSet;
 use log::warn;
 use path_clean::PathClean;
-use std::{path::PathBuf, sync::LazyLock};
+use std::{path::Path, sync::LazyLock};
 
 static IN_PROGRESS: LazyLock<DashSet<ArrayString<64>>> = LazyLock::new(DashSet::new);
 
@@ -66,44 +66,39 @@ async fn ensure_dir_albums(file_path: &std::path::Path) -> Option<ArrayString<64
     deepest_album_id
 }
 
-/// Index `path`, skipping reprocessing if its content hash is already
-/// known (the common watcher/upload/one-time-import case). See
-/// [`index_for_watch_full`] to force reprocessing of already-known content
-/// too (e.g. a bulk "reindex everything" action).
-pub async fn index_for_watch(
-    path: PathBuf,
-    presigned_album_id_opt: Option<ArrayString<64>>,
-) -> Result<()> {
-    index_for_watch_full(path, presigned_album_id_opt, false).await
-}
+/// Index a single image file.
+///
+/// `src` — path relative to `IMAGE_HOME`.
+/// `dst` — optional target album directory path (also relative to `IMAGE_HOME`).
+///         If provided, the file is recorded under that album; otherwise the
+///         album is resolved from `src`'s parent directory.
+///
+/// If the content hash is already known, only the alias list is merged — no
+/// metadata extraction or thumbnail regeneration is re-run.
+pub async fn index_image(src: &Path, dst: Option<&Path>) -> Result<()> {
+    let image_root =
+        get_resolved_image_path().ok_or_else(|| anyhow::anyhow!("IMAGE_HOME not configured"))?;
 
-/// Like [`index_for_watch`], but with `force`: if `true` and the file's
-/// content hash is already known, re-run full metadata extraction
-/// (EXIF/tags/dimensions/thumbnail/hashes) on the existing record instead
-/// of just merging the alias/album and stopping — used by "reindex
-/// existing files" style bulk actions to fix inconsistencies (e.g. after a
-/// metadata-extraction bug fix, or files that were already present in
-/// `imagePath` before the app ever indexed them under the current logic).
-pub async fn index_for_watch_full(
-    path: PathBuf,
-    presigned_album_id_opt: Option<ArrayString<64>>,
-    force: bool,
-) -> Result<()> {
-    let path = path.clean();
+    let path = image_root.join(src).clean();
 
-    // Resolve the dir-album for the file's immediate parent directory —
-    // unless an explicit (presigned) album was given, e.g. by an upload
-    // targeting a specific album, which takes priority. Check the cache
-    // first (the directory may already be a known dir-album, e.g. loaded
-    // at startup or created some other way) before falling back to
-    // `ensure_dir_albums`'s sync-root walk, which also creates any missing
-    // intermediate albums for a brand-new directory.
+    let dst_album_id = match dst {
+        Some(dst_path) => {
+            let abs_dst = image_root.join(dst_path);
+            Some(
+                tokio::task::spawn_blocking(move || get_or_create_dir_album(abs_dst))
+                    .await?
+                    .map_err(|e| anyhow::anyhow!("Failed to ensure dst album: {e}"))?,
+            )
+        }
+        None => None,
+    };
+
     let already_known_album_id = path.parent().and_then(get_album_id_for_dir);
     let resolved_dir_album_id = match already_known_album_id {
         Some(id) => Some(id),
         None => ensure_dir_albums(&path).await,
     };
-    let album_id_opt = presigned_album_id_opt.or(resolved_dir_album_id);
+    let album_id_opt = dst_album_id.or(resolved_dir_album_id);
 
     let file = INDEX_COORDINATOR
         .execute_waiting(OpenFileTask::new(path.clone()))
@@ -122,15 +117,9 @@ pub async fn index_for_watch_full(
     };
 
     let abstract_data_opt = INDEX_COORDINATOR
-        .execute_waiting(DeduplicateTask::new(
-            path.clone(),
-            hash,
-            album_id_opt,
-            force,
-        ))
+        .execute_waiting(DeduplicateTask::new(path.clone(), hash, album_id_opt))
         .await??;
 
-    // If the file is already in the database, we can skip further processing.
     let Some(mut abstract_data) = abstract_data_opt else {
         return Ok(());
     };

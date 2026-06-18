@@ -29,15 +29,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let album_a = discover_album_id(&client, "gen_e2e_i_album_a");
         let album_b = discover_album_id(&client, "gen_e2e_i_album_b");
@@ -83,15 +84,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let album = discover_album_id(&client, "e2e_q_album");
         let photo = discover_photo_hash(&client, "e2e_q_import/e2e_q_photo.jpg");
@@ -173,15 +175,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let album = discover_album_id(&client, "gen_e2e_h_album");
         let photo = discover_photo_hash(&client, "gen_e2e_h_import/gen_e2e_h_photo.jpg");
@@ -236,15 +239,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         std::fs::remove_file(&data.join("e2e_j/photo.jpg")).expect("remove file");
         let album = discover_album_id(&client, "e2e_j/album");
@@ -276,15 +280,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let parent = discover_album_id(&client, "e2e_create_dir_album/parent");
         let resp_0 = client
@@ -385,15 +390,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let e2e_id = discover_album_id(&client, "e2e_d");
         let parent_id = discover_album_id(&client, "e2e_d/vacation");
@@ -497,15 +503,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let album = discover_album_id(&client, "e2e_v/album");
         let photo = discover_photo_hash(&client, "e2e_v/photo.jpg");
@@ -610,15 +617,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let resp_0 = client
             .get("/get/get-tags")
@@ -667,15 +675,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let album = discover_album_id(&client, "e2e_s_album");
         let photo = discover_photo_hash(&client, "e2e_s_import/e2e_s_photo.jpg");
@@ -828,15 +837,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let photo = discover_photo_hash(&client, "e2e_p/photo.jpg");
         let resp_0 = client
@@ -940,15 +950,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let photo = discover_photo_hash(&client, "e2e_o/tagged.jpg");
         let resp_0 = client
@@ -1022,15 +1033,16 @@ mod scenarios_generated {
         let client = make_client();
         let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());
         let _scan_resp = client
-            .post("/post/index")
+            .post("/post/index/album")
             .cookie(auth_cookie(&client))
             .header(ContentType::JSON)
+            .body(serde_json::json!({"album": "/"}).to_string())
             .dispatch();
         assert_eq!(_scan_resp.status(), Status::Accepted, "scan trigger");
         assert_eq!(
-            wait_for_import(30000),
-            FolderImportState::Completed,
-            "import"
+            wait_for_album_index(30000),
+            AlbumIndexState::Completed,
+            "album index"
         );
         let photo = discover_photo_hash(&client, "watcher_import/photo.jpg");
         let resp_0 = client

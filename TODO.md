@@ -73,6 +73,10 @@
 
 ## Code conventions and tooling notes
 
+### Review `mini_executor::Task` abstraction
+
+**Done.** The album-index chain now uses `tokio::spawn` + inline walk loop in `gallery-backend/src/tasks/actor/album_index.rs`. The old `FolderImportTask`/`FolderImportFileTask` two-level mini_executor dispatch has been removed.
+
 ### Pre-commit hook order
 `just precommit` runs in this order: `cargo fmt --check` → `cargo clippy` → `cargo nextest` → `prettier --check` → `vue-tsc + eslint` → `vitest`. Run `cargo fmt` and `npx prettier --write` before staging to avoid the most common late failures. ESLint and vue-tsc run after prettier, so formatting errors mask type/lint errors until fixed.
 

@@ -851,12 +851,13 @@ fn emit_api_test_body(_name: &str, scenario: &serde_json::Value) -> String {
             "let client = make_client();\n\
               let _guard = INDEX_SERIAL_GUARD.lock().unwrap_or_else(|e| e.into_inner());\n\
               let _scan_resp = client\n\
-                  .post(\"/post/index\")\n\
+                  .post(\"/post/index/album\")\n\
                   .cookie(auth_cookie(&client))\n\
                   .header(ContentType::JSON)\n\
+                   .body(serde_json::json!({\"album\": \"/\"}).to_string())\n\
                   .dispatch();\n\
               assert_eq!(_scan_resp.status(), Status::Accepted, \"scan trigger\");\n\
-              assert_eq!(wait_for_import(30000), FolderImportState::Completed, \"import\");"
+              assert_eq!(wait_for_album_index(30000), AlbumIndexState::Completed, \"album index\");"
                 .to_string(),
         );
 

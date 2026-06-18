@@ -9,7 +9,7 @@ use crate::public::structure::config::APP_CONFIG;
 use crate::public::structure::config::AppConfig;
 
 pub use crate::operations::utils::image_path::get_resolved_image_path;
-pub use crate::tasks::actor::folder_import::FolderImportState;
+pub use crate::tasks::actor::album_index::AlbumIndexState;
 
 /// Holds the tempdir alive for the entire test binary run.
 pub struct TestEnv {
@@ -38,9 +38,9 @@ pub static TEST_ENV: LazyLock<TestEnv> = LazyLock::new(|| {
     TestEnv { _dir: dir }
 });
 
-/// There is exactly one global folder-import slot in `folder_import.rs`.
-/// All generated tests that call `POST /post/index` must hold this lock
-/// for their entire body to get `202 Accepted` instead of `409 Conflict`.
+/// There is exactly one global album-index slot in `album_index.rs`.
+/// All generated tests that call `POST /post/index/album` must hold this
+/// lock for their entire body to get `202 Accepted` instead of `409 Conflict`.
 pub static INDEX_SERIAL_GUARD: Mutex<()> = Mutex::new(());
 
 /// `TREE_SNAPSHOT` keys snapshots by `Utc::now().timestamp_millis()`

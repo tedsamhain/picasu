@@ -24,7 +24,7 @@
 
         <div class="config-block">
           <v-row class="ma-0">
-            <FolderImport />
+            <AlbumIndex />
           </v-row>
         </div>
 
@@ -53,7 +53,7 @@ import type { AppConfig } from '@/api/config'
 import PageTemplate from './PageLayout/PageTemplate.vue'
 import ChangePassword from './Config/ChangePassword.vue'
 import StorageAndSync from './Config/StorageAndSync.vue'
-import FolderImport from './Config/FolderImport.vue'
+import AlbumIndex from './Config/AlbumIndex.vue'
 import AdvancedConfig from './Config/AdvancedConfig.vue'
 import { tryWithMessageStore } from '@/script/utils/try_catch'
 

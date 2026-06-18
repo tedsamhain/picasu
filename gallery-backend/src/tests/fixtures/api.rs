@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::operations::utils::image_path::get_resolved_image_path;
 use crate::router::builder::build_rocket_with_config;
-use crate::tasks::actor::folder_import::{FolderImportState, folder_import_status};
+use crate::tasks::actor::album_index::{AlbumIndexState, album_index_status};
 
 use super::{APP_CONFIG, PREFETCH_SERIAL_GUARD, TEST_ENV};
 
@@ -318,8 +318,8 @@ pub fn discover_album_id(client: &Client, relative_dir: &str) -> String {
 /// timestamp token → get-data (hash token) → serve image.
 pub fn serve_compressed_image(client: &Client, hash: &str) -> rocket::http::Status {
     let cookie = auth_cookie(client);
-    let image_home =
-        get_resolved_image_path().expect("IMAGE_HOME must be configured for serve_compressed_image");
+    let image_home = get_resolved_image_path()
+        .expect("IMAGE_HOME must be configured for serve_compressed_image");
 
     let body = serde_json::json!({"Path": image_home.to_string_lossy()});
 
@@ -357,12 +357,9 @@ pub fn serve_compressed_image(client: &Client, hash: &str) -> rocket::http::Stat
         Status::Ok,
         "get-data for serve_compressed_image"
     );
-    let data_body: Value =
-        serde_json::from_slice(&data_resp.into_bytes().expect("get-data body"))
-            .expect("valid get-data JSON");
-    let hash_token = data_body[0]["token"]
-        .as_str()
-        .expect("hash token");
+    let data_body: Value = serde_json::from_slice(&data_resp.into_bytes().expect("get-data body"))
+        .expect("valid get-data JSON");
+    let hash_token = data_body[0]["token"].as_str().expect("hash token");
 
     let hash_prefix = &hash[0..2];
     let resp = client
@@ -376,22 +373,22 @@ pub fn serve_compressed_image(client: &Client, hash: &str) -> rocket::http::Stat
     resp.status()
 }
 
-/// Poll `folder_import_status` in a loop until the import reaches a
-/// terminal state, then return that state.  Panics if the import takes
+/// Poll `album_index_status` in a loop until the index reaches a
+/// terminal state, then return that state.  Panics if the index takes
 /// longer than `timeout_ms`.
-pub fn wait_for_import(timeout_ms: u64) -> FolderImportState {
+pub fn wait_for_album_index(timeout_ms: u64) -> AlbumIndexState {
     let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
     loop {
-        let status = folder_import_status();
+        let status = album_index_status();
         match status.state {
-            FolderImportState::Completed
-            | FolderImportState::Failed
-            | FolderImportState::Canceled => return status.state,
+            AlbumIndexState::Completed | AlbumIndexState::Failed | AlbumIndexState::Canceled => {
+                return status.state;
+            }
             _ => {}
         }
         if std::time::Instant::now() > deadline {
             panic!(
-                "Import did not complete within {timeout_ms} ms (state={:?}, scanned={}, matched={}, processed={})",
+                "Index did not complete within {timeout_ms} ms (state={:?}, scanned={}, matched={}, processed={})",
                 status.state, status.scanned, status.matched, status.processed
             );
         }

@@ -1,11 +1,10 @@
 // src/router/post/mod.rs
 use rocket::Route;
+pub mod album_index;
 pub mod authenticate;
 pub mod create_dir_album;
 pub mod create_share;
 pub mod import_config;
-pub mod import_folder;
-pub mod index;
 pub mod post_upload;
 
 pub fn generate_post_routes() -> Vec<Route> {
@@ -15,9 +14,8 @@ pub fn generate_post_routes() -> Vec<Route> {
         create_share::create_share,
         create_dir_album::create_dir_album,
         import_config::import_config_handler,
-        import_folder::start_folder_import_handler,
-        import_folder::start_image_home_scan_handler,
-        import_folder::cancel_folder_import_handler,
-        index::start_index_handler,
+        album_index::index_album_handler,
+        album_index::index_image_handler,
+        album_index::cancel_album_index_handler,
     ]
 }

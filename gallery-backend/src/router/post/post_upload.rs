@@ -6,7 +6,7 @@ use crate::public::structure::config::APP_CONFIG;
 use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
 use crate::router::fairing::guard_upload::GuardUpload;
 use crate::router::{AppResult, GuardResult};
-use crate::workflow::index_for_watch;
+use crate::workflow::index_image;
 use anyhow::Result;
 use arrayvec::ArrayString;
 use rocket::form::{Errors, Form};
@@ -126,7 +126,14 @@ pub async fn upload(
         {
             let final_path =
                 save_file(file, &target_dir, filename, extension, last_modified).await?;
-            index_for_watch(PathBuf::from(final_path), album_id)
+            let image_root = get_resolved_image_path()
+                .ok_or_else(|| AppError::new(ErrorKind::InvalidInput, "No imagePath configured"))?;
+            let relative_src = Path::new(&final_path)
+                .strip_prefix(&image_root)
+                .map_err(|_| {
+                    AppError::new(ErrorKind::Internal, "Uploaded file path outside IMAGE_HOME")
+                })?;
+            index_image(relative_src, None)
                 .await
                 .or_raise(|| (ErrorKind::Internal, "Failed to index file"))?;
         } else {

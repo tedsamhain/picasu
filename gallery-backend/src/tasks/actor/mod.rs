@@ -1,6 +1,6 @@
 pub mod album;
+pub mod album_index;
 pub mod deduplicate;
-pub mod folder_import;
 pub mod hash;
 pub mod index;
 pub mod open_file;

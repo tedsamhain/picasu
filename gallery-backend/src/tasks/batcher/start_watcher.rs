@@ -1,8 +1,8 @@
-use crate::operations::utils::image_path::resolve_image_path;
+use crate::operations::utils::image_path::{get_resolved_image_path, resolve_image_path};
 use crate::public::constant::runtime::INDEX_RUNTIME;
 use crate::public::media::is_valid_media_file;
 use crate::public::structure::config::APP_CONFIG;
-use crate::{public::error_data::handle_error, workflow::index_for_watch};
+use crate::{public::error_data::handle_error, workflow::index_image};
 use anyhow::Result;
 use log::{error, info};
 use mini_executor::BatchTask;
@@ -120,11 +120,13 @@ fn submit_to_debounce_pool(path: PathBuf) {
             }
         };
 
-        if should_run && is_valid_media_file(&path) {
-            // Really need to do indexing
-            if let Err(e) = index_for_watch(path, None).await {
-                handle_error(e);
-            }
+        if should_run
+            && is_valid_media_file(&path)
+            && let Some(image_root) = get_resolved_image_path()
+            && let Ok(relative) = path.strip_prefix(&image_root)
+            && let Err(e) = index_image(relative, None).await
+        {
+            handle_error(e);
         }
     });
 }

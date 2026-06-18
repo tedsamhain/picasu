@@ -1,7 +1,7 @@
 <template>
   <v-col cols="12">
     <v-card border flat>
-      <v-card-title class="font-weight-bold">One-Time Import</v-card-title>
+      <v-card-title class="font-weight-bold">Album Index</v-card-title>
       <v-divider thickness="4" variant="double"></v-divider>
 
       <v-list-item
@@ -29,48 +29,6 @@
         </template>
       </v-list-item>
 
-      <v-checkbox
-        v-model="forceReindex"
-        density="compact"
-        hide-details
-        class="px-4 pb-2"
-        label="Also refresh metadata for files already indexed (fix inconsistencies / first scan of an existing repo)"
-      ></v-checkbox>
-
-      <v-divider></v-divider>
-
-      <v-list-item
-        title="Import Folder"
-        :subtitle="selectedPath || 'No folder selected'"
-        prepend-icon="mdi-folder-arrow-down-outline"
-        lines="two"
-      >
-        <template #append>
-          <div class="d-flex ga-2 flex-wrap justify-end">
-            <v-btn
-              variant="tonal"
-              prepend-icon="mdi-folder-search-outline"
-              class="text-none font-weight-medium"
-              :disabled="isRunning"
-              @click="showFilePicker = true"
-            >
-              Browse
-            </v-btn>
-            <v-btn
-              color="primary"
-              variant="flat"
-              prepend-icon="mdi-play"
-              class="text-none font-weight-medium"
-              :disabled="!selectedPath || isRunning"
-              :loading="loading"
-              @click="startImport"
-            >
-              Scan Once
-            </v-btn>
-          </div>
-        </template>
-      </v-list-item>
-
       <v-divider></v-divider>
 
       <v-list-item title="Status" :subtitle="statusSubtitle" :prepend-icon="statusIcon" lines="two">
@@ -83,7 +41,7 @@
             class="text-none"
             :loading="cancelLoading"
             :disabled="status.cancelRequested"
-            @click="cancelImport"
+            @click="cancelJob"
           >
             Cancel
           </v-btn>
@@ -100,30 +58,22 @@
       </v-row>
     </v-card>
   </v-col>
-
-  <ServerFilePicker
-    v-model="showFilePicker"
-    :initial-path="selectedPath"
-    @select="onFilePickerSelect"
-  />
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
-  cancelFolderImport,
-  getFolderImportStatus,
-  startFolderImport,
-  startImageHomeScan,
-  type FolderImportStatus,
-  type FolderImportState
+  cancelAlbumIndex,
+  getAlbumIndexStatus,
+  startAlbumIndex,
+  type AlbumIndexStatus,
+  type AlbumIndexState
 } from '@/api/fs'
 import { useConfigStore } from '@/store/configStore'
 import { useMessageStore } from '@/store/messageStore'
 import { tryWithMessageStore } from '@/script/utils/try_catch'
-import ServerFilePicker from './ServerFilePicker.vue'
 
-const emptyStatus = (): FolderImportStatus => ({
+const emptyStatus = (): AlbumIndexStatus => ({
   state: 'idle',
   root: null,
   scanned: 0,
@@ -138,13 +88,9 @@ const emptyStatus = (): FolderImportStatus => ({
 const configStore = useConfigStore('mainId')
 const messageStore = useMessageStore('mainId')
 
-const selectedPath = ref('')
-const showFilePicker = ref(false)
-const loading = ref(false)
 const scanLoading = ref(false)
-const forceReindex = ref(false)
 const cancelLoading = ref(false)
-const status = ref<FolderImportStatus>(emptyStatus())
+const status = ref<AlbumIndexStatus>(emptyStatus())
 let pollTimer: ReturnType<typeof setInterval> | undefined
 
 const imagePath = computed(() => configStore.config?.imagePath ?? null)
@@ -157,7 +103,7 @@ const counters = computed(() => [
   { label: 'Failed', value: status.value.failed }
 ])
 
-const stateLabel: Record<FolderImportState, string> = {
+const stateLabel: Record<AlbumIndexState, string> = {
   idle: 'Idle',
   running: 'Running',
   completed: 'Completed',
@@ -181,7 +127,7 @@ const formatTime = (value: number | null) => {
 const statusSubtitle = computed(() => {
   const root = status.value.root
   const label = stateLabel[status.value.state]
-  if (status.value.state === 'idle') return 'No import has run yet'
+  if (status.value.state === 'idle') return 'No index has run yet'
   if (status.value.state === 'running') {
     return status.value.cancelRequested ? `Canceling ${root ?? ''}` : `Scanning ${root ?? ''}`
   }
@@ -205,7 +151,7 @@ const startPolling = () => {
 }
 
 const refreshStatus = async () => {
-  const result = await tryWithMessageStore('mainId', getFolderImportStatus)
+  const result = await tryWithMessageStore('mainId', getAlbumIndexStatus)
   if (result === undefined) return
   status.value = result
 
@@ -216,10 +162,6 @@ const refreshStatus = async () => {
   }
 }
 
-const onFilePickerSelect = (path: string) => {
-  selectedPath.value = path
-}
-
 const startScan = async () => {
   if (imagePath.value === null) {
     messageStore.error('Set an Image Path before scanning')
@@ -228,47 +170,27 @@ const startScan = async () => {
 
   scanLoading.value = true
   const success = await tryWithMessageStore('mainId', async () => {
-    await startImageHomeScan(forceReindex.value)
+    await startAlbumIndex()
     return true
   })
 
   if (success === true) {
-    messageStore.success('Image path scan started')
+    messageStore.success('Album index started')
     await refreshStatus()
   }
 
   scanLoading.value = false
 }
 
-const startImport = async () => {
-  if (!selectedPath.value) {
-    messageStore.error('Select a folder before starting import')
-    return
-  }
-
-  loading.value = true
-  const success = await tryWithMessageStore('mainId', async () => {
-    await startFolderImport(selectedPath.value)
-    return true
-  })
-
-  if (success === true) {
-    messageStore.success('Folder import started')
-    await refreshStatus()
-  }
-
-  loading.value = false
-}
-
-const cancelImport = async () => {
+const cancelJob = async () => {
   cancelLoading.value = true
   const success = await tryWithMessageStore('mainId', async () => {
-    await cancelFolderImport()
+    await cancelAlbumIndex()
     return true
   })
 
   if (success === true) {
-    messageStore.info('Folder import cancel requested')
+    messageStore.info('Index cancel requested')
     await refreshStatus()
   }
 
