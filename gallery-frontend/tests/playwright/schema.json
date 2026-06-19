@@ -1,20 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Scenario DSL Schema",
-  "description": "Validates YAML scenario files for both API (scenarios/api/) and UI (scenarios/ui/) targets.",
-  "oneOf": [
-    { "$ref": "#/definitions/apiScenario" },
-    { "$ref": "#/definitions/uiScenario" }
-  ],
+  "title": "UI Scenario DSL Schema",
+  "description": "Validates UI scenario YAML files in tests/playwright/scenarios/.",
+  "$ref": "#/definitions/uiScenario",
   "definitions": {
-    "idBinding": {
-      "type": "object",
-      "properties": {
-        "id_as": { "type": "string", "pattern": "^\\$[a-zA-Z_][a-zA-Z0-9_]*$" }
-      },
-      "required": [],
-      "additionalProperties": false
-    },
     "givenDirAlbum": {
       "type": "object",
       "properties": {
@@ -79,108 +68,6 @@
         { "$ref": "#/definitions/givenEmpty" },
         { "$ref": "#/definitions/givenRemove" },
         { "$ref": "#/definitions/givenConfig" }
-      ]
-    },
-    "apiCall": {
-      "type": "object",
-      "properties": {
-        "call": { "type": "string", "pattern": "^(GET|POST|PUT|DELETE) /" },
-        "body": { "type": "object" },
-        "auth": { "type": "boolean", "default": true }
-      },
-      "required": ["call"],
-      "additionalProperties": false
-    },
-    "apiThenResponseStatus": {
-      "type": "object",
-      "properties": {
-        "response.status": { "type": "integer", "minimum": 100, "maximum": 599 }
-      },
-      "required": ["response.status"],
-      "additionalProperties": false
-    },
-    "apiThenResponseStatusNot": {
-      "type": "object",
-      "properties": {
-        "response.status_not": { "type": "integer", "minimum": 100, "maximum": 599 }
-      },
-      "required": ["response.status_not"],
-      "additionalProperties": false
-    },
-    "apiThenResponseField": {
-      "type": "object",
-      "patternProperties": {
-        "^response\\.[a-zA-Z_][a-zA-Z0-9_.]*$": {
-          "oneOf": [
-            { "type": "string" },
-            { "type": "integer" },
-            { "type": "boolean" },
-            { "type": "null" }
-          ]
-        }
-      },
-      "minProperties": 1,
-      "maxProperties": 1,
-      "additionalProperties": false
-    },
-    "apiThenFileExists": {
-      "type": "object",
-      "properties": {
-        "file_exists": { "type": "string" }
-      },
-      "required": ["file_exists"],
-      "additionalProperties": false
-    },
-    "apiThenFileAbsent": {
-      "type": "object",
-      "properties": {
-        "file_absent": { "type": "string" }
-      },
-      "required": ["file_absent"],
-      "additionalProperties": false
-    },
-    "apiThenDbImage": {
-      "type": "object",
-      "patternProperties": {
-        "^db\\.image\\(\\$?[a-zA-Z0-9_]+\\)\\.[a-zA-Z_][a-zA-Z0-9_.]*$": {
-          "oneOf": [
-            { "type": "string" },
-            { "type": "integer" },
-            { "type": "boolean" },
-            { "type": "null" },
-            { "type": "array" }
-          ]
-        }
-      },
-      "minProperties": 1,
-      "maxProperties": 1,
-      "additionalProperties": false
-    },
-    "apiThenDbAlbum": {
-      "type": "object",
-      "patternProperties": {
-        "^db\\.album\\(\\$?[a-zA-Z0-9_]+\\)\\.[a-zA-Z_][a-zA-Z0-9_.]*$": {
-          "oneOf": [
-            { "type": "string" },
-            { "type": "integer" },
-            { "type": "boolean" },
-            { "type": "null" }
-          ]
-        }
-      },
-      "minProperties": 1,
-      "maxProperties": 1,
-      "additionalProperties": false
-    },
-    "apiThenItem": {
-      "oneOf": [
-        { "$ref": "#/definitions/apiThenResponseStatus" },
-        { "$ref": "#/definitions/apiThenResponseStatusNot" },
-        { "$ref": "#/definitions/apiThenResponseField" },
-        { "$ref": "#/definitions/apiThenFileExists" },
-        { "$ref": "#/definitions/apiThenFileAbsent" },
-        { "$ref": "#/definitions/apiThenDbImage" },
-        { "$ref": "#/definitions/apiThenDbAlbum" }
       ]
     },
     "uiWhenNavigate": {
@@ -303,34 +190,6 @@
         { "$ref": "#/definitions/uiThenRoute" },
         { "$ref": "#/definitions/uiThenAriaSnapshot" }
       ]
-    },
-    "apiScenario": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "given": {
-          "type": "array",
-          "items": { "$ref": "#/definitions/givenItem" },
-          "minItems": 0
-        },
-        "when": {
-          "oneOf": [
-            { "$ref": "#/definitions/apiCall" },
-            {
-              "type": "array",
-              "items": { "$ref": "#/definitions/apiCall" },
-              "minItems": 1
-            }
-          ]
-        },
-        "then": {
-          "type": "array",
-          "items": { "$ref": "#/definitions/apiThenItem" },
-          "minItems": 1
-        }
-      },
-      "required": ["name", "when", "then"],
-      "additionalProperties": false
     },
     "uiScenario": {
       "type": "object",

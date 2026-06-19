@@ -200,8 +200,8 @@ precommit:
         just plan-format
         just docs-format
     fi
-    if echo "$changed" | grep -qE '^xtask/data/'; then
-        echo "[ precommit ] YAML scenarios changed — run tests manually: cargo test -p urocissa -- backend_api"
+    if echo "$changed" | grep -qE '^(gallery-backend/tests/scenarios/|gallery-frontend/tests/playwright/scenarios/)'; then
+        echo "[ precommit ] YAML scenarios changed — run tests: 'just backend-test' and/or 'just frontend-e2e'"
     fi
     if echo "$changed" | grep -q '^gallery-frontend/'; then
         just frontend-format

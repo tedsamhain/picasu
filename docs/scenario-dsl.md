@@ -138,7 +138,7 @@ needed.
 
 ## Schema validation
 
-The DSL has its own JSON Schema at `scenarios/schema.json`. All scenario
+The DSL has separate JSON Schemas at `gallery-backend/tests/schema.json` (API) and `gallery-frontend/tests/playwright/schema.json` (UI). All scenario
 files are validated structurally against this schema before generation.
 A scenario that fails schema validation is a hard error — it never produces
 a green test.

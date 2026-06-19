@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rocket::http::{ContentType, Status};
 use rocket::local::blocking::Client;
@@ -9,26 +9,6 @@ use serde_json::Value;
 
 use crate::tests::bootstrap::*;
 use crate::tests::fixtures::*;
-
-// ── Workspace root ──
-
-fn workspace_root() -> PathBuf {
-    let mut dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    loop {
-        if dir.join("Cargo.toml").exists() {
-            let content = std::fs::read_to_string(dir.join("Cargo.toml")).ok();
-            if content
-                .as_deref()
-                .is_some_and(|c| c.contains("[workspace]"))
-            {
-                return dir;
-            }
-        }
-        if !dir.pop() {
-            panic!("workspace root not found");
-        }
-    }
-}
 
 // ── Variable interpolation ──
 
@@ -610,8 +590,12 @@ fn interpret_scenario(scenario: &Value) {
 // ── Scenario runners (called from generated test functions) ──
 
 pub fn run_backend_scenario(name: &str) {
-    let root = workspace_root();
-    let path = root.join(format!("xtask/data/scenarios/backend/{name}.yaml"));
+    let dir: std::path::PathBuf =
+        std::env::var("CARGO_MANIFEST_DIR").map_or_else(
+            |_| std::env::current_dir().unwrap(),
+            std::path::PathBuf::from,
+        );
+    let path = dir.join(format!("tests/scenarios/{name}.yaml"));
 
     let yaml_str =
         std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
@@ -621,9 +605,13 @@ pub fn run_backend_scenario(name: &str) {
     interpret_scenario(&scenario);
 }
 
-pub fn run_generator_scenario(name: &str) {
-    let root = workspace_root();
-    let path = root.join(format!("xtask/data/scenarios/generator/{name}.yaml"));
+pub fn run_selftest_scenario(name: &str) {
+    let dir: std::path::PathBuf =
+        std::env::var("CARGO_MANIFEST_DIR").map_or_else(
+            |_| std::env::current_dir().unwrap(),
+            std::path::PathBuf::from,
+        );
+    let path = dir.join(format!("tests/scenarios/selftest/{name}.yaml"));
 
     let yaml_str =
         std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));

@@ -22,9 +22,9 @@ Tests are organised in a pyramid with increasing integration scope and decreasin
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------ |
 | **Unit**                     | Pure functions with no I/O (filters, transforms, priority logic, schema version dispatch)                                                                                                                         | `#[cfg(test)]` blocks in the same file as the code                       | ✅ `cargo nextest` |
 | **Integration**              | Multi-component flows with a real redb in a tempdir (index → dedup → flush → album update, schema migration round-trips)                                                                                          | `src/tests/` (separate files per area)                                   | ✅ `cargo nextest` |
-| **E2E — API**                | Backend HTTP API + `IMAGE_HOME` filesystem only. Interpreted from YAML scenarios (`xtask/data/scenarios/backend/*.yaml`) via a runtime scenario interpreter. No direct DB access — internal redb state is opaque. | `src/tests/backend_api.rs` (via `cargo test -p urocissa -- backend_api`) | ✅ `cargo test`    |
-| **E2E — UI** (not yet built) | Full stack: real backend on ephemeral port + built frontend driven by Playwright. Generated from `xtask/data/scenarios/frontend/*.yaml`.                                                                          | `tests/playwright/` (via `cargo xtask test-frontend`)                    | ✅ playwright      |
+| **E2E — API**                | Backend HTTP API + `IMAGE_HOME` filesystem only. Interpreted from YAML scenarios (`gallery-backend/tests/scenarios/*.yaml`) via a runtime scenario interpreter. No direct DB access — internal redb state is opaque. | `src/tests/backend_api.rs` (via `cargo test -p urocissa -- backend_api`) | ✅ `cargo test`    |
 
+| **E2E — UI**                 | Full stack: real backend on ephemeral port + built frontend driven by Playwright. Loaded from `gallery-frontend/tests/playwright/scenarios/*.yaml`.                                                                          | `tests/playwright/` (via `just frontend-e2e`)                    | ✅ playwright      |
 All levels run on a dev machine. CI automates them, but nothing is "CI-only".
 
 **E2E API tests observe only what the backend exposes to a client.** They send HTTP
@@ -302,14 +302,14 @@ sweep or CI step.
 The project uses a semi-formal scenario DSL (see `docs/scenario-dsl.md`) to
 drive E2E test code. Two target types:
 
-- **API** (`xtask/data/scenarios/backend/*.yaml`): Rocket-`Client` Rust tests. Given state is
+- **API** (`gallery-backend/tests/scenarios/*.yaml`): Rocket-`Client` Rust tests. Given state is
   materialised on `IMAGE_HOME` (filesystem). Assertions check HTTP responses
   and `IMAGE_HOME` filesystem state only — no direct redb reads. Interpreted
   at runtime by `src/tests/backend_api.rs`, eliminating the codegen step.
 - **UI** (`scenarios/ui/*.yaml`): Playwright TypeScript specs (deferred —
   requires running backend).
 
-The DSL schema is at `xtask/data/scenarios/schema.json`. Scenario files are validated
+The DSL schemas are at `gallery-backend/tests/schema.json` (API) and `gallery-frontend/tests/playwright/schema.json` (UI). Scenario files are validated
 structurally by the interpreter's YAML deserialization.
 
 **Fixtures (`src/tests/fixtures/`) are interface adapters.** They translate

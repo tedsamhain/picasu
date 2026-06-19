@@ -7,11 +7,11 @@ area: testing
 
 ## Goal
 
-Implement a Playwright-based scenario interpreter for spec-driven frontend testing, mirroring the backend YAML scenario pattern. The interpreter reads UI YAML specs from `xtask/data/scenarios/ui/`, executes them against a real browser driving the full stack (backend + frontend), and produces structured JSON output for AI course-correction.
+Implement a Playwright-based scenario interpreter for spec-driven frontend testing, mirroring the backend YAML scenario pattern. The interpreter reads UI YAML specs from `gallery-frontend/tests/playwright/scenarios/`, executes them against a real browser driving the full stack (backend + frontend), and produces structured JSON output for AI course-correction.
 
 ## Vocabulary
 
-The UI DSL vocabulary is already designed in `docs/scenario-dsl.md` and encoded in `xtask/data/schema.json` (`uiWhenItem`, `uiThenItem` definitions). This task implements the runner.
+The UI DSL vocabulary is already designed in `docs/scenario-dsl.md` and encoded in `gallery-frontend/tests/playwright/schema.json` (`uiWhenItem`, `uiThenItem` definitions). This task implements the runner.
 
 ## Architecture (no cargo xtask involvement)
 
@@ -27,7 +27,7 @@ tests/playwright/
   ├── executeThen.ts          # Maps YAML assertions → Playwright assertions
   ├── report.ts               # Structured JSON output per scenario
   ├── types.ts                # Zod schemas mirroring schema.json UI definitions
-  └── scenarios/              # Symlink or reference to xtask/data/scenarios/ui/
+  └── scenarios/              # Symlink or reference to gallery-frontend/tests/playwright/scenarios/
 ```
 
 ## Phases
@@ -66,18 +66,18 @@ tests/playwright/
 
 ## What was built
 
-| File | Purpose |
-|------|---------|
-| `gallery-frontend/playwright.config.ts` | Playwright config with webServer (backend + vite), JSON+HTML reporters, screenshot on failure |
-| `gallery-frontend/tests/playwright/types.ts` | Zod schemas matching the UI DSL vocabulary from `schema.json` |
-| `gallery-frontend/tests/playwright/paths.ts` | Shared paths (E2E_DIR, IMAGE_HOME, BACKEND_URL, etc.) |
-| `gallery-frontend/tests/playwright/loadScenarios.ts` | Reads YAML from `xtask/data/scenarios/ui/`, validates with Zod |
-| `gallery-frontend/tests/playwright/executeGiven.ts` | Filesystem seeding + API indexing, auth, variable binding |
-| `gallery-frontend/tests/playwright/interpreter.ts` | Maps YAML verbs (navigate/click/fill/submit) and assertions (visible/hidden/text/route/modal) to Playwright API |
-| `gallery-frontend/tests/playwright/interpreter.spec.ts` | Main test file — loads all scenarios, runs given→when→then |
-| `xtask/data/scenarios/ui/home-page.yaml` | Smoke test: navigate to `/`, assert `<main>` visible |
-| `xtask/data/scenarios/ui/albums-page.yaml` | Smoke test: navigate to `/albums`, assert `<main>` visible |
-| `xtask/data/scenarios/ui/login-page.yaml` | Smoke test: navigate to `/login`, assert password textbox visible |
+| File                                                    | Purpose                                                                                                         |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `gallery-frontend/playwright.config.ts`                 | Playwright config with webServer (backend + vite), JSON+HTML reporters, screenshot on failure                   |
+| `gallery-frontend/tests/playwright/types.ts`            | Zod schemas matching the UI DSL vocabulary from `schema.json`                                                   |
+| `gallery-frontend/tests/playwright/paths.ts`            | Shared paths (E2E_DIR, IMAGE_HOME, BACKEND_URL, etc.)                                                           |
+| `gallery-frontend/tests/playwright/loadScenarios.ts`    | Reads YAML from `gallery-frontend/tests/playwright/scenarios/`, validates with Zod                                                  |
+| `gallery-frontend/tests/playwright/executeGiven.ts`     | Filesystem seeding + API indexing, auth, variable binding                                                       |
+| `gallery-frontend/tests/playwright/interpreter.ts`      | Maps YAML verbs (navigate/click/fill/submit) and assertions (visible/hidden/text/route/modal) to Playwright API |
+| `gallery-frontend/tests/playwright/interpreter.spec.ts` | Main test file — loads all scenarios, runs given→when→then                                                      |
+| `gallery-frontend/tests/playwright/scenarios/home-page.yaml`                | Smoke test: navigate to `/`, assert `<main>` visible                                                            |
+| `gallery-frontend/tests/playwright/scenarios/albums-page.yaml`              | Smoke test: navigate to `/albums`, assert `<main>` visible                                                      |
+| `gallery-frontend/tests/playwright/scenarios/login-page.yaml`               | Smoke test: navigate to `/login`, assert password textbox visible                                               |
 
 ## How to run
 

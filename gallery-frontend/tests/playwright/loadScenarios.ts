@@ -5,7 +5,7 @@ import * as yaml from 'js-yaml'
 import { UiScenario } from './types'
 
 const DIR = path.dirname(fileURLToPath(import.meta.url))
-const SCENARIOS_DIR = path.resolve(DIR, '../../../xtask/data/scenarios/ui')
+const SCENARIOS_DIR = path.resolve(DIR, 'scenarios')
 
 export function loadAllScenarios(): UiScenario[] {
   if (!fs.existsSync(SCENARIOS_DIR)) {
@@ -13,7 +13,7 @@ export function loadAllScenarios(): UiScenario[] {
     return []
   }
 
-  const files = fs.readdirSync(SCENARIOS_DIR).filter(f => f.endsWith('.yaml'))
+  const files = fs.readdirSync(SCENARIOS_DIR).filter((f) => f.endsWith('.yaml'))
   const scenarios: UiScenario[] = []
 
   for (const file of files) {

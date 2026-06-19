@@ -24,6 +24,8 @@ gallery-backend/object
 
 # `just run`'s dev sandbox (data dir + test galleries, see docs/CONFIG.md)
 /sandbox/
+gallery-backend/sandbox/
+gallery-frontend/sandbox/
 
 # Playwright test artifacts
 gallery-frontend/playwright-report/

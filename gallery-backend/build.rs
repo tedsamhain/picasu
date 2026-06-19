@@ -2,14 +2,20 @@ use std::fmt::Write;
 use std::path::Path;
 
 fn main() {
-    println!("cargo::rerun-if-changed=../xtask/data/scenarios/backend");
-    println!("cargo::rerun-if-changed=../xtask/data/scenarios/generator");
+    println!("cargo::rerun-if-changed=tests/scenarios");
+    println!("cargo::rerun-if-changed=tests/scenarios/selftest");
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
 
     let mut lines = String::new();
 
-    let backend_dir = workspace_root().join("xtask/data/scenarios/backend");
+    let manifest_dir: std::path::PathBuf =
+        std::env::var("CARGO_MANIFEST_DIR").map_or_else(
+            |_| std::env::current_dir().unwrap(),
+            std::path::PathBuf::from,
+        );
+
+    let backend_dir = manifest_dir.join("tests/scenarios");
     let mut entries: Vec<_> = std::fs::read_dir(&backend_dir)
         .unwrap_or_else(|e| panic!("cannot read {}: {e}", backend_dir.display()))
         .filter_map(Result::ok)
@@ -33,9 +39,9 @@ fn backend_{name}() {{
         );
     }
 
-    let gen_dir = workspace_root().join("xtask/data/scenarios/generator");
-    let mut entries: Vec<_> = std::fs::read_dir(&gen_dir)
-        .unwrap_or_else(|e| panic!("cannot read {}: {e}", gen_dir.display()))
+    let selftest_dir = manifest_dir.join("tests/scenarios/selftest");
+    let mut entries: Vec<_> = std::fs::read_dir(&selftest_dir)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", selftest_dir.display()))
         .filter_map(Result::ok)
         .map(|e| e.path())
         .filter(|p| {
@@ -50,8 +56,8 @@ fn backend_{name}() {{
         let _ = writeln!(
             lines,
             r#"#[test]
-fn generator_{name}() {{
-    run_generator_scenario("{name}");
+fn selftest_{name}() {{
+    run_selftest_scenario("{name}");
 }}
 "#,
         );
@@ -60,14 +66,4 @@ fn generator_{name}() {{
     let out_path = Path::new(&out_dir).join("scenarios.rs");
     std::fs::write(&out_path, &lines)
         .unwrap_or_else(|e| panic!("write {}: {e}", out_path.display()));
-}
-
-fn workspace_root() -> std::path::PathBuf {
-    let dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| {
-        std::env::current_dir()
-            .unwrap()
-            .to_string_lossy()
-            .to_string()
-    }));
-    dir.parent().unwrap().to_path_buf()
 }

@@ -145,9 +145,9 @@ The explicit schema list was redundant and has been removed.
 
 ## Files
 
-| File                             | Generator                  | Role                             |
-| -------------------------------- | -------------------------- | -------------------------------- |
-| `gallery-backend/src/openapi.rs` | `cargo xtask openapi-gen`  | ApiDoc struct with all routes    |
-| `gallery-backend/openapi.json`   | `ApiDoc::openapi()`        | OpenAPI 3.1 spec                 |
-| `docs/openapi-reference.md`      | widdershins                | Human-readable API reference     |
-| `xtask/src/openapi.rs`           | —                          | Generator + coverage tool source |
+| File                             | Generator                 | Role                             |
+| -------------------------------- | ------------------------- | -------------------------------- |
+| `gallery-backend/src/openapi.rs` | `cargo xtask openapi-gen` | ApiDoc struct with all routes    |
+| `gallery-backend/openapi.json`   | `ApiDoc::openapi()`       | OpenAPI 3.1 spec                 |
+| `docs/openapi-reference.md`      | widdershins               | Human-readable API reference     |
+| `xtask/src/openapi.rs`           | —                         | Generator + coverage tool source |

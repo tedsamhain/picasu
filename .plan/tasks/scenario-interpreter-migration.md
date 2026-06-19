@@ -9,9 +9,9 @@ Replace the YAML-to-Rust codegen in `xtask/src/generator.rs` with a pure interpr
 
 **Current state**
 
-`cargo xtask test-backend` reads `xtask/data/scenarios/backend/*.yaml`, emits Rust test code into `gallery-backend/src/tests/scenarios_generated.rs`, then runs `cargo nextest` on it. The generated code calls fixture helpers from `xtask::fixtures::*` and urocissa test bootstrap.
+`cargo xtask test-backend` reads `gallery-backend/tests/scenarios/*.yaml`, emits Rust test code into `gallery-backend/src/tests/scenarios_generated.rs`, then runs `cargo nextest` on it. The generated code calls fixture helpers from `xtask::fixtures::*` and urocissa test bootstrap.
 
-Separately, `cargo xtask test-generator` reads `xtask/data/scenarios/generator/*.yaml` (4 files with deliberately wrong assertions), wraps the generated body in `catch_unwind`, and asserts panic — validating the assertion pipeline itself. Output goes to `gallery-backend/src/tests/test_generator_generated.rs`.
+Separately, `cargo xtask test-generator` reads `gallery-backend/tests/scenarios/selftest/*.yaml` (4 files with deliberately wrong assertions), wraps the generated body in `catch_unwind`, and asserts panic — validating the assertion pipeline itself. Output goes to `gallery-backend/src/tests/test_generator_generated.rs`.
 
 **Goal**
 
@@ -33,9 +33,9 @@ xtask/src/
 └── generator.rs              removed
 └── fixtures/                 removed
 
-xtask/data/scenarios/
-├── backend/                  20 YAML files — stays (interpreter reads from workspace path)
-└── generator/                4 YAML files — migrated alongside negative test harness
+gallery-backend/tests/scenarios/
+├── *.yaml                   20 API scenarios
+└── selftest/                 4 self-test scenarios (assertion machinery validation)
 ```
 
 `cargo xtask test-backend` becomes `cargo test -p urocissa -- scenario_interpreter`.
@@ -46,7 +46,7 @@ The interpreter must use only externally documented interfaces: Rocket startup v
 
 **Negative test approach**
 
-The 4 `xtask/data/scenarios/generator/*.yaml` files test the assertion machinery by feeding deliberately wrong assertions and expecting panic. In the interpreter, this becomes a separate test function that:
+The 4 `gallery-backend/tests/scenarios/selftest/*.yaml` files test the assertion machinery by feeding deliberately wrong assertions and expecting panic. In the interpreter, this becomes a separate test function that:
 
 - Reads each generator YAML
 - Runs it through the interpreter's assertion logic

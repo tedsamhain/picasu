@@ -43,7 +43,7 @@ Backfill OpenAPI/utoipa annotations + generate committed API reference docs.
 
 | File                           | Generator                         | Guard                                       |
 | ------------------------------ | --------------------------------- | ------------------------------------------- |
- | `gallery-backend/openapi.json` | `cargo xtask openapi-gen`         | `git diff --exit-code` in precommit on main |
+| `gallery-backend/openapi.json` | `cargo xtask openapi-gen`         | `git diff --exit-code` in precommit on main |
 | `docs/openapi-reference.md`    | `widdershins` from `openapi.json` | same guard — transitively consistent        |
 
 Both are committed to the repo. Editing annotations without committing the
