@@ -1,5 +1,6 @@
 mod openapi;
 mod plan;
+mod test_image;
 
 use std::process::Command;
 
@@ -14,6 +15,12 @@ fn main() {
     match subcommand.as_deref() {
         Some("openapi-gen") => emit_openapi(),
         Some("openapi-coverage") => openapi::run_coverage(),
+        Some("test-image") => {
+            let args: Vec<String> = std::iter::once("test-image".into())
+                .chain(std::env::args().skip(2))
+                .collect();
+            test_image::run_cli(args.into_iter());
+        }
         Some("plan") => {
             let args: Vec<String> = std::env::args().skip(2).collect();
             let mut status_filter: Option<&str> = None;
@@ -180,12 +187,15 @@ fn print_help(sub: &str) {
             println!(
                 "  plan            list/search/validate .plan tasks (see `cargo xtask plan --help`)"
             );
+            println!(
+                "  test-image      generate test images from JSON specs (single, batch, library)"
+            );
         }
     }
 }
 
 fn print_help_summary() {
-    eprintln!("available: openapi-gen, openapi-coverage, plan");
+    eprintln!("available: openapi-gen, openapi-coverage, plan, test-image");
     eprintln!("use --help for details");
 }
 

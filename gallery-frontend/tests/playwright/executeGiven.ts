@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { spawn } from 'child_process'
 import { GivenItem } from './types'
 import type { APIRequestContext } from '@playwright/test'
 import { IMAGE_HOME, BACKEND_URL, ADMIN_PASSWORD, CONFIG_DIR } from './paths'
@@ -41,21 +42,16 @@ async function ensureAuthenticated(request: APIRequestContext): Promise<string> 
   return authToken
 }
 
-const MINIMAL_JPEG = Buffer.from([
-  0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
-  0x00, 0x01, 0x00, 0x00, 0xff, 0xdb, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08,
-  0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0a, 0x0c, 0x14, 0x0d, 0x0c, 0x0b, 0x0b, 0x0c, 0x19, 0x12,
-  0x13, 0x0f, 0x14, 0x1d, 0x1a, 0x1f, 0x1e, 0x1d, 0x1a, 0x1c, 0x1c, 0x20, 0x24, 0x2e, 0x27, 0x20,
-  0x22, 0x2c, 0x23, 0x1c, 0x1c, 0x28, 0x37, 0x29, 0x2c, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1f, 0x27,
-  0x39, 0x3d, 0x38, 0x32, 0x3c, 0x2e, 0x33, 0x34, 0x32, 0xff, 0xc0, 0x00, 0x0b, 0x08, 0x00, 0x01,
-  0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xff, 0xc4, 0x00, 0x1f, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01,
-  0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
-  0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0xff, 0xc4, 0x00, 0xb5, 0x10, 0x00, 0x02, 0x01, 0x03, 0x03,
-  0x02, 0x04, 0x03, 0x05, 0x05, 0x04, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x11,
-  0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71, 0x13, 0x22, 0x32, 0x81, 0x08,
-  0x14, 0x42, 0x91, 0xa1, 0xb1, 0xc1, 0x09, 0x23, 0x33, 0x52, 0xf0, 0x15, 0x62, 0x72, 0xd1, 0x0a,
-  0x16, 0xe1, 0xff, 0xd9
-])
+interface PhotoManifestEntry {
+  output: string
+  format?: string
+  width?: number
+  height?: number
+  color?: number[]
+  exif_date?: string
+  tags?: string[]
+  seed?: number
+}
 
 export interface GivenContext {
   vars: Record<string, string>
@@ -77,6 +73,21 @@ function qualifyPath(relativePath: string, ns?: string): string {
   if (!ns) return relativePath
   const prefix = sanitizeNamespace(ns)
   return path.join(prefix, relativePath)
+}
+
+function runTestImageBatch(manifest: PhotoManifestEntry[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('cargo', ['xtask', 'test-image', 'batch', '-'], {
+      stdio: ['pipe', 'inherit', 'inherit']
+    })
+    proc.on('error', (err) => reject(new Error(`cargo xtask test-image: ${err.message}`)))
+    proc.on('exit', (code) => {
+      if (code === 0) resolve()
+      else reject(new Error(`cargo xtask test-image batch exited with code ${code}`))
+    })
+    proc.stdin.write(JSON.stringify(manifest))
+    proc.stdin.end()
+  })
 }
 
 function tracedRequest(base: APIRequestContext, tracer: CoverageTracer): APIRequestContext {
@@ -111,6 +122,7 @@ export async function executeGiven(
 
   type SeedEntry = { type: 'dir_album' | 'photo'; qualifiedPath: string; id_as?: string }
   const seedEntries: SeedEntry[] = []
+  const photoManifest: PhotoManifestEntry[] = []
 
   for (const item of given) {
     if ('dir_album' in item && item.dir_album) {
@@ -121,16 +133,35 @@ export async function executeGiven(
       seedEntries.push({ type: 'dir_album', qualifiedPath: qualified, id_as: ga.id_as })
       if (ga.id_as) {
         const ph = path.join(dirPath, '.__e2e_ph__.jpg')
-        fs.writeFileSync(ph, MINIMAL_JPEG)
+        photoManifest.push({ output: ph })
       }
     }
 
     if ('photo' in item && item.photo) {
-      const ph = item as { photo: string; id_as?: string }
+      const ph = item as {
+        photo: string
+        id_as?: string
+        format?: string
+        width?: number
+        height?: number
+        seed?: number
+        tags?: string[]
+        exif_date?: string
+        color?: number[]
+      }
       const qualified = qualifyPath(ph.photo, ns)
       const filePath = path.join(IMAGE_HOME, qualified)
       fs.mkdirSync(path.dirname(filePath), { recursive: true })
-      fs.writeFileSync(filePath, MINIMAL_JPEG)
+
+      const entry: PhotoManifestEntry = { output: filePath }
+      if (ph.format) entry.format = ph.format
+      if (ph.width) entry.width = ph.width
+      if (ph.height) entry.height = ph.height
+      if (ph.seed) entry.seed = ph.seed
+      if (ph.tags) entry.tags = ph.tags
+      if (ph.exif_date) entry.exif_date = ph.exif_date
+      if (ph.color) entry.color = ph.color
+      photoManifest.push(entry)
       seedEntries.push({ type: 'photo', qualifiedPath: qualified, id_as: ph.id_as })
     }
 
@@ -170,6 +201,10 @@ export async function executeGiven(
         }
       }
     }
+  }
+
+  if (photoManifest.length > 0) {
+    await runTestImageBatch(photoManifest)
   }
 
   if (seedEntries.length > 0) {

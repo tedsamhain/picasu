@@ -3,47 +3,76 @@
 Semi-formal spec and authoring guide for spec-driven E2E testing.
 
 Two scenario types share the `given:` vocabulary but have disjoint
-`when:`/`then:` verb sets. Place scenario files by type:
+`when:`/`then:` verb sets:
 
-- `scenarios/api/*.yaml` — backend-only Rocket-`Client` tests (generated Rust)
-- `scenarios/ui/*.yaml` — Playwright browser tests (generated TypeScript)
+- **API scenarios** (`gallery-backend/tests/scenarios/*.yaml`) — compiled
+  at build time into Rocket `local::Client` tests via `build.rs`. Test
+  backend HTTP endpoints directly with no browser.
+- **UI scenarios** (`gallery-frontend/tests/playwright/scenarios/*.yaml`)
+  — loaded at runtime by the Playwright test runner via `loadScenarios.ts`.
+  Drive a real browser against a running backend + built frontend.
 
 ## Common structure
 
-Every scenario file is a YAML document with three top-level keys:
+Every scenario file is a YAML document with three required top-level keys
+and one optional:
 
 ```yaml
 name: Human-readable name for the scenario
+covers: # optional — see § Coverage intent
+  api:
+    - POST /post/authenticate
+  ui:
+    - textbox/Password
 given:
   - ... # fixture definitions
-when: ... # verb set depends on scenario type (directory)
-then: ... # verb set depends on scenario type (directory)
+when: ... # verb set depends on scenario type
+then: ... # verb set depends on scenario type
 ```
 
 ## `given:` vocabulary (shared)
 
-Each entry in `given:` calls a fixture builder and optionally binds the
-result to an `id_as` variable for later reference in `when:` bodies and
-`then:` assertions. Variables are interpolated as `${variable_name}` in
-string values.
+Each entry in `given:` seeds state. Some forms may bind a result to
+`id_as` for later reference in `when:` bodies and `then:` assertions.
+Variables are interpolated as `${variable_name}` in string values across
+all verb blocks.
 
-| Form                | Description                                                     | Maps to                                                                               |
-| ------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `dir_album: <path>` | Create a dir album at `path`, return its album ID               | `make_dir_album(&Path::new(path))`                                                    |
-| `photo: <path>`     | Insert a photo record (no real file) at `path`, return its hash | `insert_photos(&[PhotoSpec { path, tags, exif_date }])` + `find_hash_by_alias_path()` |
-| `tag: <name>`       | Create a tag (typically combined with `photo`)                  | passed into `PhotoSpec.tags`                                                          |
-| `empty`             | No-op, ensures `TEST_ENV` is initialised                        | `let _ = &*TEST_ENV;`                                                                 |
+| Form                | Description                                     | Available in |
+| ------------------- | ----------------------------------------------- | ------------ |
+| `empty: true`       | No-op; signals intent to start from clean state | API, UI      |
+| `dir_album: <path>` | Create a directory album on disk                | API, UI      |
+| `photo: <path>`     | Write a minimal JPEG to the image store         | API, UI      |
+| `remove: <path>`    | Remove a file from the image store              | API, UI      |
+| `config: { ... }`   | Set backend config via HTTP API                 | UI only      |
 
-Optional modifier fields per `given:` entry:
+Optional modifier fields:
 
-- `id_as: <name>` — binds the result to `${name}`
-- `tags: [<tag>, ...]` — for `photo`, sets the photo's tags
-- `exif_date: <string>` — for `photo`, sets `DateTimeOriginal`
-- `color: [<r>, <g>, <b>]` — for real (decoded) photo fixtures, sets pixel colour
+| Field                  | Applies to       | Description                               |
+| ---------------------- | ---------------- | ----------------------------------------- |
+| `id_as: <name>`        | dir_album, photo | Binds result to `${name}`                 |
+| `tags: [<tag>, ...]`   | photo            | Sets photo tags                           |
+| `exif_date: <string>`  | photo            | Sets `DateTimeOriginal`                   |
+| `color: [<r>,<g>,<b>]` | photo            | Sets pixel colour (decoded fixtures only) |
 
-## API scenarios (`scenarios/api/`)
+### `config:` (UI only)
 
-These expand into Rocket-`Client` Rust tests in `fixtures.rs` style.
+Sets backend runtime configuration via the HTTP API before the browser
+interacts with the page. Accepted fields:
+
+```yaml
+- config:
+    read_only_mode: true # PUT /put/config { readOnlyMode: true }
+    password: hunter2 # PUT /put/config/password
+```
+
+Password is set before `readOnlyMode` so the scenario can configure
+authentication before locking the API behind it.
+
+## API scenarios (`gallery-backend/tests/scenarios/`)
+
+Compiled at build time by `build.rs` into one `#[test]` per YAML file.
+The runtime interpreter lives in `src/tests/backend_api.rs`. Run with
+`cargo nextest run`.
 
 ### `when:` — single API call
 
@@ -54,9 +83,8 @@ when:
   auth: <true|false> # default true; attaches admin auth cookie
 ```
 
-`call` is resolved against `openapi.json` for operation existence — the
-generator validates that the method+path pair exists and that `body` matches
-the request schema.
+`call` is validated against `openapi.json` for operation existence at
+build time.
 
 ### `then:` — assertions (one or more)
 
@@ -64,21 +92,17 @@ the request schema.
 | ------------------------------- | ----------------------------- |
 | `response.status: <code>`       | HTTP status code              |
 | `response.<json-path>: <value>` | JSON body field matches value |
-| `response.<json-path] exists`   | JSON body field is present    |
-| `response.<json-path] absent`   | JSON body field is absent     |
+| `response.<json-path> exists`   | JSON body field is present    |
+| `response.<json-path> absent`   | JSON body field is absent     |
 | `file_exists: <path>`           | File exists on disk           |
 | `file_absent: <path>`           | File does not exist on disk   |
 
 `<json-path>` is a dot-separated path into the response JSON, e.g.
 `prefetch.locateTo` or `prefetch.timestamp`.
 
-### Escape-hatch policy (API)
+### Multi-step chains
 
-No raw-Rust escape hatch for assertions. A missing assertion form is
-resolved by adding a reusable verb to the vocabulary, not by inlining
-code. If a scenario needs a multi-step interaction (e.g. call A, then
-call B using state from A), use multiple scenarios or a multi-step
-`when:` block:
+Use multiple scenarios or a multi-step `when:` block:
 
 ```yaml
 when:
@@ -89,22 +113,22 @@ when:
     auth: true
 ```
 
-## UI scenarios (`scenarios/ui/`)
+### Escape-hatch policy (API)
 
-These expand into Playwright TypeScript specs driving a real backend +
-built frontend. No API-call verbs, no response assertions — only user
-interactions and visible UI state.
+No raw-Rust escape hatch for assertions. A missing assertion form is
+resolved by adding a reusable verb to the vocabulary, not by inlining
+code.
 
-### `given:` seeding
+## UI scenarios (`gallery-frontend/tests/playwright/scenarios/`)
 
-Any working endpoint or redb-direct call — UI assertions only check visible
-state, so a seed crash is a setup failure, not a silent false pass. The same
-`given:` vocabulary as API scenarios applies.
+Loaded at runtime by `loadScenarios.ts`, validated against Zod schemas
+(`types.ts`), and executed by `interpreter.spec.ts`. No code generation
+step — the YAML is interpreted directly by Playwright.
 
 ### `when:` — user interactions (ordered list)
 
-Elements are referenced by **ARIA role** and **accessible name** (never CSS
-selectors).
+Elements are referenced by **ARIA role** and **accessible name** (never
+CSS selectors).
 
 | Verb                                      | Description                                    |
 | ----------------------------------------- | ---------------------------------------------- |
@@ -120,40 +144,62 @@ escape hatch.
 ### `then:` — UI assertions (one or more)
 
 | Form                                        | Assertion                                                            |
-| ------------------------------------------- | -------------------------------------------------------------------- | ------------------ |
+| ------------------------------------------- | -------------------------------------------------------------------- |
 | `ui.visible: <role>/<label>`                | Element is visible                                                   |
 | `ui.hidden: <role>/<label>`                 | Element is hidden/absent                                             |
 | `ui.text: <role>/<label>, contains: <text>` | Element text includes string                                         |
 | `ui.toast: type: <type>, contains: <text>`  | Toast of given type (`error`/`success`/`warning`) with matching text |
-| `ui.modal: open                             | closed`                                                              | Modal dialog state |
+| `ui.modal: open                             | closed` — Modal dialog state                                         |
 | `ui.route: <pattern>`                       | Current URL matches pattern                                          |
-| `ui.aria_snapshot: <name>`                  | Compare ARIA role/name/state tree against committed `.aria` snapshot |
+| `ui.aria_snapshot: <name>`                  | Compare ARIA role/name/state tree against committed snapshot         |
+
+### `covers:` (optional)
+
+Declares what the scenario intends to exercise. After the scenario runs,
+the tracer compares expected vs actual and logs advisory warnings for any
+unexercised declaration. Warnings do not fail the test.
+
+```yaml
+covers:
+  api:
+    - POST /post/authenticate
+    - PUT /put/config/password
+  ui:
+    - textbox/Password
+    - route:/home
+```
+
+- `covers.api` — HTTP method + path pairs (e.g. `"PUT /put/config"`).
+  Matched against API calls recorded during the `given:` phase via the
+  `CoverageTracer`.
+- `covers.ui` — assertion target strings. For role/label assertions this
+  is the raw target (e.g. `main/`); for others a prefixed form
+  (`route:/albums`, `toast:error:unauthorized`, `snapshot:login-page`).
+
+Full coverage tracing design in `docs/playwright_generator.md`.
 
 ### Escape-hatch policy (UI)
 
-Same as API: no raw-TypeScript. A missing interaction or assertion verb is
-a gap in the DSL, not a reason to inline code. Extend the vocabulary in
-`docs/scenario-dsl.md` and the generator's verb parser when a new form is
-needed.
+Same as API: no raw-TypeScript. A missing interaction or assertion verb
+is a gap in the DSL, not a reason to inline code. Extend the vocabulary
+in this document and the interpreter in `interpreter.ts`.
 
 ## Schema validation
 
-The DSL has separate JSON Schemas at `gallery-backend/tests/schema.json` (API) and `gallery-frontend/tests/playwright/schema.json` (UI). All scenario
-files are validated structurally against this schema before generation.
-A scenario that fails schema validation is a hard error — it never produces
-a green test.
+The DSL has separate JSON Schemas at
+`gallery-backend/tests/schema.json` (API) and
+`gallery-frontend/tests/playwright/schema.json` (UI). All scenario files
+are validated at load/compile time — a schema mismatch is a hard error.
 
-```bash
-# Validate all scenario files (via xtask)
-cargo xtask test-backend
-```
+API scenarios are validated at build time by `build.rs`. UI scenarios are
+validated at runtime by `loadScenarios.ts` via the Zod `UiScenario`
+schema in `types.ts`.
 
 ## Idempotency and isolation
 
-- Each scenario creates its own fixtures with unique, namespaced paths
-  (use the scenario name as a prefix, e.g. `/e2e_h_*` for Scenario H).
-- `given:` entries that reference `dir_album` without a pre-existing photo
-  create the album record only; photos must be added separately.
-- In API scenarios, all assertions are made through the HTTP API only — no direct redb access.
+- Each scenario creates its own fixtures under namespaced paths
+  (sanitized scenario name used as a directory prefix within `IMAGE_HOME`).
+- In API scenarios, all assertions are made through the HTTP API only
+  — no direct redb access.
 - In UI scenarios, state is seeded before the browser navigates to the
-  page under test.
+  page under test. Auth tokens are reset per scenario.
