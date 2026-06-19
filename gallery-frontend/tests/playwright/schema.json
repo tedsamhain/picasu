@@ -42,6 +42,15 @@
       "required": ["remove"],
       "additionalProperties": false
     },
+    "givenMove": {
+      "type": "object",
+      "properties": {
+        "move": { "type": "string" },
+        "to": { "type": "string" }
+      },
+      "required": ["move", "to"],
+      "additionalProperties": false
+    },
     "givenEmpty": {
       "type": "object",
       "properties": {
@@ -57,7 +66,9 @@
           "type": "object",
           "properties": {
             "read_only_mode": { "type": "boolean" },
-            "password": { "type": "string" }
+            "password": { "type": "string" },
+            "image_path": { "oneOf": [{ "type": "boolean" }, { "type": "string" }] },
+            "auth_key": { "type": "string" }
           },
           "additionalProperties": false
         }
@@ -71,7 +82,8 @@
         { "$ref": "#/definitions/givenPhoto" },
         { "$ref": "#/definitions/givenEmpty" },
         { "$ref": "#/definitions/givenRemove" },
-        { "$ref": "#/definitions/givenConfig" }
+        { "$ref": "#/definitions/givenConfig" },
+        { "$ref": "#/definitions/givenMove" }
       ]
     },
     "uiWhenNavigate": {
@@ -116,13 +128,22 @@
       "required": ["submit"],
       "additionalProperties": false
     },
+    "uiWhenWait": {
+      "type": "object",
+      "properties": {
+        "wait.ms": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["wait.ms"],
+      "additionalProperties": false
+    },
     "uiWhenItem": {
       "oneOf": [
         { "$ref": "#/definitions/uiWhenNavigate" },
         { "$ref": "#/definitions/uiWhenClick" },
         { "$ref": "#/definitions/uiWhenFill" },
         { "$ref": "#/definitions/uiWhenSelect" },
-        { "$ref": "#/definitions/uiWhenSubmit" }
+        { "$ref": "#/definitions/uiWhenSubmit" },
+        { "$ref": "#/definitions/uiWhenWait" }
       ]
     },
     "uiThenVisible": {
@@ -190,6 +211,24 @@
       "required": ["ui.aria_snapshot"],
       "additionalProperties": false
     },
+    "uiThenApiResponse": {
+      "type": "object",
+      "properties": {
+        "api.response": {
+          "type": "object",
+          "properties": {
+            "url": { "type": "string" },
+            "status": {
+              "oneOf": [{ "type": "integer" }, { "type": "array", "items": { "type": "integer" } }]
+            }
+          },
+          "required": ["url", "status"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["api.response"],
+      "additionalProperties": false
+    },
     "uiThenItem": {
       "oneOf": [
         { "$ref": "#/definitions/uiThenVisible" },
@@ -198,7 +237,8 @@
         { "$ref": "#/definitions/uiThenToast" },
         { "$ref": "#/definitions/uiThenModal" },
         { "$ref": "#/definitions/uiThenRoute" },
-        { "$ref": "#/definitions/uiThenAriaSnapshot" }
+        { "$ref": "#/definitions/uiThenAriaSnapshot" },
+        { "$ref": "#/definitions/uiThenApiResponse" }
       ]
     },
     "covers": {

@@ -35,16 +35,32 @@ export const GivenRemove = z
   })
   .strict()
 
+export const GivenMove = z
+  .object({
+    move: z.string(),
+    to: z.string()
+  })
+  .strict()
+
 export const GivenConfig = z
   .object({
     config: z.object({
       read_only_mode: z.boolean().optional(),
-      password: z.string().optional()
+      password: z.string().optional(),
+      image_path: z.union([z.boolean(), z.string()]).optional(),
+      auth_key: z.string().optional()
     })
   })
   .strict()
 
-export const GivenItem = z.union([GivenDirAlbum, GivenPhoto, GivenEmpty, GivenRemove, GivenConfig])
+export const GivenItem = z.union([
+  GivenDirAlbum,
+  GivenPhoto,
+  GivenEmpty,
+  GivenRemove,
+  GivenConfig,
+  GivenMove
+])
 
 const RoleLabel = z.string()
 
@@ -80,12 +96,19 @@ export const UiWhenSubmit = z
   })
   .strict()
 
+export const UiWhenWait = z
+  .object({
+    'wait.ms': z.number().int().positive()
+  })
+  .strict()
+
 export const UiWhenItem = z.union([
   UiWhenNavigate,
   UiWhenClick,
   UiWhenFill,
   UiWhenSelect,
-  UiWhenSubmit
+  UiWhenSubmit,
+  UiWhenWait
 ])
 
 export const UiThenVisible = z
@@ -134,6 +157,15 @@ export const UiThenAriaSnapshot = z
   })
   .strict()
 
+export const UiThenApiResponse = z
+  .object({
+    'api.response': z.object({
+      url: z.string(),
+      status: z.union([z.number(), z.array(z.number())])
+    })
+  })
+  .strict()
+
 export const UiThenItem = z.union([
   UiThenVisible,
   UiThenHidden,
@@ -141,7 +173,8 @@ export const UiThenItem = z.union([
   UiThenToast,
   UiThenModal,
   UiThenRoute,
-  UiThenAriaSnapshot
+  UiThenAriaSnapshot,
+  UiThenApiResponse
 ])
 
 export const Covers = z
@@ -164,5 +197,6 @@ export const UiScenario = z
 export type UiScenario = z.infer<typeof UiScenario>
 export type UiWhenItem = z.infer<typeof UiWhenItem>
 export type UiThenItem = z.infer<typeof UiThenItem>
+export type GivenMove = z.infer<typeof GivenMove>
 export type GivenItem = z.infer<typeof GivenItem>
 export type Covers = z.infer<typeof Covers>

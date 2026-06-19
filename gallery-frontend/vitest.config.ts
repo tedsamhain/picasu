@@ -3,7 +3,8 @@ import { resolve } from 'path'
 
 export default defineConfig({
   test: {
-    environment: 'node'
+    environment: 'node',
+    exclude: ['node_modules/**', 'tests/playwright/**']
   },
   resolve: {
     alias: {

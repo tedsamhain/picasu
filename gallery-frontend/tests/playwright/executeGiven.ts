@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { spawn } from 'child_process'
+import { createHash, createHmac } from 'crypto'
 import { GivenItem } from './types'
 import type { APIRequestContext } from '@playwright/test'
 import { IMAGE_HOME, BACKEND_URL, ADMIN_PASSWORD, CONFIG_DIR } from './paths'
@@ -123,6 +124,8 @@ export async function executeGiven(
   type SeedEntry = { type: 'dir_album' | 'photo'; qualifiedPath: string; id_as?: string }
   const seedEntries: SeedEntry[] = []
   const photoManifest: PhotoManifestEntry[] = []
+  const postIndexMoves: { from: string; to: string }[] = []
+  let knownJwtSecret: string | undefined = undefined
 
   for (const item of given) {
     if ('dir_album' in item && item.dir_album) {
@@ -173,8 +176,22 @@ export async function executeGiven(
       } catch {}
     }
 
+    if ('move' in item) {
+      const mv = item as { move: string; to: string }
+      const fromQualified = qualifyPath(mv.move, ns)
+      const toQualified = qualifyPath(mv.to, ns)
+      postIndexMoves.push({ from: fromQualified, to: toQualified })
+    }
+
     if ('config' in item && item.config) {
-      const cfg = item as { config: { read_only_mode?: boolean; password?: string } }
+      const cfg = item as {
+        config: {
+          read_only_mode?: boolean
+          password?: string
+          image_path?: boolean | string
+          auth_key?: string
+        }
+      }
       const token = await ensureAuthenticated(request)
       const headers = authHeaders(token)
 
@@ -199,6 +216,31 @@ export async function executeGiven(
         if (!res.ok()) {
           throw new Error(`Config update failed: ${res.status()} ${await res.text()}`)
         }
+      }
+
+      if (cfg.config.image_path !== undefined) {
+        const imagePathValue = cfg.config.image_path === true ? IMAGE_HOME : cfg.config.image_path
+        const res = await request.fetch(`${BACKEND_URL}/put/config`, {
+          method: 'PUT',
+          headers,
+          data: { imagePath: imagePathValue }
+        })
+        if (!res.ok()) {
+          throw new Error(`Image path update failed: ${res.status()} ${await res.text()}`)
+        }
+      }
+
+      if (cfg.config.auth_key !== undefined) {
+        const res = await request.fetch(`${BACKEND_URL}/put/config`, {
+          method: 'PUT',
+          headers,
+          data: { authKey: cfg.config.auth_key }
+        })
+        if (!res.ok()) {
+          throw new Error(`Auth key update failed: ${res.status()} ${await res.text()}`)
+        }
+        knownJwtSecret = cfg.config.auth_key
+        authToken = null
       }
     }
   }
@@ -227,7 +269,7 @@ export async function executeGiven(
       })
       if (statusRes.ok()) {
         const status = await statusRes.json()
-        if (status.indexing === false) {
+        if (status.state === 'idle' || status.state === 'completed') {
           indexed = true
           break
         }
@@ -256,6 +298,49 @@ export async function executeGiven(
     }
   }
 
+  for (const mv of postIndexMoves) {
+    const fromPath = path.join(IMAGE_HOME, mv.from)
+    const toPath = path.join(IMAGE_HOME, mv.to)
+
+    const fileBuffer = fs.readFileSync(fromPath)
+    const hexHash = createHash('sha256').update(fileBuffer).digest('hex')
+
+    fs.mkdirSync(path.dirname(toPath), { recursive: true })
+    try {
+      fs.renameSync(fromPath, toPath)
+    } catch {
+      throw new Error(`Failed to move ${fromPath} to ${toPath}`)
+    }
+
+    const authToken = await ensureAuthenticated(request)
+    if (knownJwtSecret) {
+      const ext = path.extname(fromPath).slice(1) || 'jpg'
+      const ts = Math.floor(Date.now() / 1000)
+      const hashJwt = createHashJwt(
+        {
+          allowOriginal: true,
+          hash: hexHash,
+          timestamp: ts,
+          exp: ts + 300
+        },
+        knownJwtSecret!
+      )
+
+      const url = `${BACKEND_URL}/object/imported/${hexHash.slice(0, 2)}/${hexHash}.${ext}?updated_at=0`
+      const dlRes = await request.fetch(url, {
+        headers: {
+          Authorization: `Bearer ${hashJwt}`,
+          Cookie: `jwt=${authToken}`
+        }
+      })
+      if (dlRes.ok()) {
+        throw new Error(
+          `Expected import download to fail after file move, but got ${dlRes.status()} for ${url}`
+        )
+      }
+    }
+  }
+
   return result
 }
 
@@ -277,4 +362,28 @@ function findPhotoHash(qualifiedPath: string, data: any[]): string | null {
     return alias && alias.endsWith(qualifiedPath)
   })
   return match ? String(match.hash) : null
+}
+
+function base64urlEncode(data: Buffer): string {
+  return data.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
+function createHashJwt(payload: Record<string, unknown>, secret: string): string {
+  const header = base64urlEncode(Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })))
+  const body = base64urlEncode(Buffer.from(JSON.stringify(payload)))
+  const signature = createHmac('sha256', secret).update(`${header}.${body}`).digest()
+  return `${header}.${body}.${base64urlEncode(signature)}`
+}
+
+function readJwtSecretFromConfig(): string {
+  try {
+    const configPath = path.join(CONFIG_DIR, 'config.json')
+    const raw = fs.readFileSync(configPath, 'utf-8')
+    const config = JSON.parse(raw)
+    const authKey: string | null = config?.private?.authKey ?? null
+    if (authKey) return authKey
+  } catch {
+    // fall through
+  }
+  return 'change_me'
 }

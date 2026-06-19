@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 type: feature
 priority: high
 area: testing
@@ -90,3 +90,5 @@ cd gallery-frontend && npx playwright test --reporter=json  # AI-friendly JSON o
 ## AI feedback format
 
 Playwright's built-in JSON reporter outputs per-scenario results with test names, pass/fail status, durations, and error messages (with screenshots on failure via config). This is the structured feedback for the AI loop: write spec → implement → run tests → parse JSON → course-correct.
+
+2026-06-19: Marked done. User confirmed.

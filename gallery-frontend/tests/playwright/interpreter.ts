@@ -30,10 +30,12 @@ export async function executeWhen(
       )
     } else if ('submit' in step) {
       await page.keyboard.press('Enter')
+    } else if ('wait.ms' in step) {
+      await page.waitForTimeout(step['wait.ms'])
     } else {
       throw new Error(
         `Unknown when verb in step ${JSON.stringify(step)}. ` +
-          `Expected one of: navigate, click, fill, select, submit`
+          `Expected one of: navigate, click, fill, select, submit, wait.ms`
       )
     }
   }
@@ -80,15 +82,21 @@ export async function executeThen(
       await expect(page.locator('body')).toMatchAriaSnapshot({
         name: assertion['ui.aria_snapshot']
       })
+    } else if ('api.response' in assertion) {
+      const spec = assertion['api.response']
+      const url = interpolate(spec.url, ctx.vars)
+      const response = await page.request.fetch(url)
+      const expected = Array.isArray(spec.status) ? spec.status : [spec.status]
+      expect(expected).toContain(response.status())
     } else {
       throw new Error(
         `Unknown then verb in assertion ${JSON.stringify(assertion)}. ` +
-          `Expected one of: ui.visible, ui.hidden, ui.text, ui.route, ui.modal, ui.toast, ui.aria_snapshot`
+          `Expected one of: ui.visible, ui.hidden, ui.text, ui.route, ui.modal, ui.toast, ui.aria_snapshot, api.response`
       )
     }
   }
 }
 
 function interpolate(value: string, vars: Record<string, string>): string {
-  return value.replace(/\$\{(\w+)\}/g, (_, key) => vars[key] ?? '')
+  return value.replace(/\$\{(\w+)\}/g, (_, key) => vars[`$${key}`] ?? vars[key] ?? '')
 }
