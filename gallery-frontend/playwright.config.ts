@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test'
 import * as path from 'path'
 import * as os from 'os'
 import { fileURLToPath } from 'url'
-import { CONFIG_DIR, DATA_DIR, IMAGE_HOME, FRONTEND_URL } from './tests/playwright/paths'
+import { CONFIG_DIR, DATA_DIR, IMAGE_HOME, BACKEND_URL } from './tests/playwright/paths'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -21,13 +21,20 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: FRONTEND_URL,
+    baseURL: BACKEND_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     launchOptions: {
       executablePath: isCI
         ? undefined
-        : path.join(os.homedir(), '.cache', 'ms-playwright', 'chromium-1228', 'chrome-linux64', 'chrome'),
+        : path.join(
+            os.homedir(),
+            '.cache',
+            'ms-playwright',
+            'chromium-1228',
+            'chrome-linux64',
+            'chrome'
+          ),
       env: {
         ...process.env,
         LD_LIBRARY_PATH: '/tmp/nss-libs/usr/lib/x86_64-linux-gnu'
@@ -48,11 +55,5 @@ export default defineConfig({
       },
       timeout: 180000
     },
-    {
-      command: 'npm run dev',
-      port: 5173,
-      reuseExistingServer: !process.env.CI,
-      timeout: 30000
-    }
   ]
 })

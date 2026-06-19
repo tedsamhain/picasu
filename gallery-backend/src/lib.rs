@@ -52,6 +52,8 @@ fn migration() {
 
 #[allow(clippy::missing_panics_doc)]
 pub fn run() {
+    use tokio::signal::unix::{SignalKind, signal};
+
     // Initialize logger first thing
     initialize_logger();
 
@@ -104,8 +106,13 @@ pub fn run() {
             BATCH_COORDINATOR.execute_batch_detached(UpdateTreeTask);
             start_expire_check_loop();
 
-            if let Err(e) = tokio::signal::ctrl_c().await {
-                error!("Failed to listen for ctrl-c in worker: {}", e);
+            {
+                let mut sigint = signal(SignalKind::interrupt()).unwrap();
+                let mut sigterm = signal(SignalKind::terminate()).unwrap();
+                tokio::select! {
+                    _ = sigint.recv() => info!("SIGINT received, worker shutting down."),
+                    _ = sigterm.recv() => info!("SIGTERM received, worker shutting down."),
+                }
             }
             info!("Worker thread shutting down.");
         });
@@ -119,11 +126,15 @@ pub fn run() {
             let port = rocket.config().port;
             let shutdown_handle = rocket.shutdown();
 
-            // Manually handle Ctrl-C to trigger graceful shutdown
+            // Manually handle SIGINT/SIGTERM to trigger graceful shutdown
             // since we are running outside the default global runtime.
             ROCKET_RUNTIME.spawn(async move {
-                let _ = tokio::signal::ctrl_c().await;
-                info!("Ctrl-C received, shutting down Rocket server gracefully.");
+                let mut sigint = signal(SignalKind::interrupt()).unwrap();
+                let mut sigterm = signal(SignalKind::terminate()).unwrap();
+                tokio::select! {
+                    _ = sigint.recv() => info!("SIGINT received, shutting down Rocket."),
+                    _ = sigterm.recv() => info!("SIGTERM received, shutting down Rocket."),
+                }
                 shutdown_handle.notify();
             });
 
