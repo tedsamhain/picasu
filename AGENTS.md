@@ -12,7 +12,9 @@
 - Clarify ambiguous requirements with the user before starting.
 - Always present the proposed solution and its trade-offs for review before implementing.
 - After implementation, give the user a chance to review before moving on.
-- Run all available checks and tests before committing: `just precommit` (runs format, check, and test for both frontend and backend); do not rely on the pre-commit hook to catch everything.
+- Run all relevant checks and tests before committing. Do not rely on precommit hooks to catch everything.
+Refrain from including verbose examples and documentation in git commit messages or this AGENTS.md.
+- Commit messages should include a summary of what was changed and why. Do not include verbose examples or documentation. Only large commits may contain lists of changes.
 
 ## Task Management (.plan)
 
@@ -42,7 +44,6 @@ Every task lives as a markdown file in `.plan/tasks/<slug>.md` with YAML frontma
 
 ## Code documentation
 
-Refrain from including verbose examples and documentation in git commit messages or this AGENTS.md.
 Prefer `///` doc comments in the Rust source to document function purpose and any non-obvious design decisions.
 Doc comments live next to the code, get updated with it, serve `cargo doc`, IDEs, and agents equally, and never rot.
 
