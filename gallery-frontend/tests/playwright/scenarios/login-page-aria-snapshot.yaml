@@ -1,0 +1,7 @@
+name: Login page ARIA snapshot matches
+given:
+  - empty: true
+when:
+  - navigate: /login
+then:
+  - ui.aria_snapshot: login-page

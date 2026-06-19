@@ -1,0 +1,14 @@
+name: Wrong password shows error toast
+given:
+  - empty: true
+  - config:
+      password: e2e_test_pwd
+when:
+  - navigate: /login
+  - fill: textbox/Password
+    value: wrong_password
+  - click: button/Login
+then:
+  - ui.toast:
+      type: error
+      contains: unauthorized

@@ -13,7 +13,7 @@
 - Always present the proposed solution and its trade-offs for review before implementing.
 - After implementation, give the user a chance to review before moving on.
 - Run all relevant checks and tests before committing. Do not rely on precommit hooks to catch everything.
-Refrain from including verbose examples and documentation in git commit messages or this AGENTS.md.
+  Refrain from including verbose examples and documentation in git commit messages or this AGENTS.md.
 - Commit messages should include a summary of what was changed and why. Do not include verbose examples or documentation. Only large commits may contain lists of changes.
 
 ## Task Management (.plan)

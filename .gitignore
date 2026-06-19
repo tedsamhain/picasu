@@ -27,9 +27,8 @@ gallery-backend/object
 gallery-backend/sandbox/
 gallery-frontend/sandbox/
 
-# Playwright test artifacts
-gallery-frontend/playwright-report/
-gallery-frontend/test-results/
+# E2E test execution environments (generated per run)
+.testruns/
 
 # Local compose overrides + the bind-mounted volume dirs from compose.yaml
 compose.override.yaml

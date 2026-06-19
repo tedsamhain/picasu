@@ -1,0 +1,7 @@
+name: Navigate to albums updates route
+given:
+  - empty: true
+when:
+  - navigate: /albums
+then:
+  - ui.route: /albums

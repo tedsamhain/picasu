@@ -52,9 +52,9 @@
         "config": {
           "type": "object",
           "properties": {
-            "read_only_mode": { "type": "boolean" }
+            "read_only_mode": { "type": "boolean" },
+            "password": { "type": "string" }
           },
-          "required": ["read_only_mode"],
           "additionalProperties": false
         }
       },

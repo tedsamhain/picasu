@@ -1,0 +1,8 @@
+- main:
+  - button
+  - heading "Welcome Back!" [level=2]
+  - text: Password
+  - textbox "Password"
+  - button "Password appended action": 󰈉
+  - alert
+  - button "Login"

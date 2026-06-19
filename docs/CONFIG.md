@@ -154,15 +154,22 @@ keep_alive = 30      # connection keep-alive in seconds
 
 ### Option 2: Environment variables
 
-Any Rocket option can also be set via a `ROCKET_` prefixed environment variable, which is convenient for containers and systemd units:
+Urocissa-owned settings (`port`, `address`) can be overridden via `UROCISSA_*` env vars:
+
+```sh
+UROCISSA_PORT=8080        # overrides config.json's port
+UROCISSA_ADDRESS=127.0.0.1  # overrides config.json's address
+```
+
+Any Rocket option (`workers`, `keep_alive`, TLS, etc.) can also be set via a `ROCKET_` prefixed environment variable:
 
 ```sh
 ROCKET_WORKERS=8
 ROCKET_KEEP_ALIVE=30
-ROCKET_ADDRESS=127.0.0.1  # overrides config.json
-ROCKET_PORT=5673           # overrides config.json
 ```
 
-> **Note:** `ROCKET_ADDRESS` and `ROCKET_PORT` will override the values in `config.json`. Set them in one place only to avoid confusion.
+> **Note:** `ROCKET_PORT` and `ROCKET_ADDRESS` exist but apply at the Rocket framework layer — they are an advanced escape hatch, not the canonical way to configure the listen address. Use `UROCISSA_PORT` / `UROCISSA_ADDRESS` for normal use.
+>
+> Settings from both env-var namespaces are applied on top of the merged `config.json` + `Rocket.toml` base, so they can all coexist.
 
 For the full list of available Rocket options see the [Rocket configuration guide](https://rocket.rs/guide/configuration/).

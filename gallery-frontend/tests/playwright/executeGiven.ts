@@ -2,14 +2,34 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { GivenItem } from './types'
 import type { APIRequestContext } from '@playwright/test'
-import { IMAGE_HOME, BACKEND_URL, ADMIN_PASSWORD } from './paths'
+import { IMAGE_HOME, BACKEND_URL, ADMIN_PASSWORD, CONFIG_DIR } from './paths'
 
 let authToken: string | null = null
+
+function readCurrentPassword(): string | null {
+  try {
+    const configPath = path.join(CONFIG_DIR, 'config.json')
+    const raw = fs.readFileSync(configPath, 'utf-8')
+    const config = JSON.parse(raw)
+    return config?.private?.password ?? null
+  } catch {
+    return null
+  }
+}
+
+function authHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    Cookie: `jwt=${token}`
+  }
+}
 
 async function ensureAuthenticated(request: APIRequestContext): Promise<string> {
   if (authToken) return authToken
   const res = await request.post(`${BACKEND_URL}/post/authenticate`, {
-    data: ADMIN_PASSWORD
+    data: JSON.stringify(ADMIN_PASSWORD),
+    headers: { 'Content-Type': 'application/json' }
   })
   if (!res.ok()) throw new Error(`Auth failed: ${res.status()}`)
   authToken = String(await res.json())
@@ -42,7 +62,10 @@ export function createGivenContext(namespace?: string): GivenContext {
 }
 
 function sanitizeNamespace(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 }
 
 function qualifyPath(relativePath: string, ns?: string): string {
@@ -93,31 +116,42 @@ export async function executeGiven(
     }
 
     if ('config' in item && item.config) {
-      const cfg = item as { config: { read_only_mode?: boolean } }
+      const cfg = item as { config: { read_only_mode?: boolean; password?: string } }
       const token = await ensureAuthenticated(request)
-      const res = await request.fetch(`${BACKEND_URL}/put/config`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        data: { readOnlyMode: cfg.config.read_only_mode }
-      })
-      if (!res.ok()) {
-        throw new Error(
-          `Config update failed: ${res.status()} ${await res.text()}`
-        )
+      const headers = authHeaders(token)
+
+      if (cfg.config.password !== undefined) {
+        const oldPassword = readCurrentPassword()
+        const pwdRes = await request.fetch(`${BACKEND_URL}/put/config/password`, {
+          method: 'PUT',
+          headers,
+          data: { password: cfg.config.password, oldPassword }
+        })
+        if (!pwdRes.ok()) {
+          throw new Error(`Password update failed: ${pwdRes.status()} ${await pwdRes.text()}`)
+        }
+      }
+
+      if (cfg.config.read_only_mode !== undefined) {
+        const res = await request.fetch(`${BACKEND_URL}/put/config`, {
+          method: 'PUT',
+          headers,
+          data: { readOnlyMode: cfg.config.read_only_mode }
+        })
+        if (!res.ok()) {
+          throw new Error(`Config update failed: ${res.status()} ${await res.text()}`)
+        }
       }
     }
   }
 
   if (seedEntries.length > 0) {
     const token = await ensureAuthenticated(request)
-    const authHeaders = { Authorization: `Bearer ${token}` }
+    const allHeaders = authHeaders(token)
 
     const indexRes = await request.fetch(`${BACKEND_URL}/post/index/album`, {
       method: 'POST',
-      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      headers: allHeaders,
       data: { album: '/' }
     })
     if (!indexRes.ok()) {
@@ -127,7 +161,7 @@ export async function executeGiven(
     let indexed = false
     for (let i = 0; i < 60; i++) {
       const statusRes = await request.fetch(`${BACKEND_URL}/get/index/status`, {
-        headers: authHeaders
+        headers: allHeaders
       })
       if (statusRes.ok()) {
         const status = await statusRes.json()
@@ -143,14 +177,14 @@ export async function executeGiven(
     const wantsIdAs = seedEntries.some((e) => e.id_as !== undefined)
     if (wantsIdAs) {
       const dataRes = await request.fetch(`${BACKEND_URL}/get/get-data?start=0&end=100`, {
-        headers: authHeaders
+        headers: allHeaders
       })
       const data = (await dataRes.json()) as any[]
 
       for (const entry of seedEntries) {
         if (!entry.id_as) continue
         if (entry.type === 'dir_album') {
-          const albumId = await findAlbum(request, authHeaders, entry.qualifiedPath)
+          const albumId = await findAlbum(request, allHeaders, entry.qualifiedPath)
           if (albumId) result.vars[entry.id_as] = albumId
         } else if (entry.type === 'photo') {
           const hash = findPhotoHash(entry.qualifiedPath, data)

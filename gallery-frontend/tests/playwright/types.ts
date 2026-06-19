@@ -33,7 +33,10 @@ export const GivenRemove = z
 
 export const GivenConfig = z
   .object({
-    config: z.object({ read_only_mode: z.boolean() })
+    config: z.object({
+      read_only_mode: z.boolean().optional(),
+      password: z.string().optional()
+    })
   })
   .strict()
 

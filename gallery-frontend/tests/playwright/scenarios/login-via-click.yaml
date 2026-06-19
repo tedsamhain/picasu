@@ -1,0 +1,12 @@
+name: Login via button click succeeds
+given:
+  - empty: true
+  - config:
+      password: e2e_test_pwd
+when:
+  - navigate: /login
+  - fill: textbox/Password
+    value: e2e_test_pwd
+  - click: button/Login
+then:
+  - ui.route: /home

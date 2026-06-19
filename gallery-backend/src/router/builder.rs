@@ -114,7 +114,17 @@ pub fn build_rocket() -> rocket::Rocket<rocket::Build> {
 }
 
 /// Build Rocket instance with injected configuration
-pub fn build_rocket_with_config(app_config: AppConfig) -> rocket::Rocket<rocket::Build> {
+pub fn build_rocket_with_config(mut app_config: AppConfig) -> rocket::Rocket<rocket::Build> {
+    // UROCISSA_* env vars override config.json for Urocissa-owned settings
+    if let Ok(port_str) = std::env::var("UROCISSA_PORT")
+        && let Ok(port) = port_str.parse::<u16>()
+    {
+        app_config.public.port = port;
+    }
+    if let Ok(addr) = std::env::var("UROCISSA_ADDRESS") {
+        app_config.public.address = addr;
+    }
+
     let limits = Limits::default()
         .limit("form", extract_limit(&app_config, "data-form", "10GiB"))
         .limit(
