@@ -1,4 +1,7 @@
 name: Home page loads with grid visible
+covers:
+  ui:
+    - main/
 given:
   - empty: true
 when:

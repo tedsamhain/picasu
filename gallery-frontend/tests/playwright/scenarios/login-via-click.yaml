@@ -1,4 +1,10 @@
 name: Login via button click succeeds
+covers:
+  api:
+    - POST /post/authenticate
+    - PUT /put/config/password
+  ui:
+    - route:/home
 given:
   - empty: true
   - config:

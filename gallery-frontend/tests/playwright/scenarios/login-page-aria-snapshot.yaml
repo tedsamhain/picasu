@@ -1,4 +1,7 @@
 name: Login page ARIA snapshot matches
+covers:
+  ui:
+    - snapshot:login-page
 given:
   - empty: true
 when:

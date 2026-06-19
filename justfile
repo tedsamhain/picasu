@@ -157,6 +157,7 @@ build-release: frontend-build backend-build-release
 # Remove the dev sandbox's generated app state (sandbox/data); leaves sandbox/images alone
 [group('global')]
 clean:
+    rm -rf .testruns/*
     rm -rf sandbox/data
 
 # Build (debug, no embedded frontend) and launch a clean instance against sandbox/{data,images}

@@ -2,6 +2,7 @@ import type { Page, Locator } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { UiWhenItem, UiThenItem } from './types'
 import { GivenContext } from './executeGiven'
+import { CoverageTracer, assertionTarget } from './tracer'
 
 function resolveLocator(page: Page, roleLabel: string, vars: Record<string, string>): Locator {
   const resolved = interpolate(roleLabel, vars)
@@ -41,20 +42,27 @@ export async function executeWhen(
 export async function executeThen(
   page: Page,
   then: UiThenItem[],
-  ctx: GivenContext
+  ctx: GivenContext,
+  tracer?: CoverageTracer
 ): Promise<void> {
   for (const assertion of then) {
+    const target = assertionTarget(assertion)
     if ('ui.visible' in assertion) {
+      tracer?.recordUI('ui.visible', target)
       await expect(resolveLocator(page, assertion['ui.visible'], ctx.vars)).toBeVisible()
     } else if ('ui.hidden' in assertion) {
+      tracer?.recordUI('ui.hidden', target)
       await expect(resolveLocator(page, assertion['ui.hidden'], ctx.vars)).not.toBeVisible()
     } else if ('ui.text' in assertion && 'contains' in assertion) {
+      tracer?.recordUI('ui.text', target)
       await expect(resolveLocator(page, assertion['ui.text'], ctx.vars)).toContainText(
         interpolate(assertion.contains, ctx.vars)
       )
     } else if ('ui.route' in assertion) {
+      tracer?.recordUI('ui.route', target)
       await expect(page).toHaveURL(new RegExp(interpolate(assertion['ui.route'], ctx.vars)))
     } else if ('ui.modal' in assertion) {
+      tracer?.recordUI('ui.modal', target)
       const dialog = page.getByRole('dialog')
       if (assertion['ui.modal'] === 'open') {
         await expect(dialog).toBeVisible()
@@ -62,11 +70,13 @@ export async function executeThen(
         await expect(dialog).not.toBeVisible()
       }
     } else if ('ui.toast' in assertion) {
+      tracer?.recordUI('ui.toast', target)
       const toastSpec = assertion['ui.toast']
       const snackbar = page.getByRole('status').or(page.locator('.v-snackbar'))
       await expect(snackbar.first()).toBeVisible({ timeout: 5000 })
       await expect(snackbar.first()).toContainText(interpolate(toastSpec.contains, ctx.vars))
     } else if ('ui.aria_snapshot' in assertion) {
+      tracer?.recordUI('ui.aria_snapshot', target)
       await expect(page.locator('body')).toMatchAriaSnapshot({
         name: assertion['ui.aria_snapshot']
       })

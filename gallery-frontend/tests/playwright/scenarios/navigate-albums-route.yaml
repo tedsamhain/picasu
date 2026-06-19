@@ -1,4 +1,7 @@
 name: Navigate to albums updates route
+covers:
+  ui:
+    - route:/albums
 given:
   - empty: true
 when:

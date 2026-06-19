@@ -1,5 +1,5 @@
 ---
-status: open
+status: done
 type: feature
 priority: high
 area: testing
@@ -117,3 +117,8 @@ The system is credible as spec-driven development when: all DSL verbs are wired 
 - Bidirectional scenario↔endpoint trace (spec→route inventory matching across all scenarios)
 - Auto-generation of coverage manifests from ARIA snapshots
 - Hot-reload frontend dev server
+
+## Progress
+
+- 2026-06-19: Phase 2+3 completed. 5 verb-proving and login-flow YAML scenarios, dynamic port allocation (30000-59999), env-var coordination (TESTRUN_PORT/TESTRUN_DIR), .testruns/ output directory. Phase 4 (coverage tracing) pending.
+- 2026-06-19: Phase 4 completed. CoverageTracer records given-phase API calls (via request Proxy) and then-phase UI assertions. Scenario YAMLs declare `covers: {api, ui}` blocks. After each scenario run, expected vs actual is compared; mismatches logged as advisory warnings (don't fail the run). Per-scenario JSON reports written to `.testruns/playwright-RUN_ID/coverage/`. The `authToken` cache is reset per scenario to ensure `POST /post/authenticate` is traced for every login scenario.

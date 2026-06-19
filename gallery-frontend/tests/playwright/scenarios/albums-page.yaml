@@ -1,4 +1,7 @@
 name: Albums page renders with heading
+covers:
+  ui:
+    - main/
 given:
   - empty: true
 when:

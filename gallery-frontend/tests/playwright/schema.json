@@ -197,10 +197,25 @@
         { "$ref": "#/definitions/uiThenAriaSnapshot" }
       ]
     },
+    "covers": {
+      "type": "object",
+      "properties": {
+        "api": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "ui": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
     "uiScenario": {
       "type": "object",
       "properties": {
         "name": { "type": "string" },
+        "covers": { "$ref": "#/definitions/covers" },
         "given": {
           "type": "array",
           "items": { "$ref": "#/definitions/givenItem" },

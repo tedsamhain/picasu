@@ -140,9 +140,17 @@ export const UiThenItem = z.union([
   UiThenAriaSnapshot
 ])
 
+export const Covers = z
+  .object({
+    api: z.array(z.string()).optional().default([]),
+    ui: z.array(z.string()).optional().default([])
+  })
+  .strict()
+
 export const UiScenario = z
   .object({
     name: z.string(),
+    covers: Covers.optional().default({}),
     given: z.array(GivenItem).optional().default([]),
     when: z.array(UiWhenItem).min(1),
     then: z.array(UiThenItem).min(1)
@@ -153,3 +161,4 @@ export type UiScenario = z.infer<typeof UiScenario>
 export type UiWhenItem = z.infer<typeof UiWhenItem>
 export type UiThenItem = z.infer<typeof UiThenItem>
 export type GivenItem = z.infer<typeof GivenItem>
+export type Covers = z.infer<typeof Covers>

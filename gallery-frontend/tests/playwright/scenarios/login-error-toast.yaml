@@ -1,4 +1,10 @@
 name: Wrong password shows error toast
+covers:
+  api:
+    - POST /post/authenticate
+    - PUT /put/config/password
+  ui:
+    - toast:error:unauthorized
 given:
   - empty: true
   - config:

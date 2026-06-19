@@ -8,26 +8,28 @@ const __dirname = path.dirname(__filename)
 // gallery-frontend/tests/playwright/ → gallery-frontend/tests/ → gallery-frontend/ → repo root
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..')
 
-// Generate fresh e2e identifiers on first load in the main process.
-// Workers inherit these via process.env (child_process.fork copies the
-// parent's environment), so every process in the same run agrees.
-const runId: string = (() => {
-  const existing = process.env.UROCISSA_E2E_RUN_ID
+// The main process generates all run-scoped paths and stores them in
+// process.env. Workers inherit these via child_process.fork, so every
+// process in the same run agrees on directories and ports without
+// sharing files or knowing the naming convention.
+const E2E_DIR: string = (() => {
+  const existing = process.env.TESTRUN_DIR
   if (existing) return existing
-  const id = Math.random().toString(36).slice(2, 8)
-  process.env.UROCISSA_E2E_RUN_ID = id
-  return id
+  const runId = Math.random().toString(36).slice(2, 8)
+  const dir = path.resolve(REPO_ROOT, '.testruns', `playwright-${runId}`)
+  process.env.TESTRUN_DIR = dir
+  return dir
 })()
 
 const port: number = (() => {
-  const existing = process.env.UROCISSA_E2E_PORT
+  const existing = process.env.TESTRUN_PORT
   if (existing) return Number(existing)
   const p = 30000 + Math.floor(Math.random() * 30000)
-  process.env.UROCISSA_E2E_PORT = String(p)
+  process.env.TESTRUN_PORT = String(p)
   return p
 })()
 
-export const E2E_DIR = path.resolve(REPO_ROOT, '.testruns', `playwright-${runId}`)
+export { E2E_DIR }
 export const CONFIG_DIR = path.join(E2E_DIR, 'config')
 export const DATA_DIR = path.join(E2E_DIR, 'data')
 export const IMAGE_HOME = path.join(E2E_DIR, 'images')

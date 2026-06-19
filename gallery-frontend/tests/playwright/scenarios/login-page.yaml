@@ -1,4 +1,7 @@
 name: Login page renders password form
+covers:
+  ui:
+    - textbox/Password
 given:
   - empty: true
 when:

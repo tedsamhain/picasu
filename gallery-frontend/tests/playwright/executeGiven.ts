@@ -3,8 +3,13 @@ import * as path from 'path'
 import { GivenItem } from './types'
 import type { APIRequestContext } from '@playwright/test'
 import { IMAGE_HOME, BACKEND_URL, ADMIN_PASSWORD, CONFIG_DIR } from './paths'
+import { CoverageTracer } from './tracer'
 
 let authToken: string | null = null
+
+export function resetAuthToken(): void {
+  authToken = null
+}
 
 function readCurrentPassword(): string | null {
   try {
@@ -74,11 +79,33 @@ function qualifyPath(relativePath: string, ns?: string): string {
   return path.join(prefix, relativePath)
 }
 
+function tracedRequest(base: APIRequestContext, tracer: CoverageTracer): APIRequestContext {
+  return new Proxy(base, {
+    get(target, prop) {
+      const orig = (target as any)[prop]
+      if (typeof orig !== 'function') return orig
+      if (['fetch', 'post', 'put', 'get', 'delete'].includes(prop as string)) {
+        return async (...args: any[]) => {
+          const url = typeof args[0] === 'string' ? args[0] : String(args[0])
+          const path = new URL(url).pathname
+          const method =
+            prop === 'fetch' ? ((args[1] as any)?.method ?? 'GET') : (prop as string).toUpperCase()
+          tracer.recordAPI(method, path)
+          return orig.apply(target, args)
+        }
+      }
+      return orig.bind(target)
+    }
+  })
+}
+
 export async function executeGiven(
-  request: APIRequestContext,
+  baseRequest: APIRequestContext,
   given: GivenItem[],
-  ctx: GivenContext
+  ctx: GivenContext,
+  tracer?: CoverageTracer
 ): Promise<GivenContext> {
+  const request = tracer ? tracedRequest(baseRequest, tracer) : baseRequest
   const result: GivenContext = { vars: { ...ctx.vars }, namespace: ctx.namespace }
   const ns = ctx.namespace
 
