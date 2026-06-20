@@ -3,6 +3,7 @@ name = "urocissa"
 version = "2.1.0"
 edition = "2024"
 license = "MIT"
+default-run = "urocissa"
 
 [lib]
 name = "urocissa"

@@ -170,7 +170,7 @@ run: clean build
         UROCISSA_CONFIG_HOME="{{justfile_directory()}}/sandbox/data" \
         UROCISSA_DATA_HOME="{{justfile_directory()}}/sandbox/data" \
         UROCISSA_IMAGE_HOME="{{justfile_directory()}}/sandbox/images" \
-        cargo run
+        cargo run --bin urocissa
 
 # Run security audits (backend + frontend)
 [group('global')]
