@@ -57,15 +57,19 @@ frontend-check:
 
 # vitest run
 [group('frontend')]
-frontend-test:
+frontend-vitest:
     cd gallery-frontend && npm test
 
 # Playwright E2E scenarios (starts backend + frontend automatically)
 [group('frontend')]
-frontend-e2e:
-	# single instance mode: npx playwright test --workers=1
-	# select/grep the test: npx playwright test --grep "onboarding"
+frontend-playwright:
+    # single instance mode: npx playwright test --workers=1
+    # select/grep the test: npx playwright test --grep "onboarding"
     cd gallery-frontend && npm run test:e2e
+
+# all frontend tests
+[group('frontend')]
+frontend-test: frontend-vitest frontend-playwright
 
 # npm run build (npm ci + vue-tsc + vite build)
 [group('frontend')]

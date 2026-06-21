@@ -356,10 +356,7 @@
         }
       },
       "required": ["name"],
-      "oneOf": [
-        { "required": ["steps"] },
-        { "required": ["when", "assert"] }
-      ],
+      "oneOf": [{ "required": ["steps"] }, { "required": ["when", "assert"] }],
       "additionalProperties": false
     }
   }

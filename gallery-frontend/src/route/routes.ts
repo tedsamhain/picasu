@@ -10,7 +10,11 @@ import FavoritePage from '@/components/Page/FavoritePage.vue'
 import ArchivedPage from '@/components/Page/ArchivedPage.vue'
 import TrashedPage from '@/components/Page/TrashedPage.vue'
 import AlbumsPage from '@/components/Page/AlbumsPage.vue'
+import AlbumContentsPage from '@/components/Page/AlbumContentsPage.vue'
 import VideosPage from '@/components/Page/VideosPage.vue'
+import ViewPageMain from '@/components/View/ViewPageMain.vue'
+import HomeIsolated from '@/components/Home/HomeIsolated.vue'
+import ViewPageIsolated from '@/components/View/ViewPageIsolated.vue'
 import { createRoute } from './createRoute'
 import { tagsRoute } from './tagsRoute'
 import { linksRoute } from './linksRoute'
@@ -53,6 +57,89 @@ const videosPageRoutes = createRoute('videos', VideosPage)
 // Combine All Routes
 // ======================================
 
+const albumContentRoute: RouteRecordRaw = {
+  path: '/album/:albumHash',
+  component: AlbumContentsPage,
+  name: 'album',
+  meta: {
+    level: 1,
+    baseName: 'album',
+    getParentPage: (route) => ({
+      name: 'home',
+      params: { hash: undefined, subhash: undefined },
+      query: route.query
+    }),
+    getChildPage: (route, hash) => ({
+      name: 'albumViewPage',
+      params: { albumHash: route.params.albumHash, hash: hash, subhash: undefined },
+      query: route.query
+    })
+  },
+  children: [
+    {
+      path: 'view/:hash',
+      component: ViewPageMain,
+      name: 'albumViewPage',
+      meta: {
+        level: 2,
+        baseName: 'album',
+        getParentPage: (route) => ({
+          name: 'album',
+          params: { albumHash: route.params.albumHash, hash: undefined, subhash: undefined },
+          query: route.query
+        }),
+        getChildPage: (route) => ({
+          name: 'albumReadPage',
+          params: { hash: route.params.hash, subhash: undefined },
+          query: route.query
+        })
+      },
+      children: [
+        {
+          path: 'read',
+          component: HomeIsolated,
+          name: 'albumReadPage',
+          meta: {
+            level: 3,
+            baseName: 'album',
+            getParentPage: (route) => ({
+              name: 'albumViewPage',
+              params: { hash: route.params.hash, subhash: undefined },
+              query: route.query
+            }),
+            getChildPage: (route, subhash) => ({
+              name: 'albumReadViewPage',
+              params: { hash: route.params.hash, subhash: subhash },
+              query: route.query
+            })
+          },
+          children: [
+            {
+              path: 'view/:subhash',
+              name: 'albumReadViewPage',
+              component: ViewPageIsolated,
+              meta: {
+                level: 4,
+                baseName: 'album',
+                getParentPage: (route) => ({
+                  name: 'albumReadPage',
+                  params: { hash: route.params.hash, subhash: undefined },
+                  query: route.query
+                }),
+                getChildPage: (route) => ({
+                  name: 'albumReadViewPage',
+                  params: { hash: route.params.hash, subhash: route.params.subhash },
+                  query: route.query
+                })
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 const routes: RouteRecordRaw[] = [
   ...simpleRoutes,
   ...homePageRoutes,
@@ -61,7 +148,8 @@ const routes: RouteRecordRaw[] = [
   ...archivedPageRoutes,
   ...trashedPageRoutes,
   ...albumsPageRoutes,
-  ...videosPageRoutes
+  ...videosPageRoutes,
+  albumContentRoute
 ]
 
 // ======================================
@@ -148,19 +236,26 @@ void router.isReady().then(async () => {
     const hashParam = typeof to.params.hash === 'string' ? to.params.hash : undefined
     // subhash is not needed for ancestors, only for target which we restore via fullPath
 
+    // Level-1 routes that accept path params need them included in ancestor chain entries.
+    const level1Params: Record<string, string | undefined> = {}
+    const albumHash = to.params.albumHash
+    if (typeof albumHash === 'string') {
+      level1Params.albumHash = albumHash
+    }
+
     const chain: RouteLocationRaw[] = []
     // Always build from top-most parent to immediate parent to ensure multi-step back works
     if (routeName === `${baseName}ReadViewPage`) {
       if (hashParam === undefined) return
-      chain.push({ name: baseName, query: q })
+      chain.push({ name: baseName, params: level1Params, query: q })
       chain.push({ name: `${baseName}ViewPage`, params: { hash: hashParam }, query: q })
       chain.push({ name: `${baseName}ReadPage`, params: { hash: hashParam }, query: q })
     } else if (routeName === `${baseName}ReadPage`) {
       if (hashParam === undefined) return
-      chain.push({ name: baseName, query: q })
+      chain.push({ name: baseName, params: level1Params, query: q })
       chain.push({ name: `${baseName}ViewPage`, params: { hash: hashParam }, query: q })
     } else if (routeName === `${baseName}ViewPage`) {
-      chain.push({ name: baseName, query: q })
+      chain.push({ name: baseName, params: level1Params, query: q })
     }
 
     if (chain.length > 0) {

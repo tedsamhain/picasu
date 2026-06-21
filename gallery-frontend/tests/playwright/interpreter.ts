@@ -17,6 +17,9 @@ export async function executeWhen(
   when: UiWhenItem[],
   ctx: GivenContext
 ): Promise<void> {
+  page.on('console', (msg) => {
+    if (msg.type() === 'log') console.log('[BROWSER]', msg.text())
+  })
   for (const step of when) {
     if ('navigate' in step) {
       await page.goto(interpolate(step.navigate, ctx.vars))
@@ -43,7 +46,7 @@ export async function executeWhen(
         btn?.click()
       }, iconClass)
     } else if ('click.first' in step) {
-      await page.locator('#view-page .desktop-small-image').first().click()
+      await page.locator('.desktop-small-image').first().click()
     } else {
       throw new Error(
         `Unknown when verb in step ${JSON.stringify(step)}. ` +

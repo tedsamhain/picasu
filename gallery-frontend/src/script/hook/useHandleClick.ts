@@ -52,11 +52,7 @@ export function useHandleClick(
         if (hashOrId !== undefined) {
           const page =
             abstractData.type === 'album'
-              ? {
-                  name: 'albumsReadPage',
-                  params: { hash: hashOrId },
-                  query: route.query
-                }
+              ? { name: 'album', params: { albumHash: hashOrId }, query: route.query }
               : route.meta.getChildPage(route, hashOrId)
           router
             .push(page)

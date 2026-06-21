@@ -9,16 +9,12 @@
           icon="mdi mdi-arrow-left"
           :to="albumStore.leaveAlbumPath ? albumStore.leaveAlbumPath : '/'"
         ></v-btn>
-        <v-card
-          v-if="route.meta.level === 3 && typeof route.params.hash === 'string'"
-          elevation="0"
-          class="w-50"
-        >
-          <v-card-title class="text-truncate">
-            {{ albumStore.albums.get(route.params.hash) }}
-          </v-card-title>
-        </v-card>
-        <v-card elevation="0" :style="{ width: `${route.meta.level === 3 ? '50%' : '100%'}` }">
+
+        <v-card-title class="page-title text-truncate">
+          {{ pageTitle }}
+        </v-card-title>
+
+        <v-card elevation="0" class="search-card">
           <v-card-text class="pa-0 bg-surface">
             <v-text-field
               id="nav-search-input"
@@ -46,6 +42,11 @@
         </v-card>
 
         <v-btn
+          v-if="route.meta.baseName === 'album'"
+          icon="mdi-share-variant"
+          @click="modalStore.showShareModal = true"
+        />
+        <v-btn
           v-if="route.meta.level === 1"
           :icon="themeIsLight ? 'mdi-weather-sunny' : 'mdi-weather-night'"
           @click="themeIsLight = !themeIsLight"
@@ -58,6 +59,16 @@
         />
       </v-toolbar>
       <EditBar v-else />
+
+      <CreateShareModal
+        v-if="
+          modalStore.showShareModal &&
+          route.meta.baseName === 'album' &&
+          typeof route.params.hash === 'string'
+        "
+        :album-id="route.params.hash"
+        :mode="'create'"
+      />
     </template>
   </HomeBarTemplate>
 </template>
@@ -70,7 +81,9 @@ import { useFilterStore } from '@/store/filterStore'
 import { useUploadStore } from '@/store/uploadStore'
 import { useAlbumStore } from '@/store/albumStore'
 import { useConstStore } from '@/store/constStore'
+import { useModalStore } from '@/store/modalStore'
 import EditBar from '@/components/NavBar/EditBar.vue'
+import CreateShareModal from '@/components/Modal/CreateShareModal.vue'
 import { useTheme } from 'vuetify'
 import HomeBarTemplate from '@/components/NavBar/HomeBars/HomeBarTemplate.vue'
 
@@ -80,6 +93,7 @@ const albumStore = useAlbumStore('mainId')
 const uploadStore = useUploadStore('mainId')
 const filterStore = useFilterStore('mainId')
 const constStore = useConstStore('mainId')
+const modalStore = useModalStore('mainId')
 const vuetifyTheme = useTheme()
 
 const themeIsLight = computed<boolean>({
@@ -95,6 +109,32 @@ const route = useRoute()
 const router = useRouter()
 const searchQuery: Ref<LocationQueryValue | LocationQueryValue[] | undefined> = ref(null)
 const loading = ref(false)
+
+const baseTitleMap: Record<string, string> = {
+  home: 'Home',
+  all: 'All',
+  favorite: 'Favorites',
+  archived: 'Archived',
+  trashed: 'Trash',
+  albums: 'Albums',
+  videos: 'Videos',
+  album: 'Album',
+  tags: 'Tags',
+  links: 'Links',
+  config: 'Configuration'
+}
+
+const pageTitle = computed(() => {
+  const baseName = route.meta.baseName
+  if (typeof baseName !== 'string') return ''
+  if (baseName === 'album') {
+    const id = route.params.hash
+    if (typeof id !== 'string') return 'Album'
+    const info = albumStore.albums.get(id)
+    return info?.displayName ?? 'Album'
+  }
+  return baseTitleMap[baseName] ?? baseName
+})
 
 const handleSearch = async () => {
   filterStore.searchString = searchQuery.value
@@ -120,4 +160,18 @@ watchEffect(() => {
 const collectionStore = useCollectionStore('mainId')
 </script>
 
-<style scoped></style>
+<style scoped>
+.page-title {
+  flex: 0 1 200px;
+  min-width: 100px;
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.175;
+  letter-spacing: 0.0073529412em;
+}
+
+.search-card {
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+</style>
