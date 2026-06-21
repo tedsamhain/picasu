@@ -54,6 +54,8 @@ steps:
   - when:
       - click.icon: mdi-information-outline
     assert:
+      - ui.text_visible: Info
+      - ui.text_visible: Sunset
       - ui.text_visible: sunset
       - ui.text_visible: nature
       - ui.text_visible: landscape

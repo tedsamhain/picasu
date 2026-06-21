@@ -14,7 +14,7 @@ test.describe('UI scenarios', () => {
     test(scenario.name, async ({ page, request }) => {
       resetAuthToken()
       const tracer = new CoverageTracer()
-      const ctx = createGivenContext(scenario.name)
+      const ctx = createGivenContext()
       const seeded = await executeGiven(request, scenario.given, ctx, tracer)
 
       if (scenario.steps) {

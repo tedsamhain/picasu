@@ -36,9 +36,14 @@ export async function executeWhen(
       const text = interpolate(step['click.text'], ctx.vars)
       await page.locator('.parent').filter({ hasText: text }).first().click()
     } else if ('click.icon' in step) {
-      await page.locator(`.${step['click.icon']}`).first().click()
+      const iconClass = step['click.icon']
+      await page.evaluate((cls) => {
+        const icon = document.querySelector('.' + cls)
+        const btn = icon?.closest('button')
+        btn?.click()
+      }, iconClass)
     } else if ('click.first' in step) {
-      await page.locator('#view-page .parent').first().click()
+      await page.locator('#view-page .desktop-small-image').first().click()
     } else {
       throw new Error(
         `Unknown when verb in step ${JSON.stringify(step)}. ` +
