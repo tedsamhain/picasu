@@ -74,5 +74,6 @@ export function assertionTarget(assertion: UiAssertItem): string {
   if ('ui.aria_snapshot' in assertion) return `snapshot:${assertion['ui.aria_snapshot']}`
   if ('ui.text_visible' in assertion) return assertion['ui.text_visible']
   if ('ui.count' in assertion) return assertion['ui.count']
+  if ('ui.chip_visible' in assertion) return assertion['ui.chip_visible']
   return ''
 }

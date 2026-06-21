@@ -198,6 +198,12 @@ export const UiAssertCount = z
   })
   .strict()
 
+export const UiAssertChipVisible = z
+  .object({
+    'ui.chip_visible': z.string()
+  })
+  .strict()
+
 export const UiAssertItem = z.union([
   UiAssertVisible,
   UiAssertHidden,
@@ -208,7 +214,8 @@ export const UiAssertItem = z.union([
   UiAssertAriaSnapshot,
   UiAssertApiResponse,
   UiAssertTextVisible,
-  UiAssertCount
+  UiAssertCount,
+  UiAssertChipVisible
 ])
 
 export const UiStep = z

@@ -266,6 +266,14 @@
       "required": ["ui.count", "equals"],
       "additionalProperties": false
     },
+    "uiAssertChipVisible": {
+      "type": "object",
+      "properties": {
+        "ui.chip_visible": { "type": "string" }
+      },
+      "required": ["ui.chip_visible"],
+      "additionalProperties": false
+    },
     "uiAssertItem": {
       "oneOf": [
         { "$ref": "#/definitions/uiAssertVisible" },
@@ -277,7 +285,8 @@
         { "$ref": "#/definitions/uiAssertAriaSnapshot" },
         { "$ref": "#/definitions/uiAssertApiResponse" },
         { "$ref": "#/definitions/uiAssertTextVisible" },
-        { "$ref": "#/definitions/uiAssertCount" }
+        { "$ref": "#/definitions/uiAssertCount" },
+        { "$ref": "#/definitions/uiAssertChipVisible" }
       ]
     },
     "uiStep": {

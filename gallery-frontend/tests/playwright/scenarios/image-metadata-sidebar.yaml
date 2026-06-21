@@ -55,8 +55,7 @@ steps:
       - click.icon: mdi-information-outline
     assert:
       - ui.text_visible: Info
-      - ui.text_visible: Sunset
-      - ui.text_visible: sunset
-      - ui.text_visible: nature
-      - ui.text_visible: landscape
-      - ui.text_visible: golden-hour
+      - ui.chip_visible: sunset
+      - ui.chip_visible: nature
+      - ui.chip_visible: landscape
+      - ui.chip_visible: golden-hour
