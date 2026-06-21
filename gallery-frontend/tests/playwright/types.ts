@@ -106,6 +106,12 @@ export const UiWhenClickText = z
   })
   .strict()
 
+export const UiWhenClickIcon = z
+  .object({
+    'click.icon': z.string()
+  })
+  .strict()
+
 export const UiWhenItem = z.union([
   UiWhenNavigate,
   UiWhenClick,
@@ -113,7 +119,8 @@ export const UiWhenItem = z.union([
   UiWhenSelect,
   UiWhenSubmit,
   UiWhenWait,
-  UiWhenClickText
+  UiWhenClickText,
+  UiWhenClickIcon
 ])
 
 export const UiAssertVisible = z

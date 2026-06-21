@@ -137,6 +137,14 @@
       "required": ["click.text"],
       "additionalProperties": false
     },
+    "uiWhenClickIcon": {
+      "type": "object",
+      "properties": {
+        "click.icon": { "type": "string" }
+      },
+      "required": ["click.icon"],
+      "additionalProperties": false
+    },
     "uiWhenItem": {
       "oneOf": [
         { "$ref": "#/definitions/uiWhenNavigate" },
@@ -145,7 +153,8 @@
         { "$ref": "#/definitions/uiWhenSelect" },
         { "$ref": "#/definitions/uiWhenSubmit" },
         { "$ref": "#/definitions/uiWhenWait" },
-        { "$ref": "#/definitions/uiWhenClickText" }
+        { "$ref": "#/definitions/uiWhenClickText" },
+        { "$ref": "#/definitions/uiWhenClickIcon" }
       ]
     },
     "uiAssertVisible": {

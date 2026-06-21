@@ -1,0 +1,46 @@
+name: Image metadata shown in sidebar
+covers:
+  api:
+    - POST /post/authenticate
+    - PUT /put/config
+    - POST /post/index/album
+    - GET /get/index/status
+given:
+  - config:
+      password: e2e_test_pwd
+      image_path: true
+
+  - dir_album: nature/sunset
+
+  - photo: nature/sunset/img01.jpg
+    tags: [sunset, nature, landscape, golden-hour]
+    id_as: $imgHash
+
+steps:
+  - when:
+      - navigate: /login
+      - fill: textbox/Password
+        value: e2e_test_pwd
+      - click: button/Login
+    assert:
+      - ui.route: /home
+
+  - when:
+      - navigate: /config
+      - click: button/Scan Now
+      - wait.ms: 3000
+    assert:
+      - ui.visible: main/
+
+  - when:
+      - navigate: /albums/view/${imgHash}
+    assert:
+      - ui.visible: main/
+
+  - when:
+      - click.icon: mdi-information-outline
+    assert:
+      - ui.text_visible: sunset
+      - ui.text_visible: nature
+      - ui.text_visible: landscape
+      - ui.text_visible: golden-hour

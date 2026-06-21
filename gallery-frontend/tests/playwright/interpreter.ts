@@ -35,10 +35,12 @@ export async function executeWhen(
     } else if ('click.text' in step) {
       const text = interpolate(step['click.text'], ctx.vars)
       await page.locator('.parent').filter({ hasText: text }).first().click()
+    } else if ('click.icon' in step) {
+      await page.locator(`.${step['click.icon']}`).first().click()
     } else {
       throw new Error(
         `Unknown when verb in step ${JSON.stringify(step)}. ` +
-          `Expected one of: navigate, click, fill, select, submit, wait.ms, click.text`
+          `Expected one of: navigate, click, fill, select, submit, wait.ms, click.text, click.icon`
       )
     }
   }
