@@ -1,7 +1,7 @@
 <template>
-  <v-dialog v-model="modalStore.showSettingModal" id="setting-modal" max-width="500">
-    <v-card border flat class="rounded-lg">
-      <v-card-title class="font-weight-bold">Settings</v-card-title>
+  <v-col cols="12">
+    <v-card border flat>
+      <v-card-title class="font-weight-bold">Frontend</v-card-title>
       <v-divider thickness="4" variant="double"></v-divider>
 
       <v-list-item class="pt-4">
@@ -12,7 +12,6 @@
           :min="250"
           :max="450"
           :step="10"
-          :disabled="!initializedStore.initialized"
           hide-details
           thumb-size="16"
           prepend-icon="mdi-minus"
@@ -33,7 +32,6 @@
           <v-switch
             :model-value="showFilenameChipValue"
             @update:model-value="onShowFilenameChipUpdate"
-            :disabled="!initializedStore.initialized"
             color="primary"
             inset
             hide-details
@@ -71,7 +69,6 @@
           <v-switch
             :model-value="viewBarOverlayValue"
             @update:model-value="onViewBarOverlayUpdate"
-            :disabled="!initializedStore.initialized"
             color="primary"
             inset
             hide-details
@@ -79,26 +76,16 @@
           ></v-switch>
         </template>
       </v-list-item>
-
-      <v-card-actions>
-        <v-spacer></v-spacer>
-        <v-btn @click="modalStore.showSettingModal = false">Close</v-btn>
-      </v-card-actions>
     </v-card>
-  </v-dialog>
+  </v-col>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useModalStore } from '@/store/modalStore'
-import { useInitializedStore } from '@/store/initializedStore'
 import { useConstStore } from '@/store/constStore'
 
-const modalStore = useModalStore('mainId')
-const initializedStore = useInitializedStore('mainId')
 const constStore = useConstStore('mainId')
 
-// Read/write computed for subRowHeightScale (source of truth is constStore)
 const subRowHeightScaleValue = computed<number>({
   get: () => constStore.subRowHeightScale,
   set: (newVal: number | null) => {
@@ -110,7 +97,6 @@ const subRowHeightScaleValue = computed<number>({
   }
 })
 
-// Read/write computed for showFilenameChip (source of truth is constStore)
 const showFilenameChipValue = computed<boolean>({
   get: () => constStore.showFilenameChip,
   set: (newVal: boolean | null) => {
@@ -120,7 +106,6 @@ const showFilenameChipValue = computed<boolean>({
   }
 })
 
-// Handler invoked when the slider updates its model value
 const onSubRowHeightScaleUpdate = (newValue: number | null) => {
   const value = newValue ?? constStore.subRowHeightScale
   const clamped = Math.max(250, Math.min(450, value))

@@ -19,15 +19,6 @@
         :icon="abstractData.isFavorite ? 'mdi-star' : 'mdi-star-outline'"
         @click="setFavorite([index], !abstractData.isFavorite, isolationId)"
       ></v-btn>
-      <v-btn
-        v-if="abstractData && (abstractData.type === 'image' || abstractData.type === 'video')"
-        :icon="
-          abstractData.isArchived
-            ? 'mdi-archive-arrow-up-outline'
-            : 'mdi-archive-arrow-down-outline'
-        "
-        @click="setArchived([index], !abstractData.isArchived, isolationId)"
-      ></v-btn>
     </template>
     <DatabaseMenu
       v-if="
@@ -62,7 +53,7 @@
   </v-toolbar>
 </template>
 <script setup lang="ts">
-import { setFavorite, setArchived } from '@/api/editFlags'
+import { setFavorite } from '@/api/editFlags'
 import { EnrichedUnifiedData, IsolationId } from '@type/types'
 import DatabaseMenu from '@Menu/SingleMenu.vue'
 import AlbumMenu from '@Menu/AlbumMenu.vue'

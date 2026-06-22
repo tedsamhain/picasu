@@ -9,6 +9,12 @@
       <div class="config-stack">
         <div class="config-block">
           <v-row class="ma-0">
+            <FrontendConfig />
+          </v-row>
+        </div>
+
+        <div class="config-block">
+          <v-row class="ma-0">
             <ChangePassword v-model:has-password="localSettings.hasPassword" />
           </v-row>
         </div>
@@ -55,6 +61,7 @@ import ChangePassword from './Config/ChangePassword.vue'
 import StorageAndSync from './Config/StorageAndSync.vue'
 import AlbumIndex from './Config/AlbumIndex.vue'
 import AdvancedConfig from './Config/AdvancedConfig.vue'
+import FrontendConfig from './Config/FrontendConfig.vue'
 import { tryWithMessageStore } from '@/script/utils/try_catch'
 
 const configStore = useConfigStore('mainId')

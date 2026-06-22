@@ -112,16 +112,11 @@ const loading = ref(false)
 
 const baseTitleMap: Record<string, string> = {
   home: 'Home',
-  all: 'All',
-  favorite: 'Favorites',
-  archived: 'Archived',
   trashed: 'Trash',
   albums: 'Albums',
-  videos: 'Videos',
   album: 'Album',
   tags: 'Tags',
-  links: 'Links',
-  config: 'Configuration'
+  config: 'Settings'
 }
 
 const pageTitle = computed(() => {
