@@ -1,7 +1,7 @@
 ---
 status: open
 type: chore
-priority: medium
+priority: low
 area: devops
 ---
 

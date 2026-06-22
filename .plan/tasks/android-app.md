@@ -1,7 +1,7 @@
 ---
 status: idea
 type: feature
-priority: low
+priority: high
 area: frontend
 ---
 

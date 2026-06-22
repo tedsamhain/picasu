@@ -5,4 +5,7 @@ priority: low
 area: devops
 ---
 
-Standalone TLS deployment path: add `tls` Cargo feature gating `rocket/tls`, validate end-to-end with a real cert (certbot/acme.sh), document in CONFIG.md; only ship once tested.
+The builtin Rocket server supports TLS. Could potentially expose this as
+a feature, avoiding the reverse proxy when not needed.
+
+Could be an option of the local/host deployment path.

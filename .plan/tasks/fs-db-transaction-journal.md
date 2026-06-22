@@ -1,7 +1,7 @@
 ---
-status: open
+status: idea
 type: feature
-priority: high
+priority: medium
 area: backend
 ---
 

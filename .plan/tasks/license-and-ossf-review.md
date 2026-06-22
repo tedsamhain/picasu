@@ -1,8 +1,8 @@
 ---
 status: idea
 type: chore
-priority: low
+priority: medium
 area: devops
 ---
 
-Review for license issues, SPDX label and OSSF score card.
+Before first release: Review for license issues, SPDX label and OSSF score card.

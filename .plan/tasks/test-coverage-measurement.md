@@ -5,11 +5,8 @@ priority: medium
 area: testing
 ---
 
-Add test code coverage measurement tooling for both backend (Rust) and frontend (Vitest).
-
-## Current state
-
-Zero coverage tooling exists. No `cargo-llvm-cov`, `tarpaulin`, or `grcov` configured. Vitest has `@vitest/coverage-istanbul` and `@vitest/coverage-v8` as transitive deps but no `coverage:` config in `vitest.config.ts`. No CI coverage step, no Codecov/Coveralls integration. No way to measure line/branch coverage of either backend or frontend.
+Add **coverage reports** for both backend (Rust) and frontend (Vitest).
+Ensure expected test coverage is met, identify gaps.
 
 ## Scope
 
