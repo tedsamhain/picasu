@@ -5,7 +5,7 @@ priority: low
 area: testing
 ---
 
-Harder or blocked E2E scenarios:
+Harder E2E scenarios:
 
 1. **Prefetch snapshot expiry** — blocked on `expire_check` known bug
 2. **Video pipeline parity** — needs `ffmpeg`/`ffprobe` in test environment

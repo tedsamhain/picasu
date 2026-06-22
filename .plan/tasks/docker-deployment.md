@@ -1,5 +1,5 @@
 ---
-status: open
+status: backlog
 type: chore
 priority: low
 area: devops
