@@ -111,7 +111,7 @@ provide('imageContainerRef', imageContainerRef)
 provide('windowWidth', windowWidth)
 provide('windowHeight', windowHeight)
 
-const throttledHandleScroll = handleScroll(
+const { throttledHandleScroll, onWheel } = handleScroll(
   imageContainerRef,
   lastScrollTop,
   stopScroll,
@@ -182,9 +182,17 @@ onMounted(() => {
     windowWidth,
     props.isolationId
   )
+  const el = imageContainerRef.value
+  if (el) {
+    el.addEventListener('wheel', onWheel, { passive: false })
+  }
 })
 
 onBeforeUnmount(() => {
+  const el = imageContainerRef.value
+  if (el) {
+    el.removeEventListener('wheel', onWheel)
+  }
   workerStore.terminateWorker()
   initializedStore.initialized = false
   dataStore.clearAll()
