@@ -4,13 +4,7 @@ use super::fairing::generate_fairing_routes;
 use super::get::generate_get_routes;
 use super::post::generate_post_routes;
 use super::put::generate_put_routes;
-use crate::public::constant::storage::get_config_path;
-use crate::public::structure::config::AppConfig;
-
-use figment::{
-    Figment,
-    providers::{Format, Json},
-};
+use crate::public::structure::config::{AppConfig, APP_CONFIG};
 use rocket::data::{ByteUnit, Limits};
 use rocket::fs::FileServer;
 use rocket::info;
@@ -19,8 +13,8 @@ use std::path::PathBuf;
 #[cfg(test)]
 fn create_dummy_config() -> AppConfig {
     let mut config = AppConfig::default();
-    config.public.address = "127.0.0.1".to_string();
-    config.public.port = 8000;
+    config.address = "127.0.0.1".to_string();
+    config.port = 8000;
     config
 }
 
@@ -31,12 +25,11 @@ async fn assets(
     file: PathBuf,
 ) -> Option<(rocket::http::ContentType, std::borrow::Cow<'static, [u8]>)> {
     use crate::public::embedded::FrontendAssets;
-    use rocket::routes; // Import routes only where used
+    use rocket::routes;
 
     let filename = format!("assets/{}", file.display());
     let asset = FrontendAssets::get(&filename)?;
 
-    // Simplify MIME type handling logic
     let mime = mime_guess::from_path(&filename).first_or_octet_stream();
     let content_type = rocket::http::ContentType::parse_flexible(mime.as_ref())
         .unwrap_or(rocket::http::ContentType::Binary);
@@ -44,67 +37,9 @@ async fn assets(
     Some((content_type, asset.data))
 }
 
-/// Load configuration from the file system
+/// Load configuration from the already-initialized global config.
 pub fn load_config() -> AppConfig {
-    let config_path = get_config_path();
-    let figment = Figment::new().merge(Json::file(&config_path));
-
-    figment
-        .extract()
-        .expect("config.json format error or type mismatch")
-}
-
-/// Helper to parse limits from config
-fn extract_limit(app_config: &AppConfig, key: &str, default_val: &str) -> ByteUnit {
-    let raw_val = app_config
-        .public
-        .limits
-        .get(key)
-        .map_or(default_val, String::as_str);
-
-    raw_val.parse::<ByteUnit>().unwrap_or_else(|_| {
-        panic!("Invalid limit format for key '{key}': '{raw_val}' (example: \"10GiB\")")
-    })
-}
-
-#[cfg(test)]
-mod test_extract_limit {
-    use super::*;
-
-    #[test]
-    fn test_extract_limit_defaults() {
-        let config = create_dummy_config();
-
-        let limit = extract_limit(&config, "non_existent", "1KiB");
-        assert_eq!(limit, ByteUnit::KiB);
-
-        let limit = extract_limit(&config, "non_existent", "1MiB");
-        assert_eq!(limit, ByteUnit::MiB);
-    }
-
-    #[test]
-    fn test_extract_limit_custom() {
-        let mut config = create_dummy_config();
-        config
-            .public
-            .limits
-            .insert("custom".to_string(), "512KiB".to_string());
-
-        let limit = extract_limit(&config, "custom", "1MiB");
-        assert_eq!(limit, ByteUnit::from(512 * 1024));
-    }
-
-    #[test]
-    #[should_panic(expected = "Invalid limit format")]
-    fn test_extract_limit_invalid() {
-        let mut config = create_dummy_config();
-        config
-            .public
-            .limits
-            .insert("bad".to_string(), "invalid_unit".to_string());
-
-        extract_limit(&config, "bad", "1MiB");
-    }
+    APP_CONFIG.get().expect("APP_CONFIG not initialized").read().unwrap().clone()
 }
 
 /// Build and configure Rocket instance
@@ -115,28 +50,26 @@ pub fn build_rocket() -> rocket::Rocket<rocket::Build> {
 
 /// Build Rocket instance with injected configuration
 pub fn build_rocket_with_config(mut app_config: AppConfig) -> rocket::Rocket<rocket::Build> {
-    // UROCISSA_* env vars override config.json for Urocissa-owned settings
     if let Ok(port_str) = std::env::var("UROCISSA_PORT")
         && let Ok(port) = port_str.parse::<u16>()
     {
-        app_config.public.port = port;
+        app_config.port = port;
     }
     if let Ok(addr) = std::env::var("UROCISSA_ADDRESS") {
-        app_config.public.address = addr;
+        app_config.address = addr;
     }
 
+    let max_upload = app_config.max_upload_size.parse::<ByteUnit>().unwrap_or_else(|_| {
+        panic!("Invalid max_upload_size: '{}'", app_config.max_upload_size)
+    });
+
     let limits = Limits::default()
-        .limit("form", extract_limit(&app_config, "data-form", "10GiB"))
-        .limit(
-            "data-form",
-            extract_limit(&app_config, "data-form", "10GiB"),
-        )
-        .limit("file", extract_limit(&app_config, "file", "10GiB"))
-        .limit("json", extract_limit(&app_config, "json", "10MiB"));
+        .limit("file", max_upload)
+        .limit("data-form", max_upload);
 
     let rocket_config = rocket::Config::figment()
-        .merge(("address", &app_config.public.address))
-        .merge(("port", app_config.public.port))
+        .merge(("address", &app_config.address))
+        .merge(("port", app_config.port))
         .merge(("limits", limits));
 
     let base_app = rocket::custom(rocket_config)
@@ -159,12 +92,9 @@ mod test_build_rocket_with_config {
     #[test]
     fn test_build_rocket_config() {
         let mut config = create_dummy_config();
-        config.public.port = 9999;
-        config.public.address = "0.0.0.0".to_string();
-        config
-            .public
-            .limits
-            .insert("json".to_string(), "20MiB".to_string());
+        config.port = 9999;
+        config.address = "0.0.0.0".to_string();
+        config.max_upload_size = "500MiB".to_string();
 
         let rocket = build_rocket_with_config(config);
         let figment = rocket.figment();
@@ -175,26 +105,23 @@ mod test_build_rocket_with_config {
         assert_eq!(port, 9999);
         assert_eq!(address, "0.0.0.0");
 
-        // Limits in figment are stored under "limits"
-        // We can check if the value propagated to Figment correctly
-        // rocket::Config::figment() merges limits
         let limits: rocket::data::Limits =
             figment.extract_inner("limits").expect("limits not found");
-        assert_eq!(limits.get("json"), Some(ByteUnit::MiB * 20));
+        assert_eq!(limits.get("file"), Some(ByteUnit::MiB * 500));
+        assert_eq!(limits.get("data-form"), Some(ByteUnit::MiB * 500));
     }
 }
 
 fn mount_frontend(app: rocket::Rocket<rocket::Build>) -> rocket::Rocket<rocket::Build> {
     #[cfg(feature = "embed-frontend")]
     {
-        use rocket::routes; // Import routes only here
+        use rocket::routes;
         info!("Serving assets from embedded binary");
         app.mount("/", routes![assets])
     }
 
     #[cfg(not(feature = "embed-frontend"))]
     {
-        // Development mode: Assume frontend dist folder is in sibling directory
         let asset_path = PathBuf::from("../gallery-frontend/dist/assets");
         info!("Serving assets from: {:?}", asset_path);
         app.mount("/assets", FileServer::from(asset_path))

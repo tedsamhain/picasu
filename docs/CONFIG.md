@@ -1,78 +1,75 @@
 # Configuration Guide
 
-Urocissa uses `config.json` for application configuration. This file is located in the `gallery-backend` directory.
+Urocissa uses `config.toml` for application configuration. The config file
+location is determined at startup by the `UROCISSA_CONFIG_HOME` environment
+variable or the platform default (see [Storage locations](#storage-locations)).
 
-If `config.json` does not exist, it will be automatically created with default values when the application starts for the first time.
+If `config.toml` does not exist, it is automatically created with defaults
+when the application starts for the first time.
 
-## Configuration Structure
+## Configuration File
 
-The configuration is divided into `public` and `private` sections.
+```toml
+[server]
+address = "0.0.0.0"
+port = 5673
+max_upload_size = "100MiB"
 
-```json
-{
-  "public": {
-    "address": "0.0.0.0",
-    "port": 5673,
-    "limits": {
-      "file": "10GiB",
-      "json": "10MiB",
-      "data-form": "10GiB"
-    },
-    "imagePath": null,
-    "uploadFolder": "uploads",
-    "readOnlyMode": false,
-    "disableImg": false
-  },
-  "private": {
-    "password": null,
-    "authKey": null,
-    "discordHookUrl": null
-  }
-}
+[gallery]
+data_home = "/home/user/.local/share/urocissa"
+image_home = "/home/user/.local/share/urocissa/images"
+upload_folder = "uploads"
+read_only_mode = false
+disable_img = false
+
+[secrets]
+# password, auth_key, discord_hook_url only present if configured
 ```
 
-## Public Settings
+### `[server]` section
 
-These settings control the server's public-facing behavior.
+Server-level settings including web server and upload limits.
 
-| Setting            | Type           | Default     | Description                                                                                                                                                                                                                                                                                                                 |
-| ------------------ | -------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `address`          | string         | `"0.0.0.0"` | The IP address the server binds to. `"0.0.0.0"` means it listens on all available network interfaces.                                                                                                                                                                                                                       |
-| `port`             | number         | `5673`      | The port number the server listens on.                                                                                                                                                                                                                                                                                      |
-| `limits.file`      | string         | `"10GiB"`   | Maximum size for a single file upload. Accepts human-readable sizes: `"1GiB"`, `"512MiB"`, etc.                                                                                                                                                                                                                             |
-| `limits.json`      | string         | `"10MiB"`   | Maximum size for JSON request bodies.                                                                                                                                                                                                                                                                                       |
-| `limits.data-form` | string         | `"10GiB"`   | Maximum size for multipart form submissions (used for photo/video import).                                                                                                                                                                                                                                                  |
-| `imagePath`        | string \| null | `null`      | Single root directory to watch for new or changed media files. Example: `"/mnt/photos"`. If relative, resolved against `UROCISSA_IMAGE_HOME`. Aggregate multiple physical libraries under this one root at the filesystem level (bind mounts/symlinks) rather than configuring several paths — the OS already handles that. |
-| `uploadFolder`     | string         | `"uploads"` | Subfolder name (relative to `imagePath`) that uploads with no target album land in. Becomes its own top-level album automatically (album = directory). Uploads _with_ a target album write directly into that album's real directory instead.                                                                               |
-| `readOnlyMode`     | boolean        | `false`     | If `true`, the gallery runs in read-only mode — uploads, edits, and deletions are disabled.                                                                                                                                                                                                                                 |
-| `disableImg`       | boolean        | `false`     | If `true`, disables image processing in the frontend. **Intended for debugging only; do not use in production.**                                                                                                                                                                                                            |
+| Key               | Type   | Default   | Description                                                                                                        |
+| ----------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------ |
+| `address`         | string | `0.0.0.0` | IP address the server binds to.                                                                                    |
+| `port`            | number | `5673`    | Port the server listens on.                                                                                        |
+| `max_upload_size` | string | `100MiB`  | Maximum size for a single file upload. Accepts `1GiB`, `500MiB`, etc. Sets both Rocket `file` and `data-form` limits. |
 
-**Backfilling pre-existing files:** the filesystem watcher only reacts to
-_future_ create/modify events — it does not scan files already sitting
-under `imagePath` when the app starts (e.g. a volume populated before first
-run). After setting `imagePath`, use **Settings → One-Time Import → Scan
-Image Path** to index what's already there; unlike importing an arbitrary
-external folder, this always targets the configured `imagePath` itself, so
-album hierarchy is built from the directory structure correctly.
+### `[gallery]` section
 
-By default, Scan Image Path only processes files whose content hash isn't
-indexed yet — fast, safe to re-run routinely. Check **"Also refresh
-metadata for files already indexed"** to additionally re-run full metadata
-extraction (EXIF, tags, dimensions, thumbnail, perceptual hashes) for
-already-known files too. Use this to fix inconsistencies (e.g. after a
-metadata-extraction bug fix) or the first time you point `imagePath` at a
-pre-existing file repo, since files already indexed under older/incomplete
-logic won't otherwise get refreshed.
+Gallery application settings.
 
-## Private Settings
+| Key              | Type           | Default                    | Description                                                                                                                                                                                                                       |
+| ---------------- | -------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_home`      | string \| null | _resolved at first launch_ | Absolute path holding `db/`, `object/`, etc. Set automatically from `UROCISSA_DATA_HOME` or platform default. Stored so the runtime path is consistent regardless of env var changes.                                             |
+| `image_home`     | string \| null | _resolved at first launch_ | Single root directory the backend watches for new or changed media files. Set from `UROCISSA_IMAGE_HOME` or defaults to `<data_home>/images`. Read-only from the frontend — configure via env var or edit `config.toml` directly. |
+| `upload_folder`  | string         | `uploads`                  | Subfolder name (relative to `image_home`) that uploads with no target album land in.                                                                                                                                              |
+| `read_only_mode` | boolean        | `false`                    | If `true`, the gallery runs in read-only mode — uploads, edits, and deletions are disabled.                                                                                                                                       |
+| `disable_img`    | boolean        | `false`                    | Disables image processing in the frontend. Intended for debugging only.                                                                                                                                                           |
 
-These settings handle sensitive security and authentication data.
+### `[secrets]` section
 
-| Setting          | Type           | Default | Description                                                                                                                                                                                                                                                                                                                                     |
-| ---------------- | -------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `password`       | string \| null | `null`  | The password required to log in to the web interface. If `null`, no password is set and you will need to configure one.                                                                                                                                                                                                                         |
-| `authKey`        | string \| null | `null`  | The secret key used for signing authentication tokens (JWT). <br> - If `null`, a random key is generated on every startup, which invalidates existing login sessions upon restart.<br> - Set this to a random string to persist sessions across server restarts.<br> **If you are unsure what this does, keeping it as `null` is recommended.** |
-| `discordHookUrl` | string \| null | `null`  | Optional Discord Webhook URL for receiving error notifications.                                                                                                                                                                                                                                                                                 |
+Sensitive authentication and notification credentials. Only present when configured.
+
+| Key                | Type           | Default | Description                                                                                                                                                                                                                       |
+| ------------------ | -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `password`         | string \| null | `null`  | Password required to log in to the web interface. Set via the web UI or the password endpoint.                                                                                                                                    |
+| `auth_key`         | string \| null | `null`  | Secret key for signing JWT tokens. If `null`, a random key is generated on every startup (invalidates sessions on restart).                                                                                                       |
+| `discord_hook_url` | string \| null | `null`  | Discord Webhook URL for error notifications.                                                                                                                                                                                      |
+
+> **`data_home`** and **`image_home`** are resolved once on first launch
+> from environment variables or defaults. After that, `config.toml` is
+> authoritative — the env vars are not re-checked. To change them, edit
+> `config.toml` directly.
+
+### Backfilling pre-existing files
+
+The filesystem watcher only reacts to _future_ create/modify events — it
+does not scan files already sitting under `image_home` when the app starts.
+After setting `image_home`, use **Scan Now** in the web UI to index what's
+already there. Scan Now processes files whose content hash isn't indexed
+yet — fast, safe to re-run routinely.
 
 ## Storage locations
 
@@ -80,96 +77,51 @@ Urocissa resolves three independent root directories, each with the same
 precedence: **environment variable > legacy single-folder layout > OS-standard
 directory > working directory (last resort)**.
 
-| Root   | Env var                | Holds                                     | Default when unset                                          |
-| ------ | ---------------------- | ----------------------------------------- | ----------------------------------------------------------- |
-| Config | `UROCISSA_CONFIG_HOME` | `config.json`                             | platform config dir (e.g. `~/.config/urocissa` on Linux)    |
-| Data   | `UROCISSA_DATA_HOME`   | `db/`, `object/`, `upload/`               | platform data dir (e.g. `~/.local/share/urocissa` on Linux) |
-| Image  | `UROCISSA_IMAGE_HOME`  | base for resolving a relative `imagePath` | `<data dir>/images`                                         |
+| Root   | Env var                | Holds                             | Default when unset                                          |
+| ------ | ---------------------- | --------------------------------- | ----------------------------------------------------------- |
+| Config | `UROCISSA_CONFIG_HOME` | `config.toml`                     | platform config dir (e.g. `~/.config/urocissa` on Linux)    |
+| Data   | `UROCISSA_DATA_HOME`   | `db/`, `object/`, `index_v5.redb` | platform data dir (e.g. `~/.local/share/urocissa` on Linux) |
+| Image  | `UROCISSA_IMAGE_HOME`  | base for `image_home` if unset    | `<data dir>/images`                                         |
 
 The platform config/data dirs come from the `directories` crate, which
 already honors `$XDG_CONFIG_HOME`/`$XDG_DATA_HOME` on Linux and the platform
-equivalents on Windows/macOS — no separate XDG handling needed.
-
-`UROCISSA_IMAGE_HOME`'s default is deliberately _not_ the working
-directory: the cwd is arbitrary depending on how the binary was launched
-(systemd unit, Docker `WORKDIR`, a desktop shortcut), so it isn't a reliable
-place to expect media to already exist. Defaulting to a subdirectory of the
-already-resolved, stable data dir means a fresh install has a discoverable,
-predictable place to drop files into with zero configuration.
+equivalents on Windows/macOS.
 
 ```sh
 UROCISSA_CONFIG_HOME=/etc/urocissa UROCISSA_DATA_HOME=/var/lib/urocissa UROCISSA_IMAGE_HOME=/mnt/photos ./urocissa
 ```
 
-**Legacy single-folder layout:** if `./config.json` already exists in the
-working directory (true for any install that pre-dates the config/data
-split), both the config and data roots fall back to the working directory,
-so existing installs keep working unchanged without needing to set
-anything.
+**Legacy single-folder layout:** if `./config.toml`
+already exists in the working directory, both the config and data roots fall
+back to the working directory, so existing installs keep working unchanged.
 
-**Single root only:** `imagePath` and `UROCISSA_IMAGE_HOME` each take exactly
-one directory. Aggregate multiple physical photo/video libraries under that
-one root at the filesystem level (bind mounts or symlinks) rather than
-configuring a list — the OS already handles that well.
+## Environment variable overrides
 
-`just run` uses `UROCISSA_CONFIG_HOME`/`UROCISSA_DATA_HOME` to point a
-manually-launched dev instance at a throwaway sandbox directory
-(`sandbox/data`) instead of a real install's data, and
-`UROCISSA_IMAGE_HOME=sandbox/images` as a place to drop test galleries.
+The following env vars override the config file on every launch:
 
-The Docker image (`Dockerfile` at repo root) sets these to fixed in-image
-paths (`/config`, `/data`, `/images`); `compose.yaml` bind-mounts host
-directories onto them. See the README's Docker quick-setup section.
+| Variable                    | Overrides          |
+| --------------------------- | ------------------ |
+| `UROCISSA_PORT`              | `server.port`          |
+| `UROCISSA_ADDRESS`           | `server.address`      |
+| `UROCISSA_READ_ONLY_MODE`   | `read_only_mode`   |
+| `UROCISSA_DISABLE_IMG`      | `disable_img`      |
+| `UROCISSA_UPLOAD_FOLDER`    | `upload_folder`    |
+| `UROCISSA_MAX_UPLOAD_SIZE`  | `max_upload_size`  |
+| `UROCISSA_AUTH_KEY`         | `auth_key`         |
+| `UROCISSA_DISCORD_HOOK_URL` | `discord_hook_url` |
 
-> **Note:** the data directory holds real, back-up-worthy data, not disposable
-> cache — `db/index_v5.redb` is the only store of record for tags/album
-> assignments/flags. `IMAGE_HOME` holds the originals themselves (never
-> duplicated into `DATA_HOME`); `object/compressed/` here is only a
-> regenerable thumbnail/preview cache. A handful of files (`cache_db.redb`,
-> `temp_db.redb`, `expire_db.redb`) _are_ safely disposable; splitting those
-> into a dedicated state directory is a possible future change, not yet
-> done (see `TODO.md`).
->
-> If you're upgrading from before this was fixed, any pre-existing
-> `object/imported/` directory under your old data path is now unused —
-> safe to delete manually, nothing reads or writes it anymore.
+## Advanced: Rocket configuration
 
-## Advanced: Rocket Web Server Configuration
-
-`config.json` covers the settings most users need to change. Internally, these are merged into the configuration of [Rocket](https://rocket.rs), the web framework Urocissa uses.
-
-Rocket has additional options that are **not** exposed in `config.json` — such as TLS, worker thread count, connection keep-alive, and reverse-proxy header trust. You can set these without modifying the application using either of the two standard Rocket mechanisms, both of which work alongside `config.json`.
-
-### Option 1: `Rocket.toml`
-
-Place a `Rocket.toml` file in the `gallery-backend` directory. Settings here are merged with (and can override) the values from `config.json`.
+Rocket has additional options not exposed in this config — TLS, worker count,
+keep-alive, reverse-proxy headers. Set these via `Rocket.toml` or `ROCKET_*`
+env vars. See the [Rocket configuration guide](https://rocket.rs/guide/configuration/).
 
 ```toml
+# Rocket.toml (searched from cwd upward; or use ROCKET_CONFIG env var)
 [default]
-workers = 8          # async worker threads (default: logical CPUs × 2)
-keep_alive = 30      # connection keep-alive in seconds
+workers = 8
+keep_alive = 30
 ```
 
-> **HTTPS:** The standard build does not include Rocket's built-in TLS. The recommended approach for most deployments is to terminate TLS at a reverse proxy (nginx, Caddy) in front of Urocissa. Caddy handles certificate provisioning and renewal automatically.
-
-### Option 2: Environment variables
-
-Urocissa-owned settings (`port`, `address`) can be overridden via `UROCISSA_*` env vars:
-
-```sh
-UROCISSA_PORT=8080        # overrides config.json's port
-UROCISSA_ADDRESS=127.0.0.1  # overrides config.json's address
-```
-
-Any Rocket option (`workers`, `keep_alive`, TLS, etc.) can also be set via a `ROCKET_` prefixed environment variable:
-
-```sh
-ROCKET_WORKERS=8
-ROCKET_KEEP_ALIVE=30
-```
-
-> **Note:** `ROCKET_PORT` and `ROCKET_ADDRESS` exist but apply at the Rocket framework layer — they are an advanced escape hatch, not the canonical way to configure the listen address. Use `UROCISSA_PORT` / `UROCISSA_ADDRESS` for normal use.
->
-> Settings from both env-var namespaces are applied on top of the merged `config.json` + `Rocket.toml` base, so they can all coexist.
-
-For the full list of available Rocket options see the [Rocket configuration guide](https://rocket.rs/guide/configuration/).
+> HTTPS is best handled at a reverse proxy (nginx, Caddy) rather than
+> through Rocket's built-in TLS.

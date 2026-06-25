@@ -1,17 +1,13 @@
-// src/public/structure/config.rs
-
 use anyhow::Context;
 use base64::{Engine as _, engine::general_purpose};
 use log::{info, warn};
 use rand::{TryRng, rngs::SysRng};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::Write;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::{OnceLock, RwLock};
 
-use crate::public::constant::storage::get_config_path;
+use crate::public::constant::storage::{get_config_path, get_data_path, resolve_root, DATA_PATH};
 
 pub static FALLBACK_SECRET_KEY: OnceLock<String> = OnceLock::new();
 
@@ -27,101 +23,177 @@ fn default_upload_folder() -> String {
     "uploads".to_string()
 }
 
-/// Network and feature configuration written to `config.json`.
-///
-/// # Upload size limits (`limits`)
-///
-/// Controls the maximum body size Rocket will accept for each request type.
-/// Keys follow Rocket's naming convention; values are human-readable byte
-/// strings such as `"10GiB"` or `"512MiB"`.
-///
-/// | Key         | Default  | Purpose                                      |
-/// |-------------|----------|----------------------------------------------|
-/// | `json`      | 10MiB    | JSON API request bodies (config edits, etc.) |
-/// | `file`      | 10GiB    | Single file upload via `TempFile` guard      |
-/// | `data-form` | 10GiB    | Multipart form upload (photo/video import)   |
-///
-/// The defaults are intentionally large to accommodate high-resolution photos
-/// and video files. Reduce them if you want to cap individual upload size.
-///
-/// Additional Rocket tuning (workers, TLS, keep-alive, reverse-proxy headers)
-/// can be set via `Rocket.toml` or `ROCKET_*` environment variables without
-/// touching this file. See <https://rocket.rs/guide/configuration/>.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-pub struct PublicConfig {
-    pub address: String,
-    pub port: u16,
-    pub limits: HashMap<String, String>,
-    /// Single root directory to watch for new/changed media. `None` means
-    /// the watcher is inert. Resolved against `UROCISSA_IMAGE_HOME` if
-    /// relative — see `operations::utils::image_path`. Multiple physical
-    /// libraries are expected to be aggregated at the filesystem layer
-    /// (bind mounts/symlinks under this one root) rather than configured
-    /// here as a list.
-    #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
-    pub image_path: Option<PathBuf>,
-    /// Subfolder name (relative to the resolved `imagePath`) that uploads
-    /// with no target album land in — it becomes its own top-level album
-    /// automatically (album = directory). Uploads *with* a target album
-    /// write directly into that album's real directory instead.
-    #[serde(default = "default_upload_folder")]
-    pub upload_folder: String,
-    pub read_only_mode: bool,
-    pub disable_img: bool,
+fn default_max_upload_size() -> String {
+    "100MiB".to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-pub struct PrivateConfig {
-    pub password: Option<String>,
-    pub auth_key: Option<String>,
-    pub discord_hook_url: Option<String>,
-}
+// ── JSON API format (camelCase) ───────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AppConfig {
-    pub public: PublicConfig,
-    pub private: PrivateConfig,
+    pub address: String,
+    pub port: u16,
+    #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_home: Option<PathBuf>,
+    #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
+    #[serde(rename = "imagePath", alias = "imageHome")]
+    pub image_home: Option<PathBuf>,
+    #[serde(default = "default_upload_folder")]
+    pub upload_folder: String,
+    #[serde(default = "default_max_upload_size")]
+    pub max_upload_size: String,
+    pub read_only_mode: bool,
+    pub disable_img: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discord_hook_url: Option<String>,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
-        let mut limits = HashMap::new();
-        limits.insert("json".to_string(), "10MiB".to_string());
-        limits.insert("file".to_string(), "10GiB".to_string());
-        limits.insert("data-form".to_string(), "10GiB".to_string());
-
         Self {
-            public: PublicConfig {
-                address: "0.0.0.0".to_string(),
-                port: 5673,
-                limits,
-                image_path: None,
-                upload_folder: default_upload_folder(),
-                read_only_mode: false,
-                disable_img: false,
-            },
+            address: "0.0.0.0".to_string(),
+            port: 5673,
+            data_home: None,
+            image_home: None,
+            upload_folder: default_upload_folder(),
+            max_upload_size: default_max_upload_size(),
+            read_only_mode: false,
+            disable_img: false,
+            password: None,
+            auth_key: None,
+            discord_hook_url: None,
+        }
+    }
+}
 
-            private: PrivateConfig {
-                password: None,
-                auth_key: None,
-                discord_hook_url: None,
+// ── TOML file format (snake_case, sections) ──────────────────────────────────
+
+#[derive(Serialize, Deserialize)]
+struct TomlFile {
+    #[serde(default)]
+    server: TomlServer,
+    #[serde(default)]
+    gallery: TomlGallery,
+    #[serde(default)]
+    secrets: TomlSecrets,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct TomlServer {
+    #[serde(default = "default_address")]
+    address: String,
+    #[serde(default = "default_port")]
+    port: u16,
+    #[serde(default = "default_max_upload_size")]
+    max_upload_size: String,
+}
+
+impl Default for TomlServer {
+    fn default() -> Self {
+        Self { address: default_address(), port: default_port(), max_upload_size: default_max_upload_size() }
+    }
+}
+
+fn default_address() -> String { "0.0.0.0".to_string() }
+fn default_port() -> u16 { 5673 }
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct TomlGallery {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data_home: Option<PathBuf>,
+    image_home: Option<PathBuf>,
+    #[serde(default = "default_upload_folder")]
+    upload_folder: String,
+    #[serde(default)]
+    read_only_mode: bool,
+    #[serde(default)]
+    disable_img: bool,
+}
+
+impl Default for TomlGallery {
+    fn default() -> Self {
+        Self {
+            data_home: None,
+            image_home: None,
+            upload_folder: default_upload_folder(),
+            read_only_mode: false,
+            disable_img: false,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct TomlSecrets {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    auth_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    discord_hook_url: Option<String>,
+}
+
+impl Default for TomlSecrets {
+    fn default() -> Self {
+        Self { password: None, auth_key: None, discord_hook_url: None }
+    }
+}
+
+impl From<TomlFile> for AppConfig {
+    fn from(t: TomlFile) -> Self {
+        AppConfig {
+            address: t.server.address,
+            port: t.server.port,
+            data_home: t.gallery.data_home,
+            image_home: t.gallery.image_home,
+            upload_folder: t.gallery.upload_folder,
+            max_upload_size: t.server.max_upload_size,
+            read_only_mode: t.gallery.read_only_mode,
+            disable_img: t.gallery.disable_img,
+            password: t.secrets.password,
+            auth_key: t.secrets.auth_key,
+            discord_hook_url: t.secrets.discord_hook_url,
+        }
+    }
+}
+
+impl From<AppConfig> for TomlFile {
+    fn from(c: AppConfig) -> Self {
+        TomlFile {
+            server: TomlServer { address: c.address, port: c.port, max_upload_size: c.max_upload_size },
+            gallery: TomlGallery {
+                data_home: c.data_home,
+                image_home: c.image_home,
+                upload_folder: c.upload_folder,
+                read_only_mode: c.read_only_mode,
+                disable_img: c.disable_img,
+            },
+            secrets: TomlSecrets {
+                password: c.password,
+                auth_key: c.auth_key,
+                discord_hook_url: c.discord_hook_url,
             },
         }
     }
 }
 
+// ── Global config store ──────────────────────────────────────────────────────
+
 pub static APP_CONFIG: OnceLock<RwLock<AppConfig>> = OnceLock::new();
 
 impl AppConfig {
     pub fn get_jwt_secret_key(&self) -> Vec<u8> {
-        match self.private.auth_key.as_ref() {
-            Some(auth_key) => auth_key.as_bytes().to_vec(),
+        match self.auth_key.as_ref() {
+            Some(key) => key.as_bytes().to_vec(),
             None => FALLBACK_SECRET_KEY
                 .get_or_init(generate_secret_key)
                 .as_bytes()
@@ -133,60 +205,136 @@ impl AppConfig {
         let config_path = get_config_path();
         let config_path_display = config_path.display();
 
-        // Create default config file if it doesn't exist
+        // First-launch: config.toml doesn't exist yet
         if !config_path.exists() {
             info!(
-                "Configuration file not found at {config_path_display}. Creating default config.json..."
+                "Configuration file not found at {config_path_display}. Creating default config.toml..."
             );
-            let default_config = AppConfig::default();
 
-            if let Err(e) = Self::save_update(&default_config) {
+            let data_home =
+                resolve_root("UROCISSA_DATA_HOME", "data", |p| p.data_dir().to_path_buf());
+
+            let image_home = match std::env::var("UROCISSA_IMAGE_HOME") {
+                Ok(p) => Some(PathBuf::from(p)),
+                Err(_) => Some(data_home.join("images")),
+            };
+
+            let config = AppConfig {
+                data_home: Some(data_home),
+                image_home,
+                ..AppConfig::default()
+            };
+
+            if let Some(parent) = config_path.parent() {
+                if let Err(e) = fs::create_dir_all(parent) {
+                    warn!("Failed to create config directory {parent:?}: {e}");
+                }
+            }
+
+            if let Err(e) = Self::save_update(&config) {
                 warn!("Failed to create default config file: {e}");
             } else {
                 info!("Default configuration created successfully.");
             }
         }
 
+        // Read config file via TOML wrapper and merge with defaults
         info!("Loading configuration from {config_path_display}");
-        let (mut config, was_fallback) = Self::load_from_file();
 
-        if was_fallback {
-            info!("Overwriting invalid/empty config with defaults");
+        let mut config = match fs::read_to_string(&config_path) {
+            Ok(content) => match toml::from_str::<TomlFile>(&content) {
+                Ok(tf) => AppConfig::from(tf),
+                Err(e) => {
+                    warn!("Failed to parse config at {config_path_display}: {e:?}, using defaults");
+                    AppConfig::default()
+                }
+            },
+            Err(e) => {
+                warn!("Failed to read config file {config_path_display}: {e}");
+                AppConfig::default()
+            }
+        };
+
+        // Overwrite file if we had to fall back to defaults
+        if config == AppConfig::default() && config_path.exists() {
             if let Err(e) = Self::save_update(&config) {
                 warn!("Failed to save default config: {e}");
             }
         }
 
-        if config.private.auth_key.as_deref().is_none_or(str::is_empty) {
-            config.private.auth_key = None;
+        Self::apply_env_overrides(&mut config);
+
+        {
+            let data_path = config
+                .data_home
+                .clone()
+                .unwrap_or_else(|| get_data_path().clone());
+            DATA_PATH.set(data_path).ok();
+        }
+
+        if config.auth_key.as_deref().is_none_or(str::is_empty) {
+            config.auth_key = None;
             FALLBACK_SECRET_KEY.get_or_init(generate_secret_key);
         }
 
         APP_CONFIG
             .set(RwLock::new(config))
             .expect("Config already initialized");
+
+        // Let the logger know where we ended up
+        info!("Configuration loaded successfully.");
     }
 
-    fn load_from_file() -> (AppConfig, bool) {
-        let config_path = get_config_path();
-        let config_path_display = config_path.display();
-
-        let file_content = fs::read_to_string(&config_path).unwrap_or_else(|e| {
-            warn!("Failed to read config file {config_path_display}: {e}, using defaults");
-            "{}".to_string()
-        });
-
-        match serde_json::from_str::<AppConfig>(&file_content) {
-            Ok(config) => {
-                info!("Successfully loaded configuration from {config_path_display}");
-                (config, false)
+    fn apply_env_overrides(config: &mut AppConfig) {
+        if let Ok(val) = std::env::var("UROCISSA_DATA_HOME") {
+            let p = val.trim().to_string();
+            if !p.is_empty() {
+                config.data_home = Some(PathBuf::from(p));
             }
-            Err(e) => {
-                warn!(
-                    "Failed to deserialize config from {config_path_display}: {e:?}, using defaults"
-                );
-                (AppConfig::default(), true)
+        }
+        if let Ok(val) = std::env::var("UROCISSA_IMAGE_HOME") {
+            let p = val.trim().to_string();
+            if !p.is_empty() {
+                config.image_home = Some(PathBuf::from(p));
             }
+        }
+        if let Ok(val) = std::env::var("UROCISSA_PORT") {
+            if let Ok(port) = val.parse() {
+                config.port = port;
+            }
+        }
+        if let Ok(val) = std::env::var("UROCISSA_ADDRESS") {
+            config.address = val;
+        }
+        if let Ok(val) = std::env::var("UROCISSA_READ_ONLY_MODE") {
+            if let Ok(mode) = val.parse() {
+                config.read_only_mode = mode;
+            }
+        }
+        if let Ok(val) = std::env::var("UROCISSA_DISABLE_IMG") {
+            if let Ok(disabled) = val.parse() {
+                config.disable_img = disabled;
+            }
+        }
+        if let Ok(val) = std::env::var("UROCISSA_UPLOAD_FOLDER") {
+            let trimmed = val.trim().to_string();
+            if !trimmed.is_empty() {
+                config.upload_folder = trimmed;
+            }
+        }
+        if let Ok(val) = std::env::var("UROCISSA_MAX_UPLOAD_SIZE") {
+            let trimmed = val.trim().to_string();
+            if !trimmed.is_empty() {
+                config.max_upload_size = trimmed;
+            }
+        }
+        if let Ok(val) = std::env::var("UROCISSA_AUTH_KEY") {
+            let trimmed = val.trim().to_string();
+            config.auth_key = if trimmed.is_empty() { None } else { Some(trimmed) };
+        }
+        if let Ok(val) = std::env::var("UROCISSA_DISCORD_HOOK_URL") {
+            let trimmed = val.trim().to_string();
+            config.discord_hook_url = if trimmed.is_empty() { None } else { Some(trimmed) };
         }
     }
 
@@ -195,10 +343,7 @@ impl AppConfig {
 
         info!("Updating configuration...");
 
-        // Sanitize: only remove quotes and spaces, do not resolve the path.
-        // An empty string after trimming means "unset" (sentinel used by the
-        // edit_config request to clear the path).
-        new_config.public.image_path = new_config.public.image_path.and_then(|p| {
+        new_config.image_home = new_config.image_home.and_then(|p| {
             let cleaned = p.to_string_lossy().trim().trim_matches('"').to_string();
             if cleaned.is_empty() {
                 None
@@ -207,30 +352,26 @@ impl AppConfig {
             }
         });
 
-        // An empty upload_folder isn't a valid directory name; fall back to
-        // the default instead of writing uploads directly into imagePath's
-        // root with no subfolder of their own.
-        let trimmed_upload_folder = new_config.public.upload_folder.trim().to_string();
-        new_config.public.upload_folder = if trimmed_upload_folder.is_empty() {
+        let trimmed_upload_folder = new_config.upload_folder.trim().to_string();
+        new_config.upload_folder = if trimmed_upload_folder.is_empty() {
             default_upload_folder()
         } else {
             trimmed_upload_folder
         };
 
         if new_config
-            .private
             .auth_key
             .as_deref()
             .is_none_or(str::is_empty)
         {
-            new_config.private.auth_key = None;
+            new_config.auth_key = None;
         }
 
         Self::save_update(&new_config).context("Failed to save configuration to file")?;
 
         {
             let mut w = APP_CONFIG.get().unwrap().write().unwrap();
-            if new_config.private.auth_key.is_none() {
+            if new_config.auth_key.is_none() {
                 FALLBACK_SECRET_KEY.get_or_init(generate_secret_key);
             }
             *w = new_config.clone();
@@ -245,14 +386,11 @@ impl AppConfig {
         let config_path = get_config_path();
         let config_path_display = config_path.display();
 
-        let mut file = File::create(&config_path).context(format!(
-            "Failed to create config file {config_path_display}"
-        ))?;
+        let toml_file = TomlFile::from(config.clone());
+        let pretty_toml = toml::to_string_pretty(&toml_file)
+            .context("Failed to serialize configuration to TOML")?;
 
-        let pretty_json = serde_json::to_string_pretty(config)
-            .context("Failed to serialize configuration to JSON")?;
-
-        file.write_all(pretty_json.as_bytes()).context(format!(
+        fs::write(&config_path, pretty_toml.as_bytes()).context(format!(
             "Failed to write configuration to {config_path_display}"
         ))?;
 

@@ -113,6 +113,7 @@ Section "Uninstall"
   ; Remove files
   Delete "$INSTDIR\urocissa.exe"
   Delete "$INSTDIR\config.json"
+  Delete "$INSTDIR\config.toml"
   Delete "$INSTDIR\Uninstall.exe"
   
   ; Remove assets

@@ -1,9 +1,10 @@
+use std::fs;
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex, RwLock};
 
 use tempfile::TempDir;
 
-use crate::operations::utils::image_path::get_resolved_image_path;
+use crate::operations::utils::image_path::get_resolved_image_home;
 use crate::public::constant::redb::DATA_TABLE;
 use crate::public::constant::storage::DATA_PATH;
 use crate::public::db::tree::TREE;
@@ -25,7 +26,9 @@ pub static TEST_ENV: LazyLock<TestEnv> = LazyLock::new(|| {
         .expect("DATA_PATH already set");
 
     let mut test_config = AppConfig::default();
-    test_config.public.image_path = Some("".into());
+    let image_home = data_path.join("images");
+    std::fs::create_dir_all(&image_home).unwrap();
+    test_config.image_home = Some(image_home);
     APP_CONFIG
         .set(RwLock::new(test_config))
         .expect("APP_CONFIG already set");
@@ -43,26 +46,29 @@ pub static TEST_ENV: LazyLock<TestEnv> = LazyLock::new(|| {
 /// Derived from the test config that TEST_ENV sets up.
 pub fn test_image_home() -> PathBuf {
     let _ = &*TEST_ENV;
-    get_resolved_image_path().expect("IMAGE_HOME must be configured in test config")
+    get_resolved_image_home().expect("IMAGE_HOME must be configured in test config")
 }
 
-/// Serialize the fields from `updates` into the public config and write a
-/// config.json to the test directory for audit.  Affects the next call to
+/// Serialize the fields from `updates` into the config and write a
+/// config.toml to the test directory for audit.  Affects the next call to
 /// `make_client()` (the guard reads `APP_CONFIG` at request time).
-///
-/// Supported top-level keys (under `public`): `read_only_mode`, `image_path`.
 pub fn write_config(updates: &serde_json::Value) {
     let mut config = APP_CONFIG.get().unwrap().write().unwrap();
     if let Some(obj) = updates.as_object() {
         if let Some(val) = obj.get("read_only_mode").and_then(|v| v.as_bool()) {
-            config.public.read_only_mode = val;
+            config.read_only_mode = val;
         }
     }
     // Write a copy to disk for documentation/debugging.
+    use serde::Serialize;
+    #[derive(Serialize)]
+    struct ConfigFile<'a> {
+        urocissa: &'a AppConfig,
+    }
     let data_path = DATA_PATH.get().expect("DATA_PATH set");
-    let config_path = data_path.join("config.json");
-    if let Ok(json) = serde_json::to_string_pretty(&*config) {
-        let _ = std::fs::write(&config_path, json);
+    let config_path = data_path.join("config.toml");
+    if let Ok(toml) = toml::to_string_pretty(&ConfigFile { urocissa: &*config }) {
+        let _ = std::fs::write(&config_path, toml);
     }
 }
 

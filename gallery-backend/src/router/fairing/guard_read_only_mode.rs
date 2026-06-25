@@ -17,7 +17,6 @@ impl<'r> FromRequest<'r> for GuardReadOnlyMode {
             .unwrap()
             .read()
             .unwrap()
-            .public
             .read_only_mode
         {
             return Outcome::Error((

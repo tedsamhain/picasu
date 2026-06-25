@@ -1,5 +1,5 @@
 use crate::operations::dir_album::get_dir_path_for_album;
-use crate::operations::utils::image_path::get_resolved_image_path;
+use crate::operations::utils::image_path::get_resolved_image_home;
 use crate::public::constant::{VALID_IMAGE_EXTENSIONS, VALID_VIDEO_EXTENSIONS};
 use crate::public::error::{AppError, ErrorKind, ResultExt};
 use crate::public::structure::config::APP_CONFIG;
@@ -48,7 +48,7 @@ fn resolve_upload_target_dir(album_id: Option<ArrayString<64>>) -> Result<PathBu
             .ok_or_else(|| AppError::new(ErrorKind::InvalidInput, "Target album not found"));
     }
 
-    let image_root = get_resolved_image_path().ok_or_else(|| {
+    let image_root = get_resolved_image_home().ok_or_else(|| {
         AppError::new(
             ErrorKind::InvalidInput,
             "No imagePath configured -- set one in Settings before uploading without a target album",
@@ -60,7 +60,6 @@ fn resolve_upload_target_dir(album_id: Option<ArrayString<64>>) -> Result<PathBu
         .unwrap()
         .read()
         .unwrap()
-        .public
         .upload_folder
         .clone();
     let target_dir = image_root.join(upload_folder);
@@ -138,7 +137,7 @@ pub async fn upload(
         {
             let final_path =
                 save_file(file, &target_dir, filename, extension, last_modified).await?;
-            let image_root = get_resolved_image_path()
+            let image_root = get_resolved_image_home()
                 .ok_or_else(|| AppError::new(ErrorKind::InvalidInput, "No imagePath configured"))?;
             let relative_src = Path::new(&final_path)
                 .strip_prefix(&image_root)

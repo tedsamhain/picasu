@@ -6,7 +6,7 @@ use crate::public::structure::config::AppConfig;
 
 /// Initializes all core application subsystems.
 pub fn initialize() {
-    // Config must be initialized first to ensure 'config.json' exists for subsequent subsystems.
+    // Config must be initialized first to ensure 'config.toml' exists for subsequent subsystems.
     AppConfig::init();
 
     // Ensure storage folders exist before trying to download FFmpeg into them

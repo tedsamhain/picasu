@@ -64,6 +64,26 @@
         </template>
       </v-list-item>
 
+      <v-divider></v-divider>
+
+      <v-list-item
+        title="Max Upload Size"
+        subtitle="Maximum size for a single file upload (e.g. 500MiB, 1GiB)"
+        prepend-icon="mdi-upload-lock-outline"
+        lines="two"
+      >
+        <template #append>
+          <v-text-field
+            v-model="maxUploadSize"
+            density="compact"
+            variant="outlined"
+            hide-details
+            placeholder="100MiB"
+            style="max-width: 160px"
+          ></v-text-field>
+        </template>
+      </v-list-item>
+
       <v-card-actions class="justify-end px-4 pb-4">
         <v-btn color="primary" variant="flat" :loading="loading" @click="save" class="text-none">
           Save Changes
@@ -82,6 +102,7 @@ import { useMessageStore } from '@/store/messageStore'
 
 const imagePath = defineModel<string | null>('imagePath', { required: true })
 const uploadFolder = defineModel<string>('uploadFolder', { required: true })
+const maxUploadSize = defineModel<string>('maxUploadSize', { required: true })
 const configStore = useConfigStore('mainId')
 const messageStore = useMessageStore('mainId')
 
@@ -100,7 +121,8 @@ const save = async () => {
   loading.value = true
   const success = await configStore.updateConfig({
     imagePath: imagePath.value,
-    uploadFolder: uploadFolder.value
+    uploadFolder: uploadFolder.value,
+    maxUploadSize: maxUploadSize.value
   })
 
   if (success === true) {

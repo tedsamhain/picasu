@@ -65,7 +65,6 @@ pub fn try_jwt_cookie_auth(req: &Request<'_>, validation: &Validation) -> Result
         .unwrap()
         .read()
         .unwrap()
-        .private
         .password
         .is_none()
     {

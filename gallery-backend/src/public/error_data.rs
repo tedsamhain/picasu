@@ -12,7 +12,6 @@ pub fn handle_error(error: Error) -> Error {
         .unwrap()
         .read()
         .unwrap()
-        .private
         .discord_hook_url
     {
         send_discord_webhook(url, &format!("{error:?}"));
@@ -36,7 +35,6 @@ pub fn handle_app_error(error: &AppError) {
         .unwrap()
         .read()
         .unwrap()
-        .private
         .discord_hook_url
     {
         let debug_string = format!("{error}");

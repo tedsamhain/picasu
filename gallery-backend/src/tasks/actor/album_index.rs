@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 use walkdir::{DirEntry, WalkDir};
 
 use crate::{
-    operations::utils::image_path::get_resolved_image_path,
+    operations::utils::image_path::get_resolved_image_home,
     public::{
         constant::storage::get_data_path,
         error::{AppError, ErrorKind},
@@ -92,7 +92,7 @@ static ACTIVE_INDEX: LazyLock<Mutex<Option<ActiveIndex>>> = LazyLock::new(|| Mut
 /// Runs as a background job; status can be polled via `album_index_status()`.
 #[allow(clippy::too_many_lines)]
 pub fn index_album(src: &str) -> AppResult<()> {
-    let image_root = get_resolved_image_path()
+    let image_root = get_resolved_image_home()
         .ok_or_else(|| AppError::new(ErrorKind::InvalidInput, "No imagePath configured to scan"))?;
 
     let root = image_root.join(src.trim_start_matches('/'));

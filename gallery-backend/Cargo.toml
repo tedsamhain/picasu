@@ -32,7 +32,7 @@ env_logger = { version = "0.11.10", features = ["humantime", "color"] }
 envy = "0.4.2"
 filetime = "0.2.29"
 futures = "0.3.32"
-figment = { version = "0.10", features = ["json"] }
+figment = { version = "0.10", features = ["json", "toml"] }
 image = "0.25.10"
 image_hasher = "3.1.1"
 jsonwebtoken = { version = "10.4.0", features = ["rust_crypto"] }

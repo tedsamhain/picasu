@@ -7,11 +7,11 @@ use std::sync::OnceLock;
 pub static DATA_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-const CONFIG_FILE_NAME: &str = "config.json";
+const CONFIG_FILE_NAME: &str = "config.toml";
 
 /// Resolves a root directory using a fixed precedence:
 /// 1. `env_var`, if set — explicit override (e.g. `UROCISSA_DATA_HOME`).
-/// 2. The legacy single-folder layout: if `./config.json` already exists in
+/// 2. The legacy single-folder layout: if `./config.toml` already exists in
 ///    the working directory, pre-dates the split between config/data
 ///    locations below and must keep working unchanged.
 /// 3. The OS-standard directory for `kind` (XDG on Linux, equivalent
@@ -19,7 +19,7 @@ const CONFIG_FILE_NAME: &str = "config.json";
 ///    itself honors `$XDG_CONFIG_HOME`/`$XDG_DATA_HOME` if set).
 /// 4. The working directory, as a last resort if the OS directory can't be
 ///    determined at all.
-fn resolve_root(
+pub fn resolve_root(
     env_var: &str,
     kind: &str,
     os_dir: impl FnOnce(&ProjectDirs) -> PathBuf,
@@ -39,13 +39,13 @@ fn resolve_root(
         return dir;
     }
 
-    // Legacy back-compat: every pre-existing install (from before config and
-    // data locations were split) has `config.json` sitting next to its
-    // `db`/`object`/`upload` folders in the working directory. Detecting
-    // that file is a more precise signal than the old "does ./db or
-    // ./object exist" sniff, and covers both roots with one check.
+    // Legacy back-compat: every pre-existing install has `config.toml`
+    // sitting next to its `db`/`object`/`upload` folders in the working
+    // directory. Detecting that file is a more precise signal than the old
+    // "does ./db or ./object exist" sniff, and covers both roots with one
+    // check.
     if Path::new(CONFIG_FILE_NAME).exists() {
-        info!("Legacy single-folder layout detected (./config.json) — using cwd for {kind}");
+        info!("Legacy single-folder layout detected — using cwd for {kind}");
         return PathBuf::from(".");
     }
 
@@ -67,13 +67,13 @@ fn resolve_root(
     PathBuf::from(".")
 }
 
-/// Returns the path to `config.json`. See [`get_config_dir`] for how the
+/// Returns the path to `config.toml`. See [`get_config_dir`] for how the
 /// containing directory is resolved.
 pub fn get_config_path() -> PathBuf {
     get_config_dir().join(CONFIG_FILE_NAME)
 }
 
-/// Directory holding `config.json`. Override with `UROCISSA_CONFIG_HOME`;
+/// Directory holding `config.toml`. Override with `UROCISSA_CONFIG_HOME`;
 /// otherwise resolved independently of [`get_data_path`] (see [`resolve_root`]).
 pub fn get_config_dir() -> &'static PathBuf {
     CONFIG_DIR.get_or_init(|| {

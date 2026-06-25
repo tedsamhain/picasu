@@ -17,6 +17,7 @@ export interface AppConfig {
   discordHookUrl: string | null
   imagePath: string | null
   uploadFolder: string
+  maxUploadSize: string
 }
 
 export const getConfig = async (): Promise<AppConfig> => {

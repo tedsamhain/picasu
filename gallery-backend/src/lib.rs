@@ -57,10 +57,11 @@ pub fn run() {
     // Initialize logger first thing
     initialize_logger();
 
-    migration();
-
-    // Initialize core subsystems (Config, DB, FFmpeg checks)
+    // Initialize core subsystems (Config, DB, FFmpeg checks).
+    // Must run before migration() so DATA_PATH is resolved from config.
     initialize();
+
+    migration();
 
     // Load the directory→album mapping cache from disk (must run after initialize()).
     init_dir_album_cache();

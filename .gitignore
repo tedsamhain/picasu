@@ -6,7 +6,7 @@ cleanup.sh
 .vscode/
 
 # User-specific configuration files, added to .gitignore to avoid overwriting during collaboration
-gallery-backend/config.json
+gallery-backend/config.toml
 gallery-backend/Rocket.toml
 gallery-frontend/config.ts
 .env
@@ -24,8 +24,6 @@ gallery-backend/object
 
 # `just run`'s dev sandbox (data dir + test galleries, see docs/CONFIG.md)
 /sandbox/
-gallery-backend/sandbox/
-gallery-frontend/sandbox/
 
 # E2E test execution environments (generated per run)
 .testruns/

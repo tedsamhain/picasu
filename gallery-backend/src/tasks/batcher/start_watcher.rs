@@ -1,4 +1,4 @@
-use crate::operations::utils::image_path::{get_resolved_image_path, resolve_image_path};
+use crate::operations::utils::image_path::get_resolved_image_home;
 use crate::public::constant::runtime::INDEX_RUNTIME;
 use crate::public::media::is_valid_media_file;
 use crate::public::structure::config::APP_CONFIG;
@@ -67,8 +67,7 @@ fn start_watcher_task_internal() -> Result<()> {
         .unwrap()
         .read()
         .unwrap()
-        .public
-        .image_path
+        .image_home
         .clone();
 
     let Some(raw_image_path) = raw_image_path else {
@@ -76,8 +75,8 @@ fn start_watcher_task_internal() -> Result<()> {
         return Ok(());
     };
 
-    // Resolve to an absolute path before watching
-    let image_path = resolve_image_path(Some(raw_image_path)).expect("path was Some");
+    // Path is already absolute from config
+    let image_path = raw_image_path;
 
     // Build the watcher.
     let mut watcher = new_watcher()?;
@@ -122,7 +121,7 @@ fn submit_to_debounce_pool(path: PathBuf) {
 
         if should_run
             && is_valid_media_file(&path)
-            && let Some(image_root) = get_resolved_image_path()
+            && let Some(image_root) = get_resolved_image_home()
             && let Ok(relative) = path.strip_prefix(&image_root)
             && let Err(e) = index_image(relative, None).await
         {

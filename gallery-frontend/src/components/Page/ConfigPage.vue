@@ -24,6 +24,7 @@
             <StorageAndSync
               v-model:image-path="localSettings.imagePath"
               v-model:upload-folder="localSettings.uploadFolder"
+              v-model:max-upload-size="localSettings.maxUploadSize"
             />
           </v-row>
         </div>
@@ -81,6 +82,7 @@ const localSettings = reactive<AppConfig>({
   discordHookUrl: '',
   imagePath: null,
   uploadFolder: 'uploads',
+  maxUploadSize: '100MiB',
   address: '',
 
   port: 0,

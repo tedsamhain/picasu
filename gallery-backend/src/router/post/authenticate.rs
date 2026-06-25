@@ -27,7 +27,6 @@ pub fn authenticate(password: Json<String>) -> AppResult<Json<String>> {
         .unwrap()
         .read()
         .unwrap()
-        .private
         .password
         .clone();
 

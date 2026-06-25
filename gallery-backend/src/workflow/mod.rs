@@ -1,5 +1,5 @@
 use crate::operations::dir_album::{get_album_id_for_dir, get_or_create_dir_album};
-use crate::operations::utils::image_path::get_resolved_image_path;
+use crate::operations::utils::image_path::get_resolved_image_home;
 use crate::tasks::{
     INDEX_COORDINATOR,
     actor::{
@@ -37,7 +37,7 @@ fn try_acquire(hash: ArrayString<64>) -> Option<ProcessingGuard> {
 /// the file isn't under the configured image root or sits directly in it
 /// (no sub-directory to album-map).
 async fn ensure_dir_albums(file_path: &std::path::Path) -> Option<ArrayString<64>> {
-    let image_root = get_resolved_image_path()?;
+    let image_root = get_resolved_image_home()?;
 
     let file_dir = file_path.parent()?;
 
@@ -77,7 +77,7 @@ async fn ensure_dir_albums(file_path: &std::path::Path) -> Option<ArrayString<64
 /// metadata extraction or thumbnail regeneration is re-run.
 pub async fn index_image(src: &Path, dst: Option<&Path>) -> Result<()> {
     let image_root =
-        get_resolved_image_path().ok_or_else(|| anyhow::anyhow!("IMAGE_HOME not configured"))?;
+        get_resolved_image_home().ok_or_else(|| anyhow::anyhow!("IMAGE_HOME not configured"))?;
 
     let path = image_root.join(src).clean();
 
