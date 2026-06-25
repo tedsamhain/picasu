@@ -40,13 +40,34 @@ export async function executeWhen(
       await page.locator('.parent').filter({ hasText: text }).first().click()
     } else if ('click.icon' in step) {
       const iconClass = step['click.icon']
-      await page.evaluate((cls) => {
-        const icon = document.querySelector('.' + cls)
-        const btn = icon?.closest('button')
-        btn?.click()
-      }, iconClass)
+      for (let i = 0; i < 5; i++) {
+        const btn = page.locator(`button:has(.${iconClass})`)
+        if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await btn.click()
+          break
+        }
+        if (i < 4) {
+          await page.waitForTimeout(500)
+        } else {
+          throw new Error(
+            `Icon button with class "${iconClass}" not found after 5 attempts`
+          )
+        }
+      }
     } else if ('click.first' in step) {
-      await page.locator('.desktop-small-image').first().click()
+      for (let i = 0; i < 3; i++) {
+        await page.locator('.desktop-small-image').first().click()
+        try {
+          await page.waitForURL(/\/view\//, { timeout: 3000 })
+          break
+        } catch {
+          if (i < 2) {
+            await page.waitForTimeout(500)
+          } else {
+            throw new Error('click.first did not navigate to photo detail view')
+          }
+        }
+      }
     } else {
       throw new Error(
         `Unknown when verb in step ${JSON.stringify(step)}. ` +
