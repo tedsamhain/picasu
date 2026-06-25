@@ -58,10 +58,10 @@ Sensitive authentication and notification credentials. Only present when configu
 | `auth_key`         | string \| null | `null`  | Secret key for signing JWT tokens. If `null`, a random key is generated on every startup (invalidates sessions on restart).                                                                                                       |
 | `discord_hook_url` | string \| null | `null`  | Discord Webhook URL for error notifications.                                                                                                                                                                                      |
 
-> **`data_home`** and **`image_home`** are resolved once on first launch
-> from environment variables or defaults. After that, `config.toml` is
-> authoritative — the env vars are not re-checked. To change them, edit
-> `config.toml` directly.
+> **`data_home`** and **`image_home`** are resolved on first launch from
+> environment variables or defaults and written to `config.toml`. On
+> subsequent launches, `UROCISSA_DATA_HOME` and `UROCISSA_IMAGE_HOME` env
+> vars still override the stored value (they are checked every startup).
 
 ### Backfilling pre-existing files
 
@@ -99,16 +99,18 @@ back to the working directory, so existing installs keep working unchanged.
 
 The following env vars override the config file on every launch:
 
-| Variable                    | Overrides          |
-| --------------------------- | ------------------ |
-| `UROCISSA_PORT`              | `server.port`          |
-| `UROCISSA_ADDRESS`           | `server.address`      |
-| `UROCISSA_READ_ONLY_MODE`   | `read_only_mode`   |
-| `UROCISSA_DISABLE_IMG`      | `disable_img`      |
-| `UROCISSA_UPLOAD_FOLDER`    | `upload_folder`    |
-| `UROCISSA_MAX_UPLOAD_SIZE`  | `max_upload_size`  |
-| `UROCISSA_AUTH_KEY`         | `auth_key`         |
-| `UROCISSA_DISCORD_HOOK_URL` | `discord_hook_url` |
+| Variable                     | Overrides                    |
+| ---------------------------- | ---------------------------- |
+| `UROCISSA_ADDRESS`           | `server.address`             |
+| `UROCISSA_MAX_UPLOAD_SIZE`   | `server.max_upload_size`     |
+| `UROCISSA_PORT`              | `server.port`                |
+| `UROCISSA_DATA_HOME`         | `gallery.data_home`          |
+| `UROCISSA_DISABLE_IMG`       | `gallery.disable_img`        |
+| `UROCISSA_IMAGE_HOME`        | `gallery.image_home`         |
+| `UROCISSA_READ_ONLY_MODE`    | `gallery.read_only_mode`     |
+| `UROCISSA_UPLOAD_FOLDER`     | `gallery.upload_folder`      |
+| `UROCISSA_AUTH_KEY`          | `secrets.auth_key`           |
+| `UROCISSA_DISCORD_HOOK_URL`  | `secrets.discord_hook_url`   |
 
 ## Advanced: Rocket configuration
 
