@@ -29,70 +29,119 @@
 
     <!-- General empty state -->
     <v-row v-else justify="center">
-      <!-- Left: Upload-only card, shown only when level===3 and not in edit mode -->
-      <v-col
-        v-if="ui.showUploadCard && typeof route.params.hash === 'string'"
-        class="w-100"
-        cols="12"
-        md="6"
-        lg="4"
-      >
-        <v-hover v-slot="{ isHovering, props: hoverProps }">
-          <v-card
-            class="pa-4 text-center mx-auto"
-            :class="{ 'hover-cursor': true }"
-            :style="{
-              border: isHovering ? '2px solid rgb(var(--v-border-color))' : '2px solid transparent'
-            }"
-            :elevation="isHovering ? 12 : 2"
-            rounded="lg"
-            width="100%"
-            v-bind="hoverProps"
-            @click="uploadStore.triggerFileInput(route.params.hash)"
-          >
-            <v-icon class="mb-5" color="grey" size="100">mdi-cloud-upload</v-icon>
-            <v-card-item>
-              <v-card-subtitle>Upload new photos.</v-card-subtitle>
-            </v-card-item>
-          </v-card>
-        </v-hover>
-      </v-col>
+      <!-- Home page: dialog with upload + scan actions -->
+      <template v-if="route.meta.baseName === 'home'">
+        <v-dialog v-model="showDialog" max-width="560">
+          <v-card class="pa-6">
+            <v-card-title class="text-h5 font-weight-bold text-center">
+			  Database is empty, scan now or upload?
+            </v-card-title>
+            <v-card-subtitle class="text-center text-caption text-medium-emphasis mb-6">
+              Library Path: {{ imagePath ?? '…' }}
+            </v-card-subtitle>
 
-      <!-- Right: Main message card (click, hover, and message are all determined by the same computed property) -->
-      <v-col class="w-100" cols="12" md="6" lg="4">
-        <v-hover v-slot="{ isHovering, props: hoverProps }">
-          <v-card
-            class="pa-4 text-center mx-auto"
-            :class="{ 'hover-cursor': ui.hasHoverEffect }"
-            :style="{
-              border:
-                ui.hasHoverEffect && isHovering
+            <v-row dense>
+              <v-col cols="12" sm="6">
+                <v-card
+                  class="d-flex flex-column align-center justify-center pa-6 text-center"
+                  style="cursor: pointer; min-height: 180px"
+                  variant="outlined"
+                  rounded="lg"
+                  @click="onUploadClick"
+                >
+                  <v-icon size="64" color="grey">mdi-cloud-upload</v-icon>
+                  <div class="text-body-1 font-weight-medium mt-3">Upload Image</div>
+                </v-card>
+              </v-col>
+
+              <v-col cols="12" sm="6">
+                <v-card
+                  class="d-flex flex-column align-center justify-center pa-6 text-center"
+                  style="cursor: pointer; min-height: 180px"
+                  variant="outlined"
+                  rounded="lg"
+                  :disabled="!imagePath"
+                  @click="onStartScan"
+                >
+                  <v-icon size="64" color="grey">mdi-folder-refresh-outline</v-icon>
+                  <div class="text-body-1 font-weight-medium mt-3">Scan now</div>
+                </v-card>
+              </v-col>
+            </v-row>
+          </v-card>
+        </v-dialog>
+      </template>
+
+      <!-- Other pages: existing layout -->
+      <template v-else>
+        <v-col
+          v-if="ui.showUploadCard && typeof route.params.hash === 'string'"
+          class="w-100"
+          cols="12"
+          md="6"
+          lg="4"
+        >
+          <v-hover v-slot="{ isHovering, props: hoverProps }">
+            <v-card
+              class="pa-4 text-center mx-auto"
+              :class="{ 'hover-cursor': true }"
+              :style="{
+                border: isHovering
                   ? '2px solid rgb(var(--v-border-color))'
                   : '2px solid transparent'
-            }"
-            :elevation="ui.hasHoverEffect && isHovering ? 12 : 2"
-            rounded="lg"
-            width="100%"
-            v-bind="ui.hasHoverEffect ? hoverProps : {}"
-            @click="ui.onClick ? ui.onClick() : undefined"
-          >
-            <v-icon class="mb-5" color="grey" size="100"> {{ ui.icon }} </v-icon>
-            <v-card-item>
-              <v-card-subtitle>{{ ui.message }}</v-card-subtitle>
-            </v-card-item>
-          </v-card>
-        </v-hover>
-      </v-col>
+              }"
+              :elevation="isHovering ? 12 : 2"
+              rounded="lg"
+              width="100%"
+              v-bind="hoverProps"
+              @click="uploadStore.triggerFileInput(route.params.hash)"
+            >
+              <v-icon class="mb-5" color="grey" size="100">mdi-cloud-upload</v-icon>
+              <v-card-item>
+                <v-card-subtitle>Upload new photos.</v-card-subtitle>
+              </v-card-item>
+            </v-card>
+          </v-hover>
+        </v-col>
+
+        <v-col class="w-100" cols="12" md="6" lg="4">
+          <v-hover v-slot="{ isHovering, props: hoverProps }">
+            <v-card
+              class="pa-4 text-center mx-auto"
+              :class="{ 'hover-cursor': ui.hasHoverEffect }"
+              :style="{
+                border:
+                  ui.hasHoverEffect && isHovering
+                    ? '2px solid rgb(var(--v-border-color))'
+                    : '2px solid transparent'
+              }"
+              :elevation="ui.hasHoverEffect && isHovering ? 12 : 2"
+              rounded="lg"
+              width="100%"
+              v-bind="ui.hasHoverEffect ? hoverProps : {}"
+              @click="ui.onClick ? ui.onClick() : undefined"
+            >
+              <v-icon class="mb-5" color="grey" size="100"> {{ ui.icon }} </v-icon>
+              <v-card-item>
+                <v-card-subtitle>{{ ui.message }}</v-card-subtitle>
+              </v-card-item>
+            </v-card>
+          </v-hover>
+        </v-col>
+      </template>
     </v-row>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCollectionStore } from '@/store/collectionStore'
 import { useModalStore } from '@/store/modalStore'
 import { useUploadStore } from '@/store/uploadStore'
+import { useConfigStore } from '@/store/configStore'
+import { startAlbumIndex } from '@/api/fs'
+import { tryWithMessageStore } from '@/script/utils/try_catch'
 import type { IsolationId } from '@type/types'
 
 const props = defineProps<{
@@ -104,6 +153,10 @@ const route = useRoute()
 const uploadStore = useUploadStore('mainId')
 const collectionStore = useCollectionStore(props.isolationId)
 const modalStore = useModalStore('mainId')
+const configStore = useConfigStore('mainId')
+
+const showDialog = ref(true)
+const imagePath = computed(() => configStore.config?.imagePath ?? null)
 
 type ClickHandler = (() => void | Promise<void>) | undefined
 
@@ -116,17 +169,12 @@ interface UIState {
   onClick: ClickHandler
 }
 
-/**
- * Single computed property with a single switch (plus a few preconditions),
- * determines at once: whether to show two cards, hover, message, icon, and click behavior.
- */
 const ui = computed<UIState>(() => {
   const searchKey = props.isolationId === 'subId' ? 'subSearch' : 'search'
   const raw = route.query[searchKey]
   const searchText = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw.join(',') : ''
   const isSearching = searchText.trim() !== ''
 
-  // 1) No search results: always show a single card, no click
   if (isSearching) {
     return {
       isSearchEmpty: true,
@@ -138,9 +186,7 @@ const ui = computed<UIState>(() => {
     }
   }
 
-  // 2) Inside album (level === 3)
   if (route.meta.level === 3) {
-    // adding photos mode: only main card, no click
     if (collectionStore.editModeOn) {
       return {
         isSearchEmpty: false,
@@ -151,7 +197,6 @@ const ui = computed<UIState>(() => {
         onClick: undefined
       }
     }
-    // empty album mode: two cards (left = upload; right = select from existing photos)
     return {
       isSearchEmpty: false,
       showUploadCard: true,
@@ -164,7 +209,6 @@ const ui = computed<UIState>(() => {
     }
   }
 
-  // 3) Other pages: single switch based on baseName
   switch (route.meta.baseName) {
     case 'home':
     case 'all':
@@ -205,7 +249,7 @@ const ui = computed<UIState>(() => {
         isSearchEmpty: false,
         showUploadCard: false,
         hasHoverEffect: false,
-        message: 'Archived photos won’t appear on the home page.',
+        message: 'Archived photos won\u2019t appear on the home page.',
         icon: 'mdi-archive-arrow-down',
         onClick: undefined
       }
@@ -260,6 +304,23 @@ const ui = computed<UIState>(() => {
         onClick: undefined
       }
   }
+})
+
+function onUploadClick() {
+  uploadStore.triggerFileInput(undefined)
+  showDialog.value = false
+}
+
+async function onStartScan() {
+  showDialog.value = false
+  await tryWithMessageStore('mainId', async () => {
+    await startAlbumIndex()
+    return true
+  })
+}
+
+onMounted(() => {
+  void configStore.fetchConfig()
 })
 </script>
 

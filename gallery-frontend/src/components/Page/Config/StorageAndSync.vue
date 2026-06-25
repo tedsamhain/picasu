@@ -1,12 +1,12 @@
 <template>
   <v-col cols="12">
     <v-card border flat>
-      <v-card-title class="font-weight-bold">Image Paths</v-card-title>
+      <v-card-title class="font-weight-bold">Image Library</v-card-title>
       <v-divider thickness="4" variant="double"></v-divider>
 
       <v-list-item
-        title="Monitored Path"
-        subtitle="Directory the backend watches for new media"
+        title="Backend watches filesystem for modifications."
+        subtitle="Scan manually when DB out of sync, e.g. files copied while backend was offline."
         prepend-icon="mdi-folder-network-outline"
         lines="two"
       >
@@ -26,14 +26,14 @@
       </v-list-item>
 
       <v-list v-if="imagePath" lines="one">
-        <v-list-item :title="imagePath"></v-list-item>
+        <v-list-item :title="'Server Path: ' + imagePath"></v-list-item>
       </v-list>
 
       <v-empty-state
         v-else
         icon="mdi-folder-open-outline"
         title="No image path set"
-        text="Configure an image path in config.toml or via UROCISSA_IMAGE_HOME env var"
+        text="Set an image path in config.toml or via UROCISSA_IMAGE_HOME env var"
       ></v-empty-state>
 
       <v-divider></v-divider>
@@ -73,7 +73,7 @@
 
       <v-list-item
         title="Upload Folder"
-        subtitle="Subfolder under Image Path that uploads with no target album land in"
+        subtitle="Subfolder within to Image Library path"
         prepend-icon="mdi-tray-arrow-up"
         lines="two"
       >
