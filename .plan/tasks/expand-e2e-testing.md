@@ -28,4 +28,3 @@ Older items:
 - [ ] `POST /upload` with hash already known but different album → last-write-wins
 - [ ] `GET /object/*` with wrong hash-scoped token → 401/403
 - [ ] Prefetch snapshot expiry — blocked until prefetch-expiry bug is fixed
-

@@ -12,13 +12,7 @@ pub struct GuardReadOnlyMode;
 impl<'r> FromRequest<'r> for GuardReadOnlyMode {
     type Error = GuardError;
     async fn from_request(_req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        if APP_CONFIG
-            .get()
-            .unwrap()
-            .read()
-            .unwrap()
-            .read_only_mode
-        {
+        if APP_CONFIG.get().unwrap().read().unwrap().read_only_mode {
             return Outcome::Error((
                 Status::MethodNotAllowed,
                 AppError::new(ErrorKind::ReadOnlyMode, "Read-only mode is enabled"),

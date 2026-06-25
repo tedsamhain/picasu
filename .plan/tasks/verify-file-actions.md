@@ -19,4 +19,3 @@ Verify backend handling of basic file options via API and via filesystem
   - upload to target folder (rename/merge/skip)
   - move to target folder (rename/merge/skip)
   - delete (mark trash, confirm to delete)
-

@@ -72,7 +72,10 @@ auth_key = "jwt-key-from-toml"
     unsafe {
         std::env::set_var("UROCISSA_CONFIG_HOME", cfg_dir.to_str().unwrap());
         std::env::set_var("UROCISSA_DATA_HOME", dat_dir.to_str().unwrap());
-        std::env::set_var("UROCISSA_IMAGE_HOME", dat_dir.join("images").to_str().unwrap());
+        std::env::set_var(
+            "UROCISSA_IMAGE_HOME",
+            dat_dir.join("images").to_str().unwrap(),
+        );
 
         // Override config file values
         std::env::set_var("UROCISSA_PORT", "7777");
@@ -97,8 +100,14 @@ auth_key = "jwt-key-from-toml"
         // ── Env wins over config file ─────────────
         assert_eq!(cfg.port, 7777, "UROCISSA_PORT overrides config.toml");
         assert!(!cfg.read_only_mode, "UROCISSA_READ_ONLY_MODE overrides");
-        assert_eq!(cfg.upload_folder, "env_folder", "UROCISSA_UPLOAD_FOLDER overrides");
-        assert_eq!(cfg.max_upload_size, "300MiB", "UROCISSA_MAX_UPLOAD_SIZE overrides");
+        assert_eq!(
+            cfg.upload_folder, "env_folder",
+            "UROCISSA_UPLOAD_FOLDER overrides"
+        );
+        assert_eq!(
+            cfg.max_upload_size, "300MiB",
+            "UROCISSA_MAX_UPLOAD_SIZE overrides"
+        );
 
         // ── Env sets values not in config ─────────
         assert_eq!(cfg.address, "10.0.0.55", "UROCISSA_ADDRESS");
@@ -111,12 +120,19 @@ auth_key = "jwt-key-from-toml"
             "UROCISSA_AUTH_KEY overrides secrets block"
         );
 
-
         // ── Config file wins over default ─────────
-        assert_eq!(cfg.password.as_deref(), Some("secret123"), "password from secrets block");
+        assert_eq!(
+            cfg.password.as_deref(),
+            Some("secret123"),
+            "password from secrets block"
+        );
 
         // ── DATA_HOME / IMAGE_HOME from env ───────
-        assert_eq!(cfg.data_home.as_deref(), Some(dat_dir.as_path()), "UROCISSA_DATA_HOME");
+        assert_eq!(
+            cfg.data_home.as_deref(),
+            Some(dat_dir.as_path()),
+            "UROCISSA_DATA_HOME"
+        );
         assert_eq!(
             cfg.image_home.as_deref(),
             Some(dat_dir.join("images").as_path()),

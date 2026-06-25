@@ -18,7 +18,7 @@ keyed by `Utc::now()`, then immediately triggers `FlushTreeSnapshotTask` which:
 2. Writes it entry-by-entry to a per-timestamp redb table
 3. Removes it from DashMap
 
-The DashMap is therefore an *ephemeral write buffer* whose entries are drained
+The DashMap is therefore an _ephemeral write buffer_ whose entries are drained
 on whatever request happens to be the next cache miss — not a long-lived cache.
 There is no eviction policy, no memory limit, and no LRU tracking. The redb
 backing makes evicted entries still addressable by timestamp, but at the cost
@@ -39,7 +39,7 @@ changes, plus a 24h looper cycle) deletes stale tables from both
    - Measure flush task throughput (entries/ms).
 
 2. **Replace FIFO eviction with LRU** — the flush task should evict the
-   *least recently used* snapshot, not the first one in DashMap iteration
+   _least recently used_ snapshot, not the first one in DashMap iteration
    order. Options:
    - Wrap DashMap with an access-order tracking structure (e.g.
      `LinkedHashMap`- or `lru` crate-backed).

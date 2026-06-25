@@ -60,14 +60,7 @@ pub fn my_decode_token<T: DeserializeOwned>(token: &str, validation: &Validation
 /// Try to authenticate via JWT cookie and check if user is admin
 pub fn try_jwt_cookie_auth(req: &Request<'_>, validation: &Validation) -> Result<Claims> {
     // If no password is set, allow access as admin
-    if APP_CONFIG
-        .get()
-        .unwrap()
-        .read()
-        .unwrap()
-        .password
-        .is_none()
-    {
+    if APP_CONFIG.get().unwrap().read().unwrap().password.is_none() {
         return Ok(Claims::new_admin());
     }
 

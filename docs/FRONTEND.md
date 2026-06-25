@@ -95,6 +95,7 @@ Every page section (home, albums, all, etc.) shares a 4-level nested route struc
 **baseName values with full 4-level structure:** `home`, `all`, `favorite`, `archived`, `trashed`, `albums`, `videos`, `album`
 
 **baseName values with partial structure:**
+
 - `tags` — flat single page (`/tags`), no view/read overlays
 - `share` — 2 levels (`/share/:albumId-:shareId` and `/share/:albumId-:shareId/view/:hash`)
 - `config` — flat single page (`/config`)
@@ -186,11 +187,11 @@ Additional stores exist for configuration (`configStore`), messages (`messageSto
 
 ## Isolation IDs
 
-| ID       | Used in                         | Scope                        |
-| -------- | ------------------------------- | ---------------------------- |
-| `mainId` | Levels 1–2 (main grid + viewer) | Top-level page                |
-| `subId`  | Levels 3–4 (album grid + viewer)| Inside an open album          |
-| `tempId` | `HomeTemp`                      | Move-to-album selection modal |
+| ID       | Used in                          | Scope                         |
+| -------- | -------------------------------- | ----------------------------- |
+| `mainId` | Levels 1–2 (main grid + viewer)  | Top-level page                |
+| `subId`  | Levels 3–4 (album grid + viewer) | Inside an open album          |
+| `tempId` | `HomeTemp`                       | Move-to-album selection modal |
 
 ---
 
@@ -211,16 +212,16 @@ Additional stores exist for configuration (`configStore`), messages (`messageSto
 
 Filters are string expressions parsed by the Chevrotain lexer (`lexer.ts`). Each page sets a `basicString` that determines what `dataStore` contains:
 
-| Page          | basicString                                                 |
-| ------------- | ----------------------------------------------------------- |
-| HomePage      | `and(not(type:"album"), archived:false, trashed:false)`      |
-| AllPage       | `trashed:false`                                              |
-| FavoritePage  | `and(favorite:true, trashed:false)`                          |
-| ArchivedPage  | `and(archived:true, trashed:false)`                          |
-| TrashedPage   | `trashed:true`                                               |
-| AlbumsPage    | `and(type:"album", trashed:false, root_album:true)`          |
-| VideosPage    | `and(type:"video", archived:false, trashed:false)`           |
-| HomeIsolated  | `and(trashed:false, or(album:"<id>", parent_album:"<id>"))`  |
+| Page         | basicString                                                 |
+| ------------ | ----------------------------------------------------------- |
+| HomePage     | `and(not(type:"album"), archived:false, trashed:false)`     |
+| AllPage      | `trashed:false`                                             |
+| FavoritePage | `and(favorite:true, trashed:false)`                         |
+| ArchivedPage | `and(archived:true, trashed:false)`                         |
+| TrashedPage  | `trashed:true`                                              |
+| AlbumsPage   | `and(type:"album", trashed:false, root_album:true)`         |
+| VideosPage   | `and(type:"video", archived:false, trashed:false)`          |
+| HomeIsolated | `and(trashed:false, or(album:"<id>", parent_album:"<id>"))` |
 
 `parent_album:"<id>"` matches album objects whose directory parent is the given album. It is always false for images/videos.
 
@@ -230,29 +231,29 @@ Filters are string expressions parsed by the Chevrotain lexer (`lexer.ts`). Each
 
 The config page at `ConfigPage.vue` contains:
 
-| Section          | Component         | Features                                                    |
-| ---------------- | ----------------- | ----------------------------------------------------------- |
-| Display          | `FrontendConfig`  | Frontend-only UI preferences (light/dark mode, chips, etc.) |
-| Password         | `ChangePassword`  | Set or change the admin password                            |
-| Image Paths      | `StorageAndSync`  | Monitored path display, Scan Now button, scan status with counters (scanned/matched/processed/failed), Cancel button. Also has editable `maxUploadSize` and `uploadFolder` fields. Save writes to `PUT /put/config`. |
-| Advanced Settings | `AdvancedConfig`  | Read-only mode toggle, disable image processing, JWT auth key |
+| Section           | Component        | Features                                                                                                                                                                                                             |
+| ----------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Display           | `FrontendConfig` | Frontend-only UI preferences (light/dark mode, chips, etc.)                                                                                                                                                          |
+| Password          | `ChangePassword` | Set or change the admin password                                                                                                                                                                                     |
+| Image Paths       | `StorageAndSync` | Monitored path display, Scan Now button, scan status with counters (scanned/matched/processed/failed), Cancel button. Also has editable `maxUploadSize` and `uploadFolder` fields. Save writes to `PUT /put/config`. |
+| Advanced Settings | `AdvancedConfig` | Read-only mode toggle, disable image processing, JWT auth key                                                                                                                                                        |
 
 ---
 
 ## API Calls (frontend → backend)
 
-| Endpoint               | Used by                              | Returns                 |
-| ---------------------- | ------------------------------------ | ----------------------- |
-| `/get/config`          | `configStore.fetchConfig()`          | Public config (camelCase JSON) |
-| `/put/config`          | `configStore.updateConfig()`         | —                       |
-| `/put/config/password` | `ChangePassword`                     | —                       |
-| `/get/get-albums`      | `albumStore.fetchAlbums()`           | All albums              |
-| `/get/prefetch`        | `usePrefetch`                        | Row layout + dataLength |
-| `/get/get-data`        | grid worker (`toDataWorker.ts`)      | Batch of grid items     |
-| `/get/get-rows`        | grid worker (`toDataWorker.ts`)      | Row layout calculation  |
-| `/get/get-tags`        | `tagStore.fetchTags()`               | All tags                |
-| `/get/index/status`    | `StorageAndSync.vue` (scan polling)  | Album index status      |
-| `/post/index/album`    | `StorageAndSync.vue` (scan trigger)  | —                       |
-| `/post/index/cancel`   | `StorageAndSync.vue` (cancel scan)   | —                       |
+| Endpoint               | Used by                             | Returns                        |
+| ---------------------- | ----------------------------------- | ------------------------------ |
+| `/get/config`          | `configStore.fetchConfig()`         | Public config (camelCase JSON) |
+| `/put/config`          | `configStore.updateConfig()`        | —                              |
+| `/put/config/password` | `ChangePassword`                    | —                              |
+| `/get/get-albums`      | `albumStore.fetchAlbums()`          | All albums                     |
+| `/get/prefetch`        | `usePrefetch`                       | Row layout + dataLength        |
+| `/get/get-data`        | grid worker (`toDataWorker.ts`)     | Batch of grid items            |
+| `/get/get-rows`        | grid worker (`toDataWorker.ts`)     | Row layout calculation         |
+| `/get/get-tags`        | `tagStore.fetchTags()`              | All tags                       |
+| `/get/index/status`    | `StorageAndSync.vue` (scan polling) | Album index status             |
+| `/post/index/album`    | `StorageAndSync.vue` (scan trigger) | —                              |
+| `/post/index/cancel`   | `StorageAndSync.vue` (cancel scan)  | —                              |
 
 The grid uses a Web Worker (`toDataWorker.ts`) to fetch item batches via `/get/get-data` without blocking the UI. The layout calculation (`/get/get-rows`) runs first and determines how many rows exist; the worker then fills them in on demand as the user scrolls.

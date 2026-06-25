@@ -4,7 +4,7 @@ use super::fairing::generate_fairing_routes;
 use super::get::generate_get_routes;
 use super::post::generate_post_routes;
 use super::put::generate_put_routes;
-use crate::public::structure::config::{AppConfig, APP_CONFIG};
+use crate::public::structure::config::{APP_CONFIG, AppConfig};
 use rocket::data::{ByteUnit, Limits};
 use rocket::fs::FileServer;
 use rocket::info;
@@ -39,7 +39,12 @@ async fn assets(
 
 /// Load configuration from the already-initialized global config.
 pub fn load_config() -> AppConfig {
-    APP_CONFIG.get().expect("APP_CONFIG not initialized").read().unwrap().clone()
+    APP_CONFIG
+        .get()
+        .expect("APP_CONFIG not initialized")
+        .read()
+        .unwrap()
+        .clone()
 }
 
 /// Build and configure Rocket instance
@@ -59,9 +64,10 @@ pub fn build_rocket_with_config(mut app_config: AppConfig) -> rocket::Rocket<roc
         app_config.address = addr;
     }
 
-    let max_upload = app_config.max_upload_size.parse::<ByteUnit>().unwrap_or_else(|_| {
-        panic!("Invalid max_upload_size: '{}'", app_config.max_upload_size)
-    });
+    let max_upload = app_config
+        .max_upload_size
+        .parse::<ByteUnit>()
+        .unwrap_or_else(|_| panic!("Invalid max_upload_size: '{}'", app_config.max_upload_size));
 
     let limits = Limits::default()
         .limit("file", max_upload)

@@ -30,10 +30,10 @@ disable_img = false
 
 Server-level settings including web server and upload limits.
 
-| Key               | Type   | Default   | Description                                                                                                        |
-| ----------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------ |
-| `address`         | string | `0.0.0.0` | IP address the server binds to.                                                                                    |
-| `port`            | number | `5673`    | Port the server listens on.                                                                                        |
+| Key               | Type   | Default   | Description                                                                                                           |
+| ----------------- | ------ | --------- | --------------------------------------------------------------------------------------------------------------------- |
+| `address`         | string | `0.0.0.0` | IP address the server binds to.                                                                                       |
+| `port`            | number | `5673`    | Port the server listens on.                                                                                           |
 | `max_upload_size` | string | `100MiB`  | Maximum size for a single file upload. Accepts `1GiB`, `500MiB`, etc. Sets both Rocket `file` and `data-form` limits. |
 
 ### `[gallery]` section
@@ -52,10 +52,10 @@ Gallery application settings.
 
 Sensitive authentication and notification credentials. Only present when configured.
 
-| Key                | Type           | Default | Description                                                                                                                                                                                                                       |
-| ------------------ | -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `password`         | string \| null | `null`  | Password required to log in to the web interface. Set via the web UI or the password endpoint.                                                                                                                                    |
-| `auth_key`         | string \| null | `null`  | Secret key for signing JWT tokens. If `null`, a random key is generated on every startup (invalidates sessions on restart).                                                                                                       |
+| Key        | Type           | Default | Description                                                                                                                 |
+| ---------- | -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `password` | string \| null | `null`  | Password required to log in to the web interface. Set via the web UI or the password endpoint.                              |
+| `auth_key` | string \| null | `null`  | Secret key for signing JWT tokens. If `null`, a random key is generated on every startup (invalidates sessions on restart). |
 
 > **`data_home`** and **`image_home`** are resolved on first launch from
 > environment variables or defaults and written to `config.toml`. On
@@ -98,17 +98,17 @@ back to the working directory, so existing installs keep working unchanged.
 
 The following env vars override the config file on every launch:
 
-| Variable                     | Overrides                    |
-| ---------------------------- | ---------------------------- |
-| `UROCISSA_ADDRESS`           | `server.address`             |
-| `UROCISSA_MAX_UPLOAD_SIZE`   | `server.max_upload_size`     |
-| `UROCISSA_PORT`              | `server.port`                |
-| `UROCISSA_DATA_HOME`         | `gallery.data_home`          |
-| `UROCISSA_DISABLE_IMG`       | `gallery.disable_img`        |
-| `UROCISSA_IMAGE_HOME`        | `gallery.image_home`         |
-| `UROCISSA_READ_ONLY_MODE`    | `gallery.read_only_mode`     |
-| `UROCISSA_UPLOAD_FOLDER`     | `gallery.upload_folder`      |
-| `UROCISSA_AUTH_KEY`          | `secrets.auth_key`         |
+| Variable                   | Overrides                |
+| -------------------------- | ------------------------ |
+| `UROCISSA_ADDRESS`         | `server.address`         |
+| `UROCISSA_MAX_UPLOAD_SIZE` | `server.max_upload_size` |
+| `UROCISSA_PORT`            | `server.port`            |
+| `UROCISSA_DATA_HOME`       | `gallery.data_home`      |
+| `UROCISSA_DISABLE_IMG`     | `gallery.disable_img`    |
+| `UROCISSA_IMAGE_HOME`      | `gallery.image_home`     |
+| `UROCISSA_READ_ONLY_MODE`  | `gallery.read_only_mode` |
+| `UROCISSA_UPLOAD_FOLDER`   | `gallery.upload_folder`  |
+| `UROCISSA_AUTH_KEY`        | `secrets.auth_key`       |
 
 ## Advanced: Rocket configuration
 

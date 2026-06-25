@@ -49,9 +49,7 @@ export async function executeWhen(
         if (i < 4) {
           await page.waitForTimeout(500)
         } else {
-          throw new Error(
-            `Icon button with class "${iconClass}" not found after 5 attempts`
-          )
+          throw new Error(`Icon button with class "${iconClass}" not found after 5 attempts`)
         }
       }
     } else if ('click.first' in step) {

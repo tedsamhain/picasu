@@ -22,11 +22,22 @@ fn e2e_first_launch_resolves_paths() {
     // No config.toml exists — first launch should create it
     assert!(!cfg_dir.join("config.toml").exists());
     AppConfig::init();
-    assert!(cfg_dir.join("config.toml").exists(), "config.toml should be created");
+    assert!(
+        cfg_dir.join("config.toml").exists(),
+        "config.toml should be created"
+    );
 
     let cfg = APP_CONFIG.get().unwrap().read().unwrap();
-    assert_eq!(cfg.data_home.as_deref(), Some(dat_dir.as_path()), "data_home from env");
-    assert_eq!(cfg.image_home.as_deref(), Some(img_dir.as_path()), "image_home from env");
+    assert_eq!(
+        cfg.data_home.as_deref(),
+        Some(dat_dir.as_path()),
+        "data_home from env"
+    );
+    assert_eq!(
+        cfg.image_home.as_deref(),
+        Some(img_dir.as_path()),
+        "image_home from env"
+    );
     assert_eq!(cfg.port, 5673, "default port");
     assert_eq!(cfg.upload_folder, "uploads", "default upload_folder");
 

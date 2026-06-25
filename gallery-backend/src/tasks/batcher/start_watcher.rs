@@ -62,13 +62,7 @@ fn start_watcher_task_internal() -> Result<()> {
     }
 
     // Get the raw path from config system
-    let raw_image_path = APP_CONFIG
-        .get()
-        .unwrap()
-        .read()
-        .unwrap()
-        .image_home
-        .clone();
+    let raw_image_path = APP_CONFIG.get().unwrap().read().unwrap().image_home.clone();
 
     let Some(raw_image_path) = raw_image_path else {
         info!("No path to watch");

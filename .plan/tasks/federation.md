@@ -11,7 +11,7 @@ Self-hosting / Federation Options
   - linux VM
   - users with own namespace (and login != displayname)
 
-- storage backends 
+- storage backends
   - local FS (filesystem, NAS, NFS,...)
   - remote bulk storage with server side buffer
     - originals in bulk, configurable high-res buffer (x MB, 1080p, 1440p, 2160p,..)

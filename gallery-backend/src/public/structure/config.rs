@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::{OnceLock, RwLock};
 
-use crate::public::constant::storage::{get_config_path, get_data_path, resolve_root, DATA_PATH};
+use crate::public::constant::storage::{DATA_PATH, get_config_path, get_data_path, resolve_root};
 
 pub static FALLBACK_SECRET_KEY: OnceLock<String> = OnceLock::new();
 
@@ -95,12 +95,20 @@ pub(crate) struct TomlServer {
 
 impl Default for TomlServer {
     fn default() -> Self {
-        Self { address: default_address(), port: default_port(), max_upload_size: default_max_upload_size() }
+        Self {
+            address: default_address(),
+            port: default_port(),
+            max_upload_size: default_max_upload_size(),
+        }
     }
 }
 
-fn default_address() -> String { "0.0.0.0".to_string() }
-fn default_port() -> u16 { 5673 }
+fn default_address() -> String {
+    "0.0.0.0".to_string()
+}
+fn default_port() -> u16 {
+    5673
+}
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -139,7 +147,10 @@ pub(crate) struct TomlSecrets {
 
 impl Default for TomlSecrets {
     fn default() -> Self {
-        Self { password: None, auth_key: None }
+        Self {
+            password: None,
+            auth_key: None,
+        }
     }
 }
 
@@ -163,7 +174,11 @@ impl From<TomlFile> for AppConfig {
 impl From<AppConfig> for TomlFile {
     fn from(c: AppConfig) -> Self {
         TomlFile {
-            server: TomlServer { address: c.address, port: c.port, max_upload_size: c.max_upload_size },
+            server: TomlServer {
+                address: c.address,
+                port: c.port,
+                max_upload_size: c.max_upload_size,
+            },
             gallery: TomlGallery {
                 data_home: c.data_home,
                 image_home: c.image_home,
@@ -323,7 +338,11 @@ impl AppConfig {
         }
         if let Ok(val) = std::env::var("UROCISSA_AUTH_KEY") {
             let trimmed = val.trim().to_string();
-            config.auth_key = if trimmed.is_empty() { None } else { Some(trimmed) };
+            config.auth_key = if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            };
         }
     }
 
@@ -348,11 +367,7 @@ impl AppConfig {
             trimmed_upload_folder
         };
 
-        if new_config
-            .auth_key
-            .as_deref()
-            .is_none_or(str::is_empty)
-        {
+        if new_config.auth_key.as_deref().is_none_or(str::is_empty) {
             new_config.auth_key = None;
         }
 
@@ -429,9 +444,18 @@ mod tests {
         let tf = TomlFile::from(config);
         let toml_str = toml::to_string_pretty(&tf).unwrap();
 
-        assert!(toml_str.contains("[server]"), "should have [server] section");
-        assert!(toml_str.contains("[gallery]"), "should have [gallery] section");
-        assert!(toml_str.contains("[secrets]"), "should have [secrets] section");
+        assert!(
+            toml_str.contains("[server]"),
+            "should have [server] section"
+        );
+        assert!(
+            toml_str.contains("[gallery]"),
+            "should have [gallery] section"
+        );
+        assert!(
+            toml_str.contains("[secrets]"),
+            "should have [secrets] section"
+        );
         assert!(toml_str.contains("address = \"10.0.0.1\""));
         assert!(toml_str.contains("port = 8000"));
         assert!(toml_str.contains("max_upload_size = \"200MiB\""));

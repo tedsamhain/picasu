@@ -7,7 +7,7 @@ use rocket::http::{ContentType, Status};
 use rocket::local::blocking::Client;
 use serde_json::Value;
 
-use xtask::test_image::{generate_batch, PhotoSpec};
+use xtask::test_image::{PhotoSpec, generate_batch};
 
 use crate::tests::bootstrap::*;
 use crate::tests::fixtures::*;

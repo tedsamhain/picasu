@@ -11,5 +11,4 @@ Root: `useElementSize` ResizeObserver fires after the first render tick, too lat
 
 Fix: ensure `prefetchStore.windowWidth` is set before the first `fetchRowInWorker` call, or delay the Home.vue watch fetch until after `processPrefetchChain` completes.
 
-
 ### marked done - issue disappeared as of 03e9c654
