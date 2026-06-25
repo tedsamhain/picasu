@@ -252,6 +252,8 @@ pub fn generate_photo_file(spec: &PhotoSpec, path: &Path, rng: &mut SmallRng, st
     Ok(mode)
 }
 
+/// Used by backend e2e tests (`gallery-backend/src/tests/backend_api.rs`).
+#[allow(dead_code)]
 pub fn generate_batch(specs: &[PhotoSpec]) -> std::io::Result<()> {
     let mut rng = SmallRng::from_rng(&mut rand::rng());
     let mut stats = PerfCounter::new();
