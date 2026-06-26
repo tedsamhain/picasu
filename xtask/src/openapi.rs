@@ -3,7 +3,7 @@ use std::path::Path;
 
 const PAGE_MODULES: &[&str] = &["get_page", "random"];
 
-const BACKEND_SRC: &str = "gallery-backend/src";
+const BACKEND_SRC: &str = "backend/src";
 
 /// Route handler identified by its group, module, and function name.
 #[derive(Debug)]
@@ -63,7 +63,7 @@ pub fn check_coverage(router_root: &Path, backend_root: &Path) -> CoverageReport
 
 /// Run coverage check on the real codebase, print report, exit on failure.
 pub fn run_coverage() {
-    let router_root = Path::new("gallery-backend/src/router");
+    let router_root = Path::new("backend/src/router");
     let backend_root = Path::new(BACKEND_SRC);
     let report = check_coverage(router_root, backend_root);
 
@@ -118,9 +118,9 @@ pub fn run_coverage() {
 // ── Generator ─────────────────────────────────────────────────────────────────
 
 pub fn generate_openapi_rs() {
-    let router_root = Path::new("gallery-backend/src/router");
+    let router_root = Path::new("backend/src/router");
     let backend_root = Path::new(BACKEND_SRC);
-    let dest = Path::new("gallery-backend/src/openapi.rs");
+    let dest = Path::new("backend/src/openapi.rs");
 
     let all_routes = collect_all_routes(router_root);
 

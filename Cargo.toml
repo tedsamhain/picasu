@@ -1,6 +1,6 @@
 [workspace]
-members = ["gallery-backend", "xtask"]
-default-members = ["gallery-backend"]
+members = ["backend", "xtask"]
+default-members = ["backend"]
 resolver = "2"
 
 [profile.lto]

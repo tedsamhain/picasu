@@ -53,7 +53,7 @@ to catch configuration-specific divergence before a release.
 
 ### API scenario generator
 
-**Location:** `gallery-backend/tests/scenarios/*.yaml`
+**Location:** `backend/tests/scenarios/*.yaml`
 **Runner:** `build.rs` generates one `#[test]` per YAML file, delegating to
 the runtime interpreter in `src/tests/backend_api.rs`.
 **Run:** `cargo nextest run`
@@ -86,7 +86,7 @@ under test.
 
 ### UI scenario generator
 
-**Location:** `gallery-frontend/tests/playwright/scenarios/*.yaml`
+**Location:** `frontend/tests/playwright/scenarios/*.yaml`
 **Runner:** Zod-validated loader (`loadScenarios.ts`) drives
 `interpreter.spec.ts`.
 **Run:** `just frontend-e2e` (requires `npm run build` first — the backend

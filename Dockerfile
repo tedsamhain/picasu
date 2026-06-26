@@ -2,15 +2,15 @@
 # Frontend builder stage
 #
 # Must run before the backend build below: the `embed-frontend` feature
-# embeds `../gallery-frontend/dist/` into the binary at *compile* time (see
-# gallery-backend/src/public/embedded.rs), so the dist directory has to
+# embeds `../frontend/dist/` into the binary at *compile* time (see
+# backend/src/public/embedded.rs), so the dist directory has to
 # already exist when `cargo build` runs.
 ######################
 FROM node:lts AS frontend-builder
-WORKDIR /app/gallery-frontend
-COPY gallery-frontend/package.json gallery-frontend/package-lock.json ./
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
-COPY gallery-frontend ./
+COPY frontend ./
 RUN npm run build:only
 
 ######################
@@ -21,7 +21,7 @@ FROM rust:bookworm AS builder
 ARG BUILD_TYPE=release
 ENV BUILD_TYPE=${BUILD_TYPE}
 
-WORKDIR /app/gallery-backend
+WORKDIR /app/backend
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -29,24 +29,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY gallery-backend/Cargo.lock gallery-backend/Cargo.toml ./
-COPY gallery-backend/src ./src
+COPY backend/Cargo.lock backend/Cargo.toml ./
+COPY backend/src ./src
 
 # embed-frontend reads this path relative to the crate root at compile time.
-COPY --from=frontend-builder /app/gallery-frontend/dist /app/gallery-frontend/dist
+COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
 # Single self-contained binary: no separate frontend assets to ship or
 # locate at runtime, and no need to control the working directory the
 # binary is launched from.
 RUN if [ "${BUILD_TYPE}" = "release" ]; then \
-    cargo build --release --features embed-frontend --bin urocissa; \
+    cargo build --release --features embed-frontend --bin picasu; \
     elif [ "${BUILD_TYPE}" = "debug" ]; then \
-    cargo build --features embed-frontend --bin urocissa; \
+    cargo build --features embed-frontend --bin picasu; \
     else \
-    cargo build --profile "${BUILD_TYPE}" --features embed-frontend --bin urocissa; \
+    cargo build --profile "${BUILD_TYPE}" --features embed-frontend --bin picasu; \
     fi
 
-RUN cp /app/gallery-backend/target/${BUILD_TYPE}/urocissa /app/gallery-backend/urocissa
+RUN cp /app/backend/target/${BUILD_TYPE}/picasu /app/backend/picasu
 
 ######################
 # Runtime stage
@@ -59,16 +59,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Fixed in-image storage roots. Bind-mount host directories onto these in
-# `compose.yaml`/`docker run -v`, rather than relying on Urocissa's
+# `compose.yaml`/`docker run -v`, rather than relying on Picasu's
 # own portable/installed-mode autodetection or moving files into a
-# user-supplied path at container startup. See docs/CONFIG.md.
-ENV UROCISSA_CONFIG_HOME=/config
-ENV UROCISSA_DATA_HOME=/data
-ENV UROCISSA_IMAGE_HOME=/images
+# user-supplied path at container startup. See docs/config.md.
+ENV PICASU_CONFIG_HOME=/config
+ENV PICASU_DATA_HOME=/data
+ENV PICASU_IMAGE_HOME=/images
 RUN mkdir -p /config /data /images
 
 WORKDIR /app
-COPY --from=builder /app/gallery-backend/urocissa ./urocissa
+COPY --from=builder /app/backend/picasu ./picasu
 
 EXPOSE 5673
-ENTRYPOINT ["/app/urocissa"]
+ENTRYPOINT ["/app/picasu"]

@@ -1,6 +1,6 @@
 services:
-  urocissa:
-    image: hsa00000/urocissa:latest
+  picasu:
+    image: picasu/picasu:latest
     # To build the image from this checkout instead of pulling, comment out
     # `image:` above and uncomment the following:
     # build:
@@ -14,10 +14,10 @@ services:
       # These match the image's built-in defaults (see Dockerfile) and are
       # listed here for visibility; only change them if you also change the
       # volume targets below.
-      UROCISSA_CONFIG_HOME: /config
-      UROCISSA_DATA_HOME: /data
-      UROCISSA_IMAGE_HOME: /images
+      PICASU_CONFIG_HOME: /config
+      PICASU_DATA_HOME: /data
+      PICASU_IMAGE_HOME: /images
     volumes:
-      - ./urocissa-data/config:/config
-      - ./urocissa-data/state:/data
-      - ./urocissa-data/images:/images
+      - ./picasu-data/config:/config
+      - ./picasu-data/state:/data
+      - ./picasu-data/images:/images

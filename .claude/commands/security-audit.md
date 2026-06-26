@@ -3,7 +3,7 @@ description: Run cargo audit, cargo deny, and npm audit; triage each finding by 
 allowed-tools: Bash, Read, Edit, Write
 ---
 
-# Security Audit — urocissa
+# Security Audit — picasu
 
 Run the full audit suite for this Rust/Vue gallery project and work through every finding.
 
@@ -12,10 +12,10 @@ Run the full audit suite for this Rust/Vue gallery project and work through ever
 Run in parallel:
 
 ```bash
-cd gallery-backend && cargo audit 2>&1
-cd gallery-backend && cargo deny check 2>&1
-cd gallery-frontend && npm audit 2>&1
-cd gallery-frontend && npx npm-check-updates --format group 2>&1
+cd backend && cargo audit 2>&1
+cd backend && cargo deny check 2>&1
+cd frontend && npm audit 2>&1
+cd frontend && npx npm-check-updates --format group 2>&1
 ```
 
 Collect all output before proceeding.
@@ -61,7 +61,7 @@ Only suppress when:
 - The vulnerable code path is confirmed unreachable in this project
 - The dependency cannot be removed or replaced without significant refactoring
 
-**For `cargo audit`:** Add to `gallery-backend/.cargo/audit.toml`:
+**For `cargo audit`:** Add to `backend/.cargo/audit.toml`:
 ```toml
 [advisories]
 ignore = ["RUSTSEC-YYYY-NNNN"]  # brief reason comment
@@ -100,10 +100,10 @@ If both pass, commit with a message that lists each advisory addressed, whether 
 - `RUSTSEC-2024-0436` — `paste` unmaintained. Build-time proc-macro only, via `rav1e → image`. No runtime exposure, no fix available upstream.
 
 **Audit tooling locations:**
-- `gallery-backend/.cargo/audit.toml` — cargo audit ignore list
-- `gallery-backend/deny.toml` — cargo deny config (advisories, licenses, bans, sources)
+- `backend/.cargo/audit.toml` — cargo audit ignore list
+- `backend/deny.toml` — cargo deny config (advisories, licenses, bans, sources)
 - `justfile` targets: `just audit`, `just backend-audit`, `just frontend-audit`, `just backend-deny`
-- `gallery-frontend/package.json` — npm deps; use `npx npm-check-updates` to find updates
+- `frontend/package.json` — npm deps; use `npx npm-check-updates` to find updates
 
 **Key invariants not to break:**
 - `jsonwebtoken` must keep `features = ["rust_crypto"]` — removing it breaks HS256 encoding

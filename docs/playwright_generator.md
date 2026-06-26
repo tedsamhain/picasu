@@ -70,8 +70,8 @@ rewritten, as long as ARIA roles and accessible names are preserved.
 ### Prerequisites
 
 > **Important:** The E2E test does **not** use Vite's dev server. The backend
-> binary (`urocissa`) serves the production build of the frontend directly
-> from `gallery-frontend/dist/`. You must run `npm run build` before running
+> binary (`picasu`) serves the production build of the frontend directly
+> from `frontend/dist/`. You must run `npm run build` before running
 > tests. See the pipeline diagram above.
 
 The backend must be built, and the frontend must be built to `dist/` — the
@@ -79,14 +79,14 @@ e2e test does not use Vite's dev server. Playwright browsers must be
 installed:
 
 ```sh
-cd gallery-backend && cargo build
-cd gallery-frontend && npm run build && npx playwright install chromium
+cd backend && cargo build
+cd frontend && npm run build && npx playwright install chromium
 ```
 
 ### Run
 
 ```sh
-cd gallery-frontend
+cd frontend
 npx playwright test --grep "UI scenarios"
 ```
 
@@ -115,11 +115,11 @@ are consolidated to the shared run directory:
 
 ### Configuration
 
-| Variable        | Effect                                                      |
-| --------------- | ----------------------------------------------------------- |
-| `TEST_DIR`      | Top-level directory for all test outputs (default: `.testruns/` under repo root) |
-| `WORKER_NUM`    | Deterministic worker index (port = `30000 + N*2`, path = `{TEST_DIR}/playwright-{N}`) |
-| `CI`            | When set, enables Playwright retries (`retries: 2`) and `forbidOnly` |
+| Variable     | Effect                                                                                |
+| ------------ | ------------------------------------------------------------------------------------- |
+| `TEST_DIR`   | Top-level directory for all test outputs (default: `.testruns/` under repo root)      |
+| `WORKER_NUM` | Deterministic worker index (port = `30000 + N*2`, path = `{TEST_DIR}/playwright-{N}`) |
+| `CI`         | When set, enables Playwright retries (`retries: 2`) and `forbidOnly`                  |
 
 ## Components
 
@@ -287,18 +287,18 @@ instance.
   When `WORKER_NUM` is set, `id` is the worker number for deterministic
   paths and ports (`30000 + N*2`). Otherwise a random 6-char hex string.
 
-| Export / Function | Source                          |
-| ----------------- | ------------------------------- |
+| Export / Function | Source                                             |
+| ----------------- | -------------------------------------------------- |
 | `TEST_DIR`        | `process.env.TEST_DIR` or `{REPO_ROOT}/.testruns/` |
 | `createPaths()`   | `{TEST_DIR}/playwright-{WORKER_NUM\|random}/`      |
-| `ADMIN_PASSWORD`  | Always `e2e_test_pwd`           |
+| `ADMIN_PASSWORD`  | Always `e2e_test_pwd`                              |
 
 ## Isolation model
 
-| Concern                 | Mechanism                                                |
-| ----------------------- | -------------------------------------------------------- |
-| Data directory          | Unique per-scenario `playwright-{id}` under `TEST_DIR`   |
-| Backend port            | Unique per-scenario instance (random 30000–59999)         |
-| Auth token              | Reset before each scenario (`resetAuthToken()`)          |
-| Parallel workers        | Each scenario starts its own backend (fullyParallel: true)|
-| Path control            | `TEST_DIR` / `WORKER_NUM` env vars                       |
+| Concern          | Mechanism                                                  |
+| ---------------- | ---------------------------------------------------------- |
+| Data directory   | Unique per-scenario `playwright-{id}` under `TEST_DIR`     |
+| Backend port     | Unique per-scenario instance (random 30000–59999)          |
+| Auth token       | Reset before each scenario (`resetAuthToken()`)            |
+| Parallel workers | Each scenario starts its own backend (fullyParallel: true) |
+| Path control     | `TEST_DIR` / `WORKER_NUM` env vars                         |

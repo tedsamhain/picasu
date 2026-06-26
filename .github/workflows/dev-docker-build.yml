@@ -1,4 +1,4 @@
-name: Build and Push Urocissa Docker Images (Dev Branch)
+name: Build and Push Picasu Docker Images (Dev Branch)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: hsa00000/urocissa
+  IMAGE_NAME: picasu/picasu
   TAG_BASE: dev
 
 jobs:

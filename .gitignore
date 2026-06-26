@@ -6,23 +6,23 @@ cleanup.sh
 .vscode/
 
 # User-specific configuration files, added to .gitignore to avoid overwriting during collaboration
-gallery-backend/config.toml
-gallery-backend/Rocket.toml
-gallery-frontend/config.ts
+backend/config.toml
+backend/Rocket.toml
+frontend/config.ts
 .env
 
 # Ignore build and generated files that should not be version-controlled
-gallery-frontend/dist
-gallery-frontend/node_modules
-gallery-frontend/dev-dist
-gallery-backend/target
-gallery-backend/Cargo.lock
+frontend/dist
+frontend/node_modules
+frontend/dev-dist
+backend/target
+backend/Cargo.lock
 /target/
-gallery-backend/test
-gallery-backend/db
-gallery-backend/object
+backend/test
+backend/db
+backend/object
 
-# `just run`'s dev sandbox (data dir + test galleries, see docs/CONFIG.md)
+# `just run`'s dev sandbox (data dir + test galleries, see docs/config.md)
 /sandbox/
 
 # E2E test execution environments (generated per run)
@@ -30,13 +30,13 @@ gallery-backend/object
 
 # Local compose overrides + the bind-mounted volume dirs from compose.yaml
 compose.override.yaml
-urocissa-data/
+picasu-data/
 
 # Ignore installer executables
 *.exe
 
-# gallery-backend/upload: A user-specific folder for media uploads, should not be tracked
-gallery-backend/upload
+# backend/upload: A user-specific folder for media uploads, should not be tracked
+backend/upload
 
 # Ignore OpenCode config extensions
 .opencode/oh-my-opencode.jsonc

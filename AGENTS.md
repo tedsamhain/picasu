@@ -8,19 +8,19 @@
 
 ## Project Orientation
 
-Urocissa is a self-hosted photo gallery for millions of images. The repo has two independent frontends and one backend:
+Picasu is a self-hosted photo gallery for millions of images. The repo has two independent frontends and one backend:
 
-| Directory           | Stack                                | Role                                                     |
-| ------------------- | ------------------------------------ | -------------------------------------------------------- |
-| `gallery-backend/`  | Rust (Rocket, utoipa)                | HTTP API, image processing, metadata DB, file management |
-| `gallery-frontend/` | Vue 3 + Vuetify + Pinia + Vue Router | Main photo gallery SPA — shipped with the server binary  |
+| Directory   | Stack                                | Role                                                     |
+| ----------- | ------------------------------------ | -------------------------------------------------------- |
+| `backend/`  | Rust (Rocket, utoipa)                | HTTP API, image processing, metadata DB, file management |
+| `frontend/` | Vue 3 + Vuetify + Pinia + Vue Router | Main photo gallery SPA — shipped with the server binary  |
 
 **Entry points for a new agent:**
 
-1. **Architecture overview** — start with `docs/FRONTEND.md` (frontend) and `docs/design.md` (backend). They cover routing, state, component tree, filter system, and design decisions.
+1. **Architecture overview** — start with `docs/frontend.md` (frontend) and `docs/design.md` (backend). They cover routing, state, component tree, filter system, and design decisions.
 2. **Dev commands** — read `justfile` at the repo root. Key recipes: `just check` (lint), `just test` (backend nextest + frontend vitest), `just frontend-check`, `just frontend-test`, `just format` (auto-format)
-3. **Backend sources** — `gallery-backend/src/main.rs` (server bootstrap), `gallery-backend/src/router/` (API routes), `gallery-backend/src/operations/` (domain logic), `gallery-backend/src/process/` (background tasks).
-4. **Frontend sources** — `gallery-frontend/src/main.ts` (app bootstrap), `gallery-frontend/src/route/routes.ts` (URL structure), `gallery-frontend/src/store/` (Pinia stores), `gallery-frontend/src/components/` (Vue components) — see `docs/FRONTEND.md` for the component tree.
+3. **Backend sources** — `backend/src/main.rs` (server bootstrap), `backend/src/router/` (API routes), `backend/src/operations/` (domain logic), `backend/src/process/` (background tasks).
+4. **Frontend sources** — `frontend/src/main.ts` (app bootstrap), `frontend/src/route/routes.ts` (URL structure), `frontend/src/store/` (Pinia stores), `frontend/src/components/` (Vue components) — see `docs/frontend.md` for the component tree.
 5. **Testing** — Review `docs/test-strategy.md` and `docs/playwright_generator.md` before extending or modifying test scenarios or test infratructure.
 
 The `.plan/tasks/` directory tracks pending and completed work. Run `cargo xtask plan -k` to view the board.

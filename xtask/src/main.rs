@@ -206,23 +206,23 @@ fn emit_openapi() {
         .args([
             "run",
             "--package",
-            "urocissa",
+            "picasu",
             "--bin",
-            "urocissa-openapi",
+            "picasu-openapi",
             "--features",
             "openapi",
         ])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::inherit())
         .output()
-        .expect("failed to run urocissa-openapi");
+        .expect("failed to run picasu-openapi");
 
     if !output.status.success() {
         std::process::exit(output.status.code().unwrap_or(1));
     }
 
     let spec = String::from_utf8(output.stdout).expect("openapi output is not valid UTF-8");
-    let path = std::path::Path::new("gallery-backend").join("openapi.json");
+    let path = std::path::Path::new("backend").join("openapi.json");
     std::fs::write(&path, spec.as_bytes()).expect("failed to write openapi.json");
 
     eprintln!("wrote {}", path.display());

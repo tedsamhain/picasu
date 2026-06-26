@@ -1,4 +1,4 @@
-# Urocissa dev tasks
+# Picasu dev tasks
 # Install just: cargo install just
 # Activate pre-commit hook: git config core.hooksPath .githooks
 
@@ -11,60 +11,60 @@ help:
 # cargo fmt
 [group('backend')]
 backend-format:
-    cd gallery-backend && cargo fmt
+    cd backend && cargo fmt
 
 # cargo fmt --check + cargo clippy
 [group('backend')]
 backend-check:
-    cd gallery-backend && cargo fmt --check && cargo clippy -- -D warnings -A clippy::unwrap_used
+    cd backend && cargo fmt --check && cargo clippy -- -D warnings -A clippy::unwrap_used
 
 # cargo nextest run
 [group('backend')]
 backend-test:
-    cd gallery-backend && cargo nextest run
+    cd backend && cargo nextest run
 
 # cargo deny check
 [group('backend')]
 backend-deny:
-    cd gallery-backend && cargo deny check
+    cd backend && cargo deny check
 
 # cargo audit
 [group('backend')]
 backend-audit:
-    cd gallery-backend && cargo audit
+    cd backend && cargo audit
 
 # cargo build (debug, no embedded frontend) — developer default; matches check/test
 [group('backend')]
 backend-build:
-    cd gallery-backend && cargo build
+    cd backend && cargo build
 
 # cargo build --release --features embed-frontend — production build (CI/deployment)
 [group('backend')]
 backend-build-release:
-    cd gallery-backend && cargo build --release --features embed-frontend
+    cd backend && cargo build --release --features embed-frontend
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
 
 # prettier --write
 [group('frontend')]
 frontend-format:
-    npx prettier --write gallery-frontend/
+    npx prettier --write frontend/
 
 # prettier --check + vue-tsc + eslint
 [group('frontend')]
 frontend-check:
-    npx prettier --check gallery-frontend/ && cd gallery-frontend && npx vue-tsc --noEmit && npx eslint .
+    npx prettier --check frontend/ && cd frontend && npx vue-tsc --noEmit && npx eslint .
 
 # vitest run
 [group('frontend')]
 frontend-vitest:
-    cd gallery-frontend && npm test
+    cd frontend && npm test
 
 # Playwright E2E scenarios (each scenario starts its own isolated backend)
 [group('frontend')]
 frontend-playwright:
     # filter scenarios: npx playwright test --grep "onboarding"
-    cd gallery-frontend && npm run test:e2e
+    cd frontend && npm run test:e2e
 
 # all frontend tests
 [group('frontend')]
@@ -73,12 +73,12 @@ frontend-test: frontend-vitest frontend-playwright
 # npm run build (npm ci + vue-tsc + vite build)
 [group('frontend')]
 frontend-build:
-    cd gallery-frontend && npm run build
+    cd frontend && npm run build
 
 # npm audit
 [group('frontend')]
 frontend-audit:
-    cd gallery-frontend && npm audit
+    cd frontend && npm audit
 
 # ── Xtask tooling ───────────────────────────────────────────────────────────────
 
@@ -90,14 +90,14 @@ openapi-gen:
 # Generate full API docs: openapi.json + markdown reference
 [group('xtask')]
 openapi-docs: openapi-gen
-    npx --yes widdershins --summary gallery-backend/openapi.json -o docs/openapi-reference.md
+    npx --yes widdershins --summary backend/openapi.json -o docs/openapi-reference.md
     npx prettier --write docs/openapi-reference.md
 
 # Verify committed generated files match annotations (CI / precommit)
 [group('xtask')]
 openapi-docs-check: openapi-docs
     cargo xtask openapi-coverage
-    git diff --exit-code gallery-backend/src/openapi.rs gallery-backend/openapi.json docs/openapi-reference.md
+    git diff --exit-code backend/src/openapi.rs backend/openapi.json docs/openapi-reference.md
 
 # Auto-format .plan task frontmatter and body
 [group('xtask')]
@@ -146,8 +146,8 @@ install-dev:
     cargo install sccache
     cargo install cargo-deny cargo-audit
     cargo install --locked cargo-nextest
-    npm ci --prefix gallery-frontend
-    npm install --prefix gallery-frontend --save-dev --save-exact widdershins
+    npm ci --prefix frontend
+    npm install --prefix frontend --save-dev --save-exact widdershins
 
 # Build frontend then backend (debug, no embedded frontend) — developer default
 [group('global')]
@@ -169,11 +169,11 @@ run: clean build
     #!/usr/bin/env sh
     set -e
     mkdir -p sandbox/images
-    cd gallery-backend && \
-        UROCISSA_CONFIG_HOME="{{justfile_directory()}}/sandbox/data" \
-        UROCISSA_DATA_HOME="{{justfile_directory()}}/sandbox/data" \
-        UROCISSA_IMAGE_HOME="{{justfile_directory()}}/sandbox/images" \
-        cargo run --bin urocissa
+    cd backend && \
+        PICASU_CONFIG_HOME="{{justfile_directory()}}/sandbox/data" \
+        PICASU_DATA_HOME="{{justfile_directory()}}/sandbox/data" \
+        PICASU_IMAGE_HOME="{{justfile_directory()}}/sandbox/images" \
+        cargo run --bin picasu
 
 # Run security audits (backend + frontend)
 [group('global')]
@@ -200,13 +200,13 @@ precommit:
     fi
 
     echo "[ precommit ] On '$branch' — format/lint enforced; run tests at your disgression."
-    if echo "$changed" | grep -q '^gallery-backend/'; then
+    if echo "$changed" | grep -q '^backend/'; then
         just backend-check
     fi
     if echo "$changed" | grep -qE '^(\.plan/|docs/|[^/]+\.md$)'; then
         just plan-lint
         just docs-check
     fi
-    if echo "$changed" | grep -q '^gallery-frontend/'; then
+    if echo "$changed" | grep -q '^frontend/'; then
         just frontend-check
     fi

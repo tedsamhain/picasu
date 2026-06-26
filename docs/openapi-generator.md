@@ -2,9 +2,9 @@
 
 ## Motivation
 
-The backend exposes ~65 route handlers across GET, POST, PUT, DELETE, and
-fairing modules. Keeping the API documentation and test coverage in sync with
-the actual implementation is a constant drift problem in any live codebase.
+The backend exposes ~63 route handlers across GET, POST, PUT, and DELETE
+modules. Keeping the API documentation and test coverage in sync with the
+actual implementation is a constant drift problem in any live codebase.
 
 This project avoids that drift by making the code itself the sole authority:
 
@@ -27,23 +27,23 @@ This minimises the risk of undocumented or untested functions due to code drift.
 ## Pipeline
 
 ```
-┌─────────────────────┐     ┌──────────────────────┐
-│  routes![] macros   │     │  #[utoipa::path(...)] │
-│  (which routes)     │     │  (OpenAPI metadata)   │
-└──────┬──────────────┘     └──────────┬───────────┘
+┌─────────────────────┐     ┌──────────────────────────┐
+│  routes![] macros   │     │  #[utoipa::path(...)]    │
+│  (which routes)     │     │  (OpenAPI metadata)      │
+└──────┬──────────────┘     └──────────┬───────────────┘
        │                               │
        ▼                               ▼
-┌───────────────────────────────────────────────┐
-│          cargo xtask openapi-gen              │
-│                                               │
-│  1. Scan routes![] for all handler names      │
-│  2. Scan handler source for #[utoipa::path]   │
-│  3. Generate gallery-backend/src/openapi.rs   │
-│  4. Compile gallery-backend with openapi feat.│
-│  5. Run ApiDoc → openapi.json                 │
-└──────┬───────────────────────────┬────────────┘
-       │                           │
-       ▼                           ▼
+┌──────────────────────────────────────────────────┐
+│            cargo xtask openapi-gen               │
+│                                                  │
+│  1. Scan all routes![] for handler names         │
+│  2. Scan handler source for #[utoipa::path]      │
+│  3. Generate backend/src/openapi.rs               │
+│  4. Compile server with openapi feature          │
+│  5. Run picasu-openapi → openapi.json            │
+└──────┬─────────────────────────────┬────────────┘
+       │                             │
+       ▼                             ▼
 ┌──────────────┐      ┌──────────────────────────┐
 │ openapi.json │      │ docs/openapi-reference.md │
 │ (spec)       │      │ (widdershins markdown)    │
@@ -53,39 +53,44 @@ This minimises the risk of undocumented or untested functions due to code drift.
 ### Steps
 
 1. **`cargo xtask openapi-gen`** — the core command. It:
-   - Parses `routes![]` in `router/{get,post,put,delete,fairing}/mod.rs` to
-     discover every registered handler.
-   - Excludes known page-serving modules (`get_page`, `random`) — these are
-     SPA routes with no JSON API surface.
-   - For each remaining handler, reads its source file to check for a
+   - Parses every `routes![]` invocation in `router/{get,post,put}/mod.rs` and
+     `router/delete.rs` to discover every registered handler.
+   - For each handler, reads its source file to check for a
      `#[utoipa::path]` or `#[cfg_attr(feature = "openapi", utoipa::path(...))]`
      annotation.
-   - Writes `gallery-backend/src/openapi.rs` containing only the annotated
-     routes, with the correct `__path_*` imports and `paths(...)` registration.
-   - Compiles `gallery-backend` with `--features openapi` and runs the
-     `urocissa-openapi` binary, which calls `ApiDoc::openapi().to_json()`.
-   - Writes the result to `gallery-backend/openapi.json`.
+   - Writes `backend/src/openapi.rs` containing only the annotated routes, with
+     the correct `__path_*` imports and `paths(...)` registration.
+   - Compiles `backend` with `--features openapi` and runs the `picasu-openapi`
+     binary, which calls `ApiDoc::openapi().to_json()`.
+   - Writes the result to `backend/openapi.json`.
 
 2. **`just openapi-docs`** — chains `openapi-gen` with:
    - `widdershins` to convert `openapi.json` → `docs/openapi-reference.md`
    - `prettier` for consistent markdown formatting
 
-3. **`just openapi-docs-check`** — runs the full generation, then fails if
-   any of the three committed files (`openapi.rs`, `openapi.json`,
-   `docs/openapi-reference.md`) differ from the working tree. Wired into
-   `just precommit` on the `main` branch.
+3. **`just openapi-docs-check`** — runs the full generation plus coverage
+   check, then fails if any of the three committed files (`openapi.rs`,
+   `openapi.json`, `docs/openapi-reference.md`) differ from the working tree.
+   Wired into `just precommit` on the `main` branch.
 
 ### Coverage Tool
 
 `cargo xtask openapi-coverage` is a fast, no-compilation check that reports:
 
-- Total registered routes
-- Page routes (intentionally excluded)
-- Data API routes with and without annotations
+- Total registered routes (all must be annotated)
+- Annotated vs missing routes
 - Coverage percentage
 
-It exits non-zero if any data API route lacks a utoipa annotation. This can be
-run independently at any time without compiling the backend.
+It exits non-zero if any route lacks a `#[utoipa::path]` annotation. No
+module-level exemptions exist — every route is subject to the check.
+
+## Tag conventions
+
+| Tag | Routes | Description |
+|---|---|---|
+| *(none)* | Standard data API endpoints | `GET /get/...`, `POST /post/...`, `PUT /put/...`, `DELETE /delete/...` |
+| `pages` | SPA HTML page routes | `GET /home`, `GET /albums`, `GET /login`, etc. — serve `index.html` |
+| `development` | Debug-only tooling | `GET /put/generate_random_data` — generates fake data for testing |
 
 ## Workflow
 
@@ -93,7 +98,8 @@ run independently at any time without compiling the backend.
 
 1. Add the handler function to a `routes![]` block.
 2. Add `#[cfg_attr(feature = "openapi", utoipa::path(...))]` with the route's
-   HTTP method, path, parameters, and response types.
+   HTTP method, path, parameters, and response types. Pick the appropriate
+   tag (or omit for standard data APIs).
 3. Run `just openapi-docs` — this regenerates all three committed files.
 4. Run `cargo xtask openapi-coverage` to confirm 100%.
 5. Commit the handler, its annotation, and the three generated files together.
@@ -124,13 +130,13 @@ while guaranteeing completeness.
 
 `#[derive(OpenApi)]` references `__path_*` items generated by
 `#[utoipa::path(...)]` proc-macros in the same crate. Cross-crate access would
-require re-exporting every `__path_*` symbol from `gallery-backend`'s public
-API — more boilerplate, not less. The generated file lives in `gallery-backend`
-but is written by xtask before compilation.
+require re-exporting every `__path_*` symbol from `backend`'s public API — more
+boilerplate, not less. The generated file lives in `backend` but is written by
+xtask before compilation.
 
 ### Why the stack size override?
 
-`ApiDoc::openapi()` builds the complete schema tree at runtime. With 38
+`ApiDoc::openapi()` builds the complete schema tree at runtime. With many
 registered schemas and deeply nested types (AbstractData's three flattened
 variants), the recursive traversal exceeds Linux's default 2 MB thread stack.
 `RUST_MIN_STACK=16777216` is set in the `justfile` for the `openapi-gen`
@@ -147,7 +153,7 @@ The explicit schema list was redundant and has been removed.
 
 | File                             | Generator                 | Role                             |
 | -------------------------------- | ------------------------- | -------------------------------- |
-| `gallery-backend/src/openapi.rs` | `cargo xtask openapi-gen` | ApiDoc struct with all routes    |
-| `gallery-backend/openapi.json`   | `ApiDoc::openapi()`       | OpenAPI 3.1 spec                 |
+| `backend/src/openapi.rs`          | `cargo xtask openapi-gen` | ApiDoc struct with all routes    |
+| `backend/openapi.json`            | `ApiDoc::openapi()`       | OpenAPI 3.1 spec                 |
 | `docs/openapi-reference.md`      | widdershins               | Human-readable API reference     |
 | `xtask/src/openapi.rs`           | —                         | Generator + coverage tool source |

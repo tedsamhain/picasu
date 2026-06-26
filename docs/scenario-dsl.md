@@ -5,10 +5,10 @@ Semi-formal spec and authoring guide for spec-driven E2E testing.
 Two scenario types share the `given:` vocabulary but have disjoint
 `when:`/`assert:` verb sets:
 
-- **API scenarios** (`gallery-backend/tests/scenarios/*.yaml`) — compiled
+- **API scenarios** (`backend/tests/scenarios/*.yaml`) — compiled
   at build time into Rocket `local::Client` tests via `build.rs`. Test
   backend HTTP endpoints directly with no browser.
-- **UI scenarios** (`gallery-frontend/tests/playwright/scenarios/*.yaml`)
+- **UI scenarios** (`frontend/tests/playwright/scenarios/*.yaml`)
   — loaded at runtime by the Playwright test runner via `loadScenarios.ts`.
   Drive a real browser against a running backend + built frontend.
 
@@ -73,7 +73,7 @@ interacts with the page. Accepted fields:
 Password is set before `readOnlyMode` so the scenario can configure
 authentication before locking the API behind it.
 
-## API scenarios (`gallery-backend/tests/scenarios/`)
+## API scenarios (`backend/tests/scenarios/`)
 
 Compiled at build time by `build.rs` into one `#[test]` per YAML file.
 The runtime interpreter lives in `src/tests/backend_api.rs`. Run with
@@ -124,7 +124,7 @@ No raw-Rust escape hatch for assertions. A missing assertion form is
 resolved by adding a reusable verb to the vocabulary, not by inlining
 code.
 
-## UI scenarios (`gallery-frontend/tests/playwright/scenarios/`)
+## UI scenarios (`frontend/tests/playwright/scenarios/`)
 
 Loaded at runtime by `loadScenarios.ts`, validated against Zod schemas
 (`types.ts`), and executed by `interpreter.spec.ts`. No code generation
@@ -263,8 +263,8 @@ in this document and the interpreter in `interpreter.ts`.
 ## Schema validation
 
 The DSL has separate JSON Schemas at
-`gallery-backend/tests/schema.json` (API) and
-`gallery-frontend/tests/playwright/schema.json` (UI). All scenario files
+`backend/tests/schema.json` (API) and
+`frontend/tests/playwright/schema.json` (UI). All scenario files
 are validated at load/compile time — a schema mismatch is a hard error.
 
 API scenarios are validated at build time by `build.rs`. UI scenarios are
