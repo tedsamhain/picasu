@@ -287,7 +287,7 @@ impl QuerySnapshot {
     }
 }
 
-use crate::{router::get::get_prefetch::Prefetch, storage::db::VERSION_COUNT_TIMESTAMP};
+use crate::{model::response::Prefetch, storage::db::VERSION_COUNT_TIMESTAMP};
 
 impl QuerySnapshot {
     pub fn read_query_snapshot(

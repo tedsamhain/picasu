@@ -71,6 +71,25 @@ pub struct ReducedData {
     pub date: i64,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Decode, Encode)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct Prefetch {
+    pub timestamp: i64,
+    pub locate_to: Option<usize>,
+    pub data_length: usize,
+}
+
+impl Prefetch {
+    pub fn new(timestamp: i64, locate_to: Option<usize>, data_length: usize) -> Self {
+        Self {
+            timestamp,
+            locate_to,
+            data_length,
+        }
+    }
+}
+
 #[allow(clippy::struct_field_names)]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Encode, Decode)]
 #[serde(rename_all = "camelCase")]

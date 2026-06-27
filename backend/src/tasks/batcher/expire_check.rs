@@ -1,4 +1,4 @@
-use crate::router::get::get_prefetch::Prefetch;
+use crate::model::response::Prefetch;
 use crate::storage::cache::QUERY_SNAPSHOT;
 use crate::storage::db::VERSION_COUNT_TIMESTAMP;
 use crate::{storage::cache::EXPIRE, tasks::INDEX_COORDINATOR};

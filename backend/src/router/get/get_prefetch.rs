@@ -2,6 +2,7 @@ use crate::error::{AppError, ErrorKind, ResultExt};
 use crate::model::album::ResolvedShare;
 use crate::model::expression::{AlbumFilterValue, Expression};
 use crate::model::response::DatabaseTimestamp;
+use crate::model::response::Prefetch;
 use crate::model::response::ReducedData;
 use crate::router::AppResult;
 use crate::router::GuardResult;
@@ -28,25 +29,6 @@ use std::hash::{DefaultHasher, Hash};
 use std::mem;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
-
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, Decode, Encode)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-pub struct Prefetch {
-    pub timestamp: i64,
-    pub locate_to: Option<usize>,
-    pub data_length: usize,
-}
-
-impl Prefetch {
-    fn new(timestamp: i64, locate_to: Option<usize>, data_length: usize) -> Self {
-        Self {
-            timestamp,
-            locate_to,
-            data_length,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize, Decode, Encode)]
 #[serde(rename_all = "camelCase")]

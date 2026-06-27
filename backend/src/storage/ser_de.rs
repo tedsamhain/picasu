@@ -1,4 +1,4 @@
-use crate::router::get::get_prefetch::Prefetch;
+use crate::model::response::Prefetch;
 
 use crate::model::{
     abstract_data::AbstractData,
