@@ -1,9 +1,9 @@
-use crate::operations::dir_album::{
+use crate::error::{AppError, ErrorKind, ResultExt};
+use crate::process::dir_album::{
     get_dir_path_for_album, get_or_create_dir_album, mark_album_for_update,
 };
-use crate::public::error::{AppError, ErrorKind, ResultExt};
-use crate::router::fairing::guard_auth::GuardAuth;
-use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
+use crate::router::auth::GuardAuth;
+use crate::router::auth::GuardReadOnlyMode;
 use crate::router::{AppResult, GuardResult};
 use crate::tasks::INDEX_COORDINATOR;
 use crate::tasks::actor::album::AlbumSelfUpdateTask;

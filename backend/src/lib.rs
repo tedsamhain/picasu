@@ -5,34 +5,36 @@ use redb::{ReadableTable, ReadableTableMetadata};
 use std::thread;
 use std::time::Instant;
 
-mod operations;
+mod constant;
+mod error;
+mod frontend;
+mod init;
+mod model;
+#[cfg(feature = "openapi")]
+pub mod openapi;
 mod process;
-mod public;
 mod router;
+mod storage;
 mod tasks;
 mod workflow;
 
-#[cfg(feature = "openapi")]
-pub mod openapi;
-
 // Re-exports for integration tests that need to access the real init path.
-pub use public::constant::storage::DATA_PATH;
-pub use public::structure::config::{APP_CONFIG, AppConfig};
+pub use model::config::{APP_CONFIG, AppConfig};
 pub use router::builder::build_rocket_with_config;
+pub use storage::files::DATA_PATH;
 
-use crate::operations::dir_album::init_dir_album_cache;
-use crate::operations::initialization::logger::initialize_logger;
-use crate::process::initialization::initialize;
-use crate::public::constant::runtime::{INDEX_RUNTIME, ROCKET_RUNTIME};
-use crate::public::constant::storage::get_data_path;
-
+use crate::init::initialize;
+use crate::init::initialize_logger;
+use crate::process::dir_album::init_dir_album_cache;
+use crate::storage::db::DATA_TABLE;
+use crate::storage::db::TREE;
+use crate::storage::files::get_data_path;
 use crate::tasks::BATCH_COORDINATOR;
 use crate::tasks::batcher::start_watcher::StartWatcherTask;
 use crate::tasks::batcher::update_tree::UpdateTreeTask;
 use crate::tasks::looper::start_expire_check_loop;
-use public::constant::redb::DATA_TABLE;
-use public::db::tree::TREE;
-use public::structure::abstract_data::AbstractData;
+use crate::tasks::runtime::{INDEX_RUNTIME, ROCKET_RUNTIME};
+use model::abstract_data::AbstractData;
 
 fn migration() {
     let v4_db_path = get_data_path().join("db/index_v4.redb");

@@ -1,5 +1,5 @@
-use crate::operations::dir_album::{get_album_id_for_dir, get_or_create_dir_album};
-use crate::operations::utils::image_path::get_resolved_image_home;
+use crate::process::dir_album::{get_album_id_for_dir, get_or_create_dir_album};
+use crate::storage::files::get_resolved_image_home;
 use crate::tasks::{
     INDEX_COORDINATOR,
     actor::{

@@ -1,13 +1,13 @@
-use crate::public::db::tree::TREE;
-use crate::public::error::{AppError, ErrorKind, ResultExt};
-use crate::public::structure::abstract_data::AbstractData;
-use crate::public::structure::album::Share;
+use crate::error::{AppError, ErrorKind, ResultExt};
+use crate::model::abstract_data::AbstractData;
+use crate::model::album::Share;
 use crate::router::GuardResult;
-use crate::router::fairing::guard_auth::GuardAuth;
-use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
+use crate::router::auth::GuardAuth;
+use crate::router::auth::GuardReadOnlyMode;
+use crate::storage::db::TREE;
 use crate::tasks::BATCH_COORDINATOR;
 use crate::tasks::batcher::update_tree::UpdateTreeTask;
-use crate::{public::constant::redb::DATA_TABLE, router::AppResult};
+use crate::{router::AppResult, storage::db::DATA_TABLE};
 
 use arrayvec::ArrayString;
 use redb::ReadableTable;

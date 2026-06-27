@@ -1,11 +1,11 @@
+pub mod auth;
 pub mod builder;
-pub mod claims;
+pub mod cache;
 pub mod delete;
-pub mod fairing;
 pub mod get;
 pub mod post;
 pub mod put;
-pub use crate::public::error::{AppError, ErrorKind};
+pub use crate::error::{AppError, ErrorKind};
 pub type AppResult<T> = Result<T, AppError>;
 pub type GuardResult<T> = Result<T, AppError>;
 pub type GuardError = AppError;

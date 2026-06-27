@@ -2,9 +2,9 @@ use rocket::get;
 use rocket::http::ContentType;
 use rocket::serde::json::Json;
 
-use crate::public::structure::config::APP_CONFIG;
-use crate::router::fairing::guard_auth::GuardAuth;
-use crate::router::fairing::guard_share::GuardShare;
+use crate::model::config::APP_CONFIG;
+use crate::router::auth::GuardAuth;
+use crate::router::auth::GuardShare;
 use serde::Serialize;
 
 use crate::router::{AppResult, GuardResult};

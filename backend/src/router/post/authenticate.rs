@@ -1,8 +1,8 @@
 use rocket::post;
 use rocket::serde::json::Json;
 
-use crate::public::structure::config::APP_CONFIG;
-use crate::router::claims::claims::Claims;
+use crate::model::config::APP_CONFIG;
+use crate::router::auth::Claims;
 use crate::router::{AppError, AppResult, ErrorKind};
 
 #[cfg_attr(

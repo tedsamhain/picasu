@@ -1,16 +1,16 @@
 // src/router/get/get_data.rs
 
-use crate::operations::open_db::{open_data_table, open_tree_snapshot_table};
-use crate::operations::resolve_show_download_and_metadata;
-use crate::operations::transitor::{
+use crate::model::response::DataBaseTimestampReturn;
+use crate::model::response::{Row, ScrollBarData};
+use crate::process::resolve_show_download_and_metadata;
+use crate::process::transitor::{
     abstract_data_to_database_timestamp_return, hash_to_abstract_data, index_to_hash,
 };
-use crate::public::db::tree_snapshot::TREE_SNAPSHOT;
-use crate::public::structure::response::database_timestamp::DataBaseTimestampReturn;
-use crate::public::structure::response::row::{Row, ScrollBarData};
+use crate::storage::cache::TREE_SNAPSHOT;
+use crate::storage::db::{open_data_table, open_tree_snapshot_table};
 
-use crate::public::error::{AppError, ErrorKind, ResultExt};
-use crate::router::fairing::guard_timestamp::GuardTimestamp;
+use crate::error::{AppError, ErrorKind, ResultExt};
+use crate::router::auth::GuardTimestamp;
 use crate::router::{AppResult, GuardResult};
 use anyhow::Result;
 use log::info;

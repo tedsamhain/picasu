@@ -1,9 +1,11 @@
-use crate::operations::utils::image_path::get_resolved_image_home;
-use crate::public::constant::runtime::INDEX_RUNTIME;
-use crate::public::media::is_valid_media_file;
-use crate::public::structure::config::APP_CONFIG;
-use crate::{public::error_data::handle_error, workflow::index_image};
+use crate::error::handle_error;
+use crate::model::config::APP_CONFIG;
+use crate::model::media::is_valid_media_file;
+use crate::storage::files::get_resolved_image_home;
+use crate::tasks::runtime::INDEX_RUNTIME;
+use anyhow::Context;
 use anyhow::Result;
+use anyhow::{anyhow, bail};
 use log::{error, info};
 use mini_executor::BatchTask;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -117,7 +119,7 @@ fn submit_to_debounce_pool(path: PathBuf) {
             && is_valid_media_file(&path)
             && let Some(image_root) = get_resolved_image_home()
             && let Ok(relative) = path.strip_prefix(&image_root)
-            && let Err(e) = index_image(relative, None).await
+            && let Err(e) = crate::workflow::index_image(relative, None).await
         {
             handle_error(e);
         }

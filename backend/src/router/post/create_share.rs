@@ -1,11 +1,11 @@
-use crate::public::db::tree::TREE;
-use crate::public::error::{AppError, ErrorKind};
-use crate::public::structure::abstract_data::AbstractData;
-use crate::public::structure::album::Share;
+use crate::error::{AppError, ErrorKind};
+use crate::model::abstract_data::AbstractData;
+use crate::model::album::Share;
 use crate::router::AppResult;
-use crate::router::fairing::guard_auth::GuardAuth;
-use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
-use crate::{public::constant::redb::DATA_TABLE, router::GuardResult};
+use crate::router::auth::GuardAuth;
+use crate::router::auth::GuardReadOnlyMode;
+use crate::storage::db::TREE;
+use crate::{router::GuardResult, storage::db::DATA_TABLE};
 
 use arrayvec::ArrayString;
 use rand::RngExt;

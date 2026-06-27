@@ -1,13 +1,11 @@
 use crate::{
-    operations::indexation::generate_compressed_video::generate_compressed_video,
-    public::{
-        constant::runtime::WORKER_RAYON_POOL, error_data::handle_error,
-        structure::abstract_data::AbstractData,
-    },
+    error::handle_error,
+    model::abstract_data::AbstractData,
+    process::video::generate_compressed_video,
+    tasks::runtime::WORKER_RAYON_POOL,
     tasks::{BATCH_COORDINATOR, batcher::flush_tree::FlushTreeTask},
 };
-use anyhow::Context;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use log::info;
 use mini_executor::Task;
 use tokio_rayon::AsyncThreadPool;

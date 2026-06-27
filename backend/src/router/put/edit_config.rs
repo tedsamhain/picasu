@@ -4,10 +4,10 @@ use rocket::put;
 use rocket::serde::json::Json;
 use tokio::task::spawn_blocking;
 
-use crate::public::error::{AppError, ErrorKind, ResultExt};
-use crate::public::structure::config::{APP_CONFIG, AppConfig};
-use crate::router::fairing::guard_auth::GuardAuth;
-use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
+use crate::error::{AppError, ErrorKind, ResultExt};
+use crate::model::config::{APP_CONFIG, AppConfig};
+use crate::router::auth::GuardAuth;
+use crate::router::auth::GuardReadOnlyMode;
 use crate::router::{AppResult, GuardResult};
 use serde::{Deserialize, Serialize};
 

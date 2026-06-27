@@ -1,13 +1,10 @@
-use crate::operations::open_db::open_data_table;
-use crate::public::constant::storage::get_data_path;
-use crate::public::error::{AppError, ErrorKind, ResultExt};
+use crate::error::{AppError, ErrorKind, ResultExt};
 use crate::router::{
     AppResult, GuardResult,
-    fairing::{
-        guard_hash::{GuardHash, GuardHashOriginal},
-        guard_share::GuardShare,
-    },
+    auth::{GuardHash, GuardHashOriginal, GuardShare},
 };
+use crate::storage::db::open_data_table;
+use crate::storage::files::get_data_path;
 use rocket::fs::NamedFile;
 use rocket::response::Responder;
 use rocket_seek_stream::SeekStream;

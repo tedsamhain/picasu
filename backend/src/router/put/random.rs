@@ -1,12 +1,10 @@
-use crate::public::error::{AppError, ErrorKind};
-use crate::router::fairing::guard_auth::GuardAuth;
-use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
+use crate::error::{AppError, ErrorKind};
+use crate::router::auth::GuardAuth;
+use crate::router::auth::GuardReadOnlyMode;
 use crate::router::{AppResult, GuardResult};
 use crate::tasks::BATCH_COORDINATOR;
 use crate::tasks::batcher::update_tree::UpdateTreeTask;
-use crate::{
-    public::structure::abstract_data::AbstractData, tasks::batcher::flush_tree::FlushTreeTask,
-};
+use crate::{model::abstract_data::AbstractData, tasks::batcher::flush_tree::FlushTreeTask};
 
 use log::info;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};

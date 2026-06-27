@@ -2,8 +2,9 @@ use mini_executor::BatchTask;
 use std::path::Path;
 
 use crate::{
-    operations::dir_album::{mark_album_for_update, mark_dir_albums_for_path},
-    public::{constant::redb::DATA_TABLE, db::tree::TREE, structure::abstract_data::AbstractData},
+    model::abstract_data::AbstractData,
+    process::dir_album::{mark_album_for_update, mark_dir_albums_for_path},
+    storage::db::{DATA_TABLE, TREE},
     tasks::{BATCH_COORDINATOR, batcher::update_tree::UpdateTreeTask},
 };
 

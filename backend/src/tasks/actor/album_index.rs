@@ -11,17 +11,12 @@ use std::{
 use tokio::task::JoinHandle;
 use walkdir::{DirEntry, WalkDir};
 
-use crate::{
-    operations::utils::image_path::get_resolved_image_home,
-    public::{
-        constant::storage::get_data_path,
-        error::{AppError, ErrorKind},
-        error_data::handle_error,
-        media::is_valid_media_file,
-    },
-    router::AppResult,
-    workflow::index_image,
-};
+use crate::error::{AppError, ErrorKind, handle_error};
+use crate::model::media::is_valid_media_file;
+use crate::router::AppResult;
+use crate::storage::files::get_data_path;
+use crate::storage::files::get_resolved_image_home;
+use crate::workflow::index_image;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -193,7 +188,7 @@ pub fn index_album(src: &str) -> AppResult<()> {
             };
 
             handles.push(tokio::spawn(async move {
-                match index_image(&relative, None).await {
+                match crate::workflow::index_image(&relative, None).await {
                     Ok(()) => increment_processed(job_id),
                     Err(err) => {
                         handle_error(err);

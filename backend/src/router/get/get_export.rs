@@ -1,9 +1,7 @@
-use crate::operations::open_db::open_data_table;
 use crate::router::{AppResult, GuardResult};
-// use crate::public::error::AppError;
-use crate::{
-    public::structure::abstract_data::AbstractData, router::fairing::guard_auth::GuardAuth,
-};
+use crate::storage::db::open_data_table;
+// use crate::error::AppError;
+use crate::{model::abstract_data::AbstractData, router::auth::GuardAuth};
 use redb::ReadableTable;
 use rocket::get;
 use rocket::response::stream::ByteStream;

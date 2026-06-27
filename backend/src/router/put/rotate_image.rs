@@ -1,13 +1,13 @@
-use crate::operations::indexation::generate_image_hash::{generate_phash, generate_thumbhash};
-use crate::operations::indexation::generate_thumbnail::generate_thumbnail_for_image;
-use crate::operations::open_db::open_data_table;
-use crate::public::error::{AppError, ErrorKind, ResultExt};
-use crate::public::structure::abstract_data::AbstractData;
+use crate::error::{AppError, ErrorKind, ResultExt};
+use crate::model::abstract_data::AbstractData;
+use crate::process::misc::{generate_phash, generate_thumbhash};
+use crate::process::thumbnail::generate_thumbnail_for_image;
 use crate::router::{AppResult, GuardResult};
+use crate::storage::db::open_data_table;
 use crate::tasks::batcher::flush_tree::FlushTreeTask;
 
-use crate::router::fairing::guard_auth::GuardAuth;
-use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
+use crate::router::auth::GuardAuth;
+use crate::router::auth::GuardReadOnlyMode;
 use crate::tasks::INDEX_COORDINATOR;
 use anyhow::Result;
 // use anyhow::anyhow;

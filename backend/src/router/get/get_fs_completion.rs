@@ -1,4 +1,4 @@
-use crate::router::{AppError, AppResult, ErrorKind, fairing::guard_auth::GuardAuth};
+use crate::router::{AppError, AppResult, ErrorKind, auth::GuardAuth};
 use rocket::get;
 // use rocket::http::Status;
 use rocket::serde::json::Json;

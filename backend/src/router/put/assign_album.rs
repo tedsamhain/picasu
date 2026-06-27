@@ -1,11 +1,11 @@
-use crate::operations::dir_album::{get_dir_path_for_album, mark_album_for_update};
-use crate::public::constant::redb::DATA_TABLE;
-use crate::public::db::tree::TREE;
-use crate::public::error::{AppError, ErrorKind, ResultExt};
-use crate::public::structure::common::FileModify;
-use crate::router::fairing::guard_auth::GuardAuth;
-use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
+use crate::error::{AppError, ErrorKind, ResultExt};
+use crate::model::response::FileModify;
+use crate::process::dir_album::{get_dir_path_for_album, mark_album_for_update};
+use crate::router::auth::GuardAuth;
+use crate::router::auth::GuardReadOnlyMode;
 use crate::router::{AppResult, GuardResult};
+use crate::storage::db::DATA_TABLE;
+use crate::storage::db::TREE;
 use crate::tasks::BATCH_COORDINATOR;
 use crate::tasks::INDEX_COORDINATOR;
 use crate::tasks::actor::album::AlbumSelfUpdateTask;

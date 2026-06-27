@@ -1,6 +1,5 @@
-use crate::public::{
-    db::tree_snapshot::TREE_SNAPSHOT, structure::response::reduced_data::ReducedData,
-};
+use crate::model::response::ReducedData;
+use crate::storage::cache::TREE_SNAPSHOT;
 use anyhow::Result;
 use mini_executor::Task;
 use redb::TableDefinition;

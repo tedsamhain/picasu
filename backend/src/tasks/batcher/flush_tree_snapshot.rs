@@ -1,10 +1,10 @@
-use crate::public::db::tree_snapshot::TREE_SNAPSHOT;
-use crate::public::structure::response::reduced_data::ReducedData;
+use crate::model::response::ReducedData;
+use crate::storage::cache::TREE_SNAPSHOT;
 use mini_executor::BatchTask;
 use redb::TableDefinition;
 use std::time::Instant;
 
-use crate::public::error_data::handle_error;
+use crate::error::handle_error;
 use anyhow;
 
 pub struct FlushTreeSnapshotTask;

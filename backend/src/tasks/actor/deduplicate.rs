@@ -1,11 +1,8 @@
-use crate::{
-    operations::open_db::open_data_table,
-    public::{error_data::handle_error, structure::abstract_data::AbstractData},
-    tasks::{BATCH_COORDINATOR, batcher::flush_tree::FlushTreeTask},
-};
+use crate::storage::db::open_data_table;
+use crate::tasks::{BATCH_COORDINATOR, batcher::flush_tree::FlushTreeTask};
+use crate::{error::handle_error, model::abstract_data::AbstractData};
 use anyhow::Result;
 use arrayvec::ArrayString;
-use log::warn;
 use mini_executor::Task;
 use std::{mem, path::Path, path::PathBuf};
 use tokio::task::spawn_blocking;

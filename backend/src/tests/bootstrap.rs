@@ -4,12 +4,12 @@ use std::sync::{LazyLock, Mutex, RwLock};
 
 use tempfile::TempDir;
 
-use crate::operations::utils::image_path::get_resolved_image_home;
-use crate::public::constant::redb::DATA_TABLE;
-use crate::public::constant::storage::DATA_PATH;
-use crate::public::db::tree::TREE;
-use crate::public::structure::config::{APP_CONFIG, AppConfig};
+use crate::model::config::{APP_CONFIG, AppConfig};
 use crate::router::builder::build_rocket_with_config;
+use crate::storage::db::DATA_TABLE;
+use crate::storage::db::TREE;
+use crate::storage::files::DATA_PATH;
+use crate::storage::files::get_resolved_image_home;
 use rocket::local::blocking::Client;
 
 /// Holds the tempdir alive for the entire test binary run.

@@ -4,13 +4,12 @@ use anyhow::anyhow;
 use log::{debug, error, info};
 use tokio_rayon::AsyncThreadPool;
 
-use crate::public::constant::runtime::WORKER_RAYON_POOL;
-use crate::tasks::BATCH_COORDINATOR;
-
+use crate::tasks::runtime::WORKER_RAYON_POOL;
 use crate::{
-    process::info::{process_image_info, process_video_info},
-    public::{error_data::handle_error, structure::abstract_data::AbstractData},
-    tasks::batcher::flush_tree::FlushTreeTask,
+    error::handle_error,
+    model::abstract_data::AbstractData,
+    process::index::{process_image_info, process_video_info},
+    tasks::{BATCH_COORDINATOR, batcher::flush_tree::FlushTreeTask},
 };
 use mini_executor::Task;
 

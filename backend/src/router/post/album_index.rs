@@ -1,10 +1,12 @@
+use anyhow::Context;
+use anyhow::{anyhow, bail};
 use rocket::http::Status;
 use rocket::post;
 use rocket::serde::json::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::router::fairing::guard_auth::GuardAuth;
-use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
+use crate::router::auth::GuardAuth;
+use crate::router::auth::GuardReadOnlyMode;
 use crate::router::{AppResult, GuardResult};
 use crate::tasks::actor::album_index::{cancel_album_index, index_album};
 use crate::workflow::index_image;
@@ -74,7 +76,7 @@ pub fn index_image_handler(
     let src = PathBuf::from(inner.image);
     let dst = inner.album.map(PathBuf::from);
     rocket::tokio::spawn(async move {
-        if let Err(e) = index_image(&src, dst.as_deref()).await {
+        if let Err(e) = crate::workflow::index_image(&src, dst.as_deref()).await {
             log::error!("index_image failed: {e}");
         }
     });

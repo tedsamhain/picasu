@@ -1,4 +1,4 @@
-use crate::public::error_data::handle_error;
+use crate::error::handle_error;
 use anyhow::Result;
 use mini_executor::Task;
 use std::path::Path;

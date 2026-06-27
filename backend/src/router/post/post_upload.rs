@@ -1,11 +1,11 @@
-use crate::operations::dir_album::get_dir_path_for_album;
-use crate::operations::utils::image_path::get_resolved_image_home;
-use crate::public::constant::{VALID_IMAGE_EXTENSIONS, VALID_VIDEO_EXTENSIONS};
-use crate::public::error::{AppError, ErrorKind, ResultExt};
-use crate::public::structure::config::APP_CONFIG;
-use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
-use crate::router::fairing::guard_upload::GuardUpload;
+use crate::constant::{VALID_IMAGE_EXTENSIONS, VALID_VIDEO_EXTENSIONS};
+use crate::error::{AppError, ErrorKind, ResultExt};
+use crate::model::config::APP_CONFIG;
+use crate::process::dir_album::get_dir_path_for_album;
+use crate::router::auth::GuardReadOnlyMode;
+use crate::router::auth::GuardUpload;
 use crate::router::{AppResult, GuardResult};
+use crate::storage::files::get_resolved_image_home;
 use crate::workflow::index_image;
 use anyhow::Result;
 use arrayvec::ArrayString;
@@ -144,7 +144,7 @@ pub async fn upload(
                 .map_err(|_| {
                     AppError::new(ErrorKind::Internal, "Uploaded file path outside IMAGE_HOME")
                 })?;
-            index_image(relative_src, None)
+            crate::workflow::index_image(relative_src, None)
                 .await
                 .or_raise(|| (ErrorKind::Internal, "Failed to index file"))?;
         } else {

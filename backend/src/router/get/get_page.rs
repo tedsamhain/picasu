@@ -1,4 +1,4 @@
-use crate::public::error::{AppError, ErrorKind, ResultExt};
+use crate::error::{AppError, ErrorKind, ResultExt};
 use crate::router::AppResult;
 use rocket::fs::NamedFile;
 use rocket::http::Status;
@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 #[cfg(feature = "embed-frontend")]
-use crate::public::embedded::FrontendAssets;
+use crate::frontend::FrontendAssets;
 #[cfg(feature = "embed-frontend")]
 use rocket::http::ContentType;
 #[cfg(feature = "embed-frontend")]

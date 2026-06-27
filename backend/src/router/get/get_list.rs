@@ -1,10 +1,10 @@
-use crate::operations::dir_album::get_parent_album_id;
-use crate::public::db::tree::TREE;
-use crate::public::db::tree::read_tags::TagInfo;
-use crate::public::error::AppError;
-use crate::public::structure::album::Share;
-use crate::router::fairing::guard_auth::GuardAuth;
+use crate::error::AppError;
+use crate::model::album::Share;
+use crate::process::dir_album::get_parent_album_id;
+use crate::router::auth::GuardAuth;
 use crate::router::{AppResult, GuardResult};
+use crate::storage::db::TREE;
+use crate::storage::db::TagInfo;
 use arrayvec::ArrayString;
 use rocket::serde::json::Json;
 use serde::{Deserialize, Serialize};
@@ -39,7 +39,7 @@ pub async fn get_tags(auth: GuardResult<GuardAuth>) -> AppResult<Json<Vec<TagInf
 pub struct AlbumInfo {
     pub album_id: String,
     pub album_name: Option<String>,
-    #[cfg_attr(feature = "openapi", schema(value_type = HashMap<String, crate::public::structure::album::Share>))]
+    #[cfg_attr(feature = "openapi", schema(value_type = HashMap<String, crate::model::album::Share>))]
     pub share_list: HashMap<ArrayString<64>, Share>,
     /// Set for filesystem-hierarchy albums; `None` for user-created albums.
     pub dir_path: Option<String>,

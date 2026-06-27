@@ -17,6 +17,7 @@ Pick individual items from the list. Elaborate and create new 'open' issue for t
 - **API fuzzer** to explore unexpectedly exposed endpoints, missing authentication, concurrency issues
 - **knip** — periodic dead-export sweep, not in precommit
 - **Zod (or valibot)** — investigate for runtime validation of API responses; TypeScript types don't catch backend schema drift at runtime
+- **MIRAI** https://github.com/endorlabs/MIRAI/tree/main
 
 - add cargo geiger report scan / eval
 - upgrade vite-pwa-plugin? https://github.com/vite-pwa/vite-plugin-pwa/issues/933

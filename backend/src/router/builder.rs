@@ -1,10 +1,10 @@
+use super::auth::generate_fairing_routes;
+use super::cache::cache_control_fairing;
 use super::delete::generate_delete_routes;
-use super::fairing::cache_control_fairing::cache_control_fairing;
-use super::fairing::generate_fairing_routes;
 use super::get::generate_get_routes;
 use super::post::generate_post_routes;
 use super::put::generate_put_routes;
-use crate::public::structure::config::{APP_CONFIG, AppConfig};
+use crate::model::config::{APP_CONFIG, AppConfig};
 use rocket::data::{ByteUnit, Limits};
 use rocket::fs::FileServer;
 use rocket::info;
@@ -24,7 +24,7 @@ fn create_dummy_config() -> AppConfig {
 async fn assets(
     file: PathBuf,
 ) -> Option<(rocket::http::ContentType, std::borrow::Cow<'static, [u8]>)> {
-    use crate::public::embedded::FrontendAssets;
+    use crate::frontend::FrontendAssets;
     use rocket::routes;
 
     let filename = format!("assets/{}", file.display());
@@ -121,7 +121,6 @@ mod test_build_rocket_with_config {
 fn mount_frontend(app: rocket::Rocket<rocket::Build>) -> rocket::Rocket<rocket::Build> {
     #[cfg(feature = "embed-frontend")]
     {
-        use rocket::routes;
         info!("Serving assets from embedded binary");
         app.mount("/", routes![assets])
     }

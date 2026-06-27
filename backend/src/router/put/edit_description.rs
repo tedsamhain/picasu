@@ -1,10 +1,10 @@
-use crate::operations::open_db::{open_data_table, open_tree_snapshot_table};
-use crate::operations::transitor::index_to_hash;
-use crate::public::structure::abstract_data::AbstractData;
+use crate::model::abstract_data::AbstractData;
+use crate::process::transitor::index_to_hash;
+use crate::storage::db::{open_data_table, open_tree_snapshot_table};
 
-use crate::public::error::{AppError, ErrorKind, ResultExt};
-use crate::router::fairing::guard_read_only_mode::GuardReadOnlyMode;
-use crate::router::fairing::guard_share::GuardShare;
+use crate::error::{AppError, ErrorKind, ResultExt};
+use crate::router::auth::GuardReadOnlyMode;
+use crate::router::auth::GuardShare;
 use crate::router::{AppResult, GuardResult};
 use crate::tasks::BATCH_COORDINATOR;
 use crate::tasks::batcher::flush_tree::FlushTreeTask;

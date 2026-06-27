@@ -1,7 +1,7 @@
 use rocket::get;
 use rocket::serde::json::Json;
 
-use crate::router::fairing::guard_auth::GuardAuth;
+use crate::router::auth::GuardAuth;
 use crate::tasks::actor::album_index::{AlbumIndexStatus, album_index_status};
 
 #[cfg_attr(

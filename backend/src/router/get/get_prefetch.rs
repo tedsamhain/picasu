@@ -1,16 +1,16 @@
-use crate::public::db::query_snapshot::QUERY_SNAPSHOT;
-use crate::public::db::tree::TREE;
-use crate::public::db::tree::VERSION_COUNT_TIMESTAMP;
-use crate::public::db::tree_snapshot::TREE_SNAPSHOT;
-use crate::public::error::{AppError, ErrorKind, ResultExt};
-use crate::public::structure::album::ResolvedShare;
-use crate::public::structure::expression::{AlbumFilterValue, Expression};
-use crate::public::structure::response::database_timestamp::DatabaseTimestamp;
-use crate::public::structure::response::reduced_data::ReducedData;
+use crate::error::{AppError, ErrorKind, ResultExt};
+use crate::model::album::ResolvedShare;
+use crate::model::expression::{AlbumFilterValue, Expression};
+use crate::model::response::DatabaseTimestamp;
+use crate::model::response::ReducedData;
 use crate::router::AppResult;
 use crate::router::GuardResult;
-use crate::router::claims::claims_timestamp::ClaimsTimestamp;
-use crate::router::fairing::guard_share::GuardShare;
+use crate::router::auth::ClaimsTimestamp;
+use crate::router::auth::GuardShare;
+use crate::storage::cache::QUERY_SNAPSHOT;
+use crate::storage::cache::TREE_SNAPSHOT;
+use crate::storage::db::TREE;
+use crate::storage::db::VERSION_COUNT_TIMESTAMP;
 use crate::tasks::BATCH_COORDINATOR;
 
 use crate::tasks::batcher::flush_query_snapshot::FlushQuerySnapshotTask;
