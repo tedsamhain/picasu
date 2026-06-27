@@ -86,11 +86,11 @@ handler. No module-level exemptions exist — every route is subject to the chec
 
 ## Tag conventions
 
-| Tag | Routes | Description |
-|---|---|---|
-| *(none)* | Standard data API endpoints | `GET /get/...`, `POST /post/...`, `PUT /put/...`, `DELETE /delete/...` |
-| `pages` | SPA HTML page routes | `GET /home`, `GET /albums`, `GET /login`, etc. — serve `index.html` |
-| `development` | Debug-only tooling | `GET /put/generate_random_data` — generates fake data for testing |
+| Tag           | Routes                      | Description                                                            |
+| ------------- | --------------------------- | ---------------------------------------------------------------------- |
+| _(none)_      | Standard data API endpoints | `GET /get/...`, `POST /post/...`, `PUT /put/...`, `DELETE /delete/...` |
+| `pages`       | SPA HTML page routes        | `GET /home`, `GET /albums`, `GET /login`, etc. — serve `index.html`    |
+| `development` | Debug-only tooling          | `GET /put/generate_random_data` — generates fake data for testing      |
 
 ## Workflow
 
@@ -160,9 +160,9 @@ The explicit schema list was redundant and has been removed.
 
 ## Files
 
-| File                             | Generator                 | Role                                                |
-| -------------------------------- | ------------------------- | --------------------------------------------------- |
-| `backend/src/openapi.rs`          | `build.rs`                | ApiDoc struct with all routes (gitignored)          |
-| `backend/openapi.json`            | `ApiDoc::openapi()`       | OpenAPI 3.1 spec                                    |
-| `docs/openapi-reference.md`      | widdershins               | Human-readable API reference                        |
-| `build.rs`                       | —                         | Route scanner + `openapi.rs` generator + coverage   |
+| File                        | Generator           | Role                                              |
+| --------------------------- | ------------------- | ------------------------------------------------- |
+| `backend/src/openapi.rs`    | `build.rs`          | ApiDoc struct with all routes (gitignored)        |
+| `backend/openapi.json`      | `ApiDoc::openapi()` | OpenAPI 3.1 spec                                  |
+| `docs/openapi-reference.md` | widdershins         | Human-readable API reference                      |
+| `build.rs`                  | —                   | Route scanner + `openapi.rs` generator + coverage |

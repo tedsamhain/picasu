@@ -428,7 +428,15 @@ fn display_kanban(tasks: &[LoadedTask], sort_keys: &[String]) {
         } else {
             for t in group {
                 let pc = priority_color(&t.task.priority);
-                write!(stdout, " {:<slug_w$} {:<type_w$} ", t.slug, t.task.task_type, slug_w = slug_w, type_w = type_w).unwrap();
+                write!(
+                    stdout,
+                    " {:<slug_w$} {:<type_w$} ",
+                    t.slug,
+                    t.task.task_type,
+                    slug_w = slug_w,
+                    type_w = type_w
+                )
+                .unwrap();
                 write_colored!(stdout, pc, "{:<prio_w$}", t.task.priority, prio_w = prio_w);
                 writeln!(stdout, " {}", t.task.area).unwrap();
             }
@@ -478,9 +486,15 @@ fn display_table(tasks: &[LoadedTask]) {
     for t in tasks {
         let sc = status_color(&t.task.status);
         let pc = priority_color(&t.task.priority);
-        
+
         write!(stdout, "{:<slug_w$} ", t.slug, slug_w = slug_w).unwrap();
-        write_colored!(stdout, sc, "{:<status_w$}", t.task.status, status_w = status_w);
+        write_colored!(
+            stdout,
+            sc,
+            "{:<status_w$}",
+            t.task.status,
+            status_w = status_w
+        );
         write!(stdout, " {:<type_w$} ", t.task.task_type, type_w = type_w).unwrap();
         write_colored!(stdout, pc, "{:<prio_w$}", t.task.priority, prio_w = prio_w);
         writeln!(stdout, " {}", t.task.area).unwrap();

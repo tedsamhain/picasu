@@ -84,19 +84,19 @@ backend/src/
 
 ### Dependency layering
 
-| Module | Depends on | Issues |
-|---|---|---|
-| `model/abstract_data` | `model::object` | clean |
-| `model/config` | `storage::files`, `tasks::batcher::reload_watcher` | legitimate — config save reloads watcher |
-| `model/expression` | `process::dir_album` | legitimate — filter evaluation needs dir-album cache |
-| `storage/db` | `model::*` | clean |
-| `storage/cache` | `model::*`, `storage::db` | clean |
-| `storage/files` | nothing in crate | pure filesystem path logic |
-| `storage/ser_de` | `model::*` | clean |
-| `process/index` | `process::*`, `storage::files`, `tasks::*` | clean |
-| `tasks/actor` | `process::*`, `storage::db`, `tasks::*` | clean |
-| `tasks/batcher` | `process::dir_album`, `storage::db`, `model::*`, `tasks::*` | clean |
-| `router/auth` | `model::*`, `router::*` | clean |
+| Module                | Depends on                                                  | Issues                                               |
+| --------------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
+| `model/abstract_data` | `model::object`                                             | clean                                                |
+| `model/config`        | `storage::files`, `tasks::batcher::reload_watcher`          | legitimate — config save reloads watcher             |
+| `model/expression`    | `process::dir_album`                                        | legitimate — filter evaluation needs dir-album cache |
+| `storage/db`          | `model::*`                                                  | clean                                                |
+| `storage/cache`       | `model::*`, `storage::db`                                   | clean                                                |
+| `storage/files`       | nothing in crate                                            | pure filesystem path logic                           |
+| `storage/ser_de`      | `model::*`                                                  | clean                                                |
+| `process/index`       | `process::*`, `storage::files`, `tasks::*`                  | clean                                                |
+| `tasks/actor`         | `process::*`, `storage::db`, `tasks::*`                     | clean                                                |
+| `tasks/batcher`       | `process::dir_album`, `storage::db`, `model::*`, `tasks::*` | clean                                                |
+| `router/auth`         | `model::*`, `router::*`                                     | clean                                                |
 
 ### Resolved issues
 

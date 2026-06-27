@@ -1,6 +1,6 @@
 # Picasu - a filesystem-first photo gallery
 
-***Disclaimer** Picasu is fully vibe-coded work in progress. Not ready. Use at your own risk.*
+_**Disclaimer** Picasu is fully vibe-coded work in progress. Not ready. Use at your own risk._
 
 Picasu is a self-hosted photo gallery based on
 [urocissa](https://github.com/tedsamhain/urocissa). In contrast to most
