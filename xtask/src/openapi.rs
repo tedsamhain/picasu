@@ -1,8 +1,6 @@
 use std::fmt::Write;
 use std::path::Path;
 
-const PAGE_MODULES: &[&str] = &["get_page", "random"];
-
 const BACKEND_SRC: &str = "backend/src";
 
 /// Route handler identified by its group, module, and function name.
@@ -19,8 +17,6 @@ struct Route {
 #[derive(Debug)]
 pub struct CoverageReport {
     pub total: usize,
-    pub page_routes: Vec<String>,
-    pub data_routes: usize,
     pub annotated: Vec<String>,
     pub missing: Vec<String>,
 }
@@ -29,24 +25,13 @@ pub struct CoverageReport {
 pub fn check_coverage(router_root: &Path, backend_root: &Path) -> CoverageReport {
     let all_routes = collect_all_routes(router_root);
 
-    let mut page_routes = Vec::new();
-    let mut data_routes = Vec::new();
-
-    for r in &all_routes {
-        if PAGE_MODULES.contains(&r.module_path.as_str()) {
-            page_routes.push(format!("{}::{}", r.module_path, r.handler));
-        } else {
-            data_routes.push(r);
-        }
-    }
-
-    let annotated: Vec<String> = data_routes
+    let annotated: Vec<String> = all_routes
         .iter()
         .filter(|r| has_annotation(r, backend_root))
         .map(|r| format!("{}::{}", r.module_path, r.handler))
         .collect();
 
-    let missing: Vec<String> = data_routes
+    let missing: Vec<String> = all_routes
         .iter()
         .filter(|r| !has_annotation(r, backend_root))
         .map(|r| format!("{}::{}", r.module_path, r.handler))
@@ -54,8 +39,6 @@ pub fn check_coverage(router_root: &Path, backend_root: &Path) -> CoverageReport
 
     CoverageReport {
         total: all_routes.len(),
-        page_routes,
-        data_routes: data_routes.len(),
         annotated,
         missing,
     }
@@ -67,19 +50,14 @@ pub fn run_coverage() {
     let backend_root = Path::new(BACKEND_SRC);
     let report = check_coverage(router_root, backend_root);
 
-    let coverage_pct = if report.data_routes > 0 {
-        (report.annotated.len() as f64 / report.data_routes as f64) * 100.0
+    let coverage_pct = if report.total > 0 {
+        (report.annotated.len() as f64 / report.total as f64) * 100.0
     } else {
         0.0
     };
 
-    println!("=== OpenAPI Annotation Coverage ===\n");
+    println!("=== utoipa::path Annotation Coverage ===\n");
     println!("Total registered routes:     {:>3}", report.total);
-    println!(
-        "Page routes (excluded):      {:>3}",
-        report.page_routes.len()
-    );
-    println!("Data API routes:             {:>3}", report.data_routes);
     println!("Annotated:                   {:>3}", report.annotated.len());
     println!("Missing:                     {:>2}", report.missing.len());
     println!("Coverage:                    {:>5.1}%\n", coverage_pct);
@@ -97,22 +75,15 @@ pub fn run_coverage() {
         println!("  ✓ {}", label);
     }
 
-    if !report.page_routes.is_empty() {
-        println!("\nPage routes ({}):", report.page_routes.len());
-        for label in &report.page_routes {
-            println!("  · {}", label);
-        }
-    }
-
     if !report.missing.is_empty() {
         eprintln!(
-            "\nError: {} data API routes are missing utoipa annotations.",
+            "\nError: {} routes are missing utoipa annotations.",
             report.missing.len()
         );
         std::process::exit(1);
     }
 
-    println!("\nAll data API routes are annotated ✓");
+    println!("\nAll routes are annotated ✓");
 }
 
 // ── Generator ─────────────────────────────────────────────────────────────────
@@ -124,7 +95,6 @@ pub fn generate_openapi_rs() {
 
     let all_routes = collect_all_routes(router_root);
 
-    // Filter annotated non-page routes.
     struct AnnotatedRoute {
         group_prefix: String,
         module_path: String,
@@ -133,9 +103,7 @@ pub fn generate_openapi_rs() {
 
     let mut annotated: Vec<AnnotatedRoute> = all_routes
         .into_iter()
-        .filter(|r| {
-            !PAGE_MODULES.contains(&r.module_path.as_str()) && has_annotation(r, backend_root)
-        })
+        .filter(|r| has_annotation(r, backend_root))
         .map(|r| AnnotatedRoute {
             group_prefix: r.group_prefix,
             module_path: r.module_path,
@@ -166,11 +134,17 @@ pub fn generate_openapi_rs() {
     writeln!(out).unwrap();
 
     for r in &annotated {
-        let import_mod = format!(
-            "crate::router::{g}::{m}",
-            g = r.group_prefix,
-            m = r.module_path
-        );
+        // Flat modules (module_path == group_prefix, e.g. delete) live in
+        // router/{group}.rs, not router/{group}/{module}.rs.
+        let import_mod = if r.module_path == r.group_prefix {
+            format!("crate::router::{g}", g = r.group_prefix)
+        } else {
+            format!(
+                "crate::router::{g}::{m}",
+                g = r.group_prefix,
+                m = r.module_path
+            )
+        };
         writeln!(
             out,
             "use {import_mod}::__path_{handler};",
@@ -226,10 +200,18 @@ pub fn generate_openapi_rs() {
 // ─── Route discovery ──────────────────────────────────────────────────────────
 
 fn has_annotation(route: &Route, backend_root: &Path) -> bool {
-    let source = backend_root
-        .join("router")
-        .join(&route.group_prefix)
-        .join(format!("{}.rs", route.module_path));
+    // Flat modules (module_path == group_prefix, e.g. delete/delete) live in
+    // router/{group}.rs; nested modules live in router/{group}/{module}.rs.
+    let source = if route.module_path == route.group_prefix {
+        backend_root
+            .join("router")
+            .join(format!("{}.rs", route.group_prefix))
+    } else {
+        backend_root
+            .join("router")
+            .join(&route.group_prefix)
+            .join(format!("{}.rs", route.module_path))
+    };
     let content = match std::fs::read_to_string(&source) {
         Ok(c) => c,
         Err(_) => return false,
@@ -238,17 +220,17 @@ fn has_annotation(route: &Route, backend_root: &Path) -> bool {
 }
 
 fn collect_all_routes(router_root: &Path) -> Vec<Route> {
-    let mod_files = [
-        "get/mod.rs",
-        "post/mod.rs",
-        "put/mod.rs",
-        "delete/mod.rs",
-        "fairing/mod.rs",
+    let mod_entries = [
+        ("get", "get/mod.rs"),
+        ("post", "post/mod.rs"),
+        ("put", "put/mod.rs"),
+        ("delete", "delete.rs"),
+        ("fairing", "fairing/mod.rs"),
     ];
 
     let mut routes = Vec::new();
 
-    for rel_path in &mod_files {
+    for (group_prefix, rel_path) in &mod_entries {
         let path = router_root.join(rel_path);
         let content = match std::fs::read_to_string(&path) {
             Ok(c) => c,
@@ -258,11 +240,13 @@ fn collect_all_routes(router_root: &Path) -> Vec<Route> {
             }
         };
 
-        let group_prefix = rel_path.strip_suffix("/mod.rs").unwrap_or("");
-
-        if let Some(routes_start) = content.find("routes![") {
-            let start = routes_start + "routes![".len();
-            let rest = &content[start..];
+        // Collect routes from every routes![...] call in the file (there can be
+        // more than one, e.g. put/mod.rs extends with a second routes![]).
+        let mut search_start = 0usize;
+        while let Some(routes_start) = content[search_start..].find("routes![") {
+            let abs_start = search_start + routes_start;
+            let body_start = abs_start + "routes![".len();
+            let rest = &content[body_start..];
             if let Some(end) = find_matching_bracket(rest) {
                 let block = &rest[..end];
                 for line in block.lines() {
@@ -288,6 +272,9 @@ fn collect_all_routes(router_root: &Path) -> Vec<Route> {
                         handler,
                     });
                 }
+                search_start = body_start + end + 1;
+            } else {
+                break;
             }
         }
     }

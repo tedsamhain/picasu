@@ -93,10 +93,13 @@ openapi-docs: openapi-gen
     npx --yes widdershins --summary backend/openapi.json -o docs/openapi-reference.md
     npx prettier --write docs/openapi-reference.md
 
+[group('xtask')]
+openapi-coverage:
+	cargo xtask openapi-coverage
+
 # Verify committed generated files match annotations (CI / precommit)
 [group('xtask')]
-openapi-docs-check: openapi-docs
-    cargo xtask openapi-coverage
+openapi-docs-check: openapi-docs openapi-coverage
     git diff --exit-code backend/src/openapi.rs backend/openapi.json docs/openapi-reference.md
 
 # Auto-format .plan task frontmatter and body

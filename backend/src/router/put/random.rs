@@ -9,6 +9,17 @@ use crate::{model::abstract_data::AbstractData, tasks::batcher::flush_tree::Flus
 use log::info;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
+#[cfg_attr(
+    feature = "openapi",
+    utoipa::path(
+        get,
+        path = "/put/generate_random_data",
+        tag = "development",
+        responses(
+            (status = 200, description = "Generate random test data (debug-only endpoint)"),
+        )
+    )
+)]
 #[get("/put/generate_random_data?<number>")]
 pub async fn generate_random_data(
     auth: GuardResult<GuardAuth>,

@@ -13,7 +13,7 @@ pub mod regenerate_thumbnail;
 pub mod reindex;
 pub mod rotate_image;
 pub fn generate_put_routes() -> Vec<Route> {
-    routes![
+    let mut r = routes![
         assign_album::assign_album,
         edit_album::set_album_cover,
         edit_album::set_album_title,
@@ -22,11 +22,12 @@ pub fn generate_put_routes() -> Vec<Route> {
         edit_share::edit_share,
         edit_share::delete_share,
         edit_tag::edit_tag,
-        random::generate_random_data,
         regenerate_thumbnail::regenerate_thumbnail_with_frame,
         reindex::reindex,
         edit_config::update_config_handler,
         edit_config::update_password_handler,
         rotate_image::rotate_image
-    ]
+    ];
+    r.extend(routes![random::generate_random_data]);
+    r
 }
