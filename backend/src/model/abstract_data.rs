@@ -305,46 +305,6 @@ impl AbstractData {
         }
     }
 
-    /// Generate random `AbstractData` (image) for testing
-    pub fn generate_random_data() -> Self {
-        use crate::process::hash::generate_random_hash;
-
-        let hash = generate_random_hash();
-        let width = rand::rng().random_range(300..=600);
-        let height = rand::rng().random_range(300..=600);
-
-        let object = ObjectSchema {
-            id: hash,
-            obj_type: ObjectType::Image,
-            pending: false,
-            thumbhash: None,
-            description: None,
-            tags: HashSet::new(),
-            is_favorite: false,
-            is_archived: false,
-            is_trashed: false,
-            update_at: Utc::now().timestamp_millis(),
-        };
-
-        let metadata = ImageMetadata {
-            id: hash,
-            size: 0,
-            width,
-            height,
-            ext: "jpg".to_string(),
-            phash: None,
-            album: None,
-            exif_vec: BTreeMap::new(),
-            alias: vec![FileModify {
-                file: String::from("/"),
-                modified: 0,
-                scan_time: 0,
-            }],
-        };
-
-        AbstractData::Image(ImageCombined { object, metadata })
-    }
-
     // Path helper methods
 
     /// Get the source path string (first alias)

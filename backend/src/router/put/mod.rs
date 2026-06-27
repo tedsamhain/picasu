@@ -8,7 +8,6 @@ pub mod edit_description;
 pub mod edit_flags;
 pub mod edit_share;
 pub mod edit_tag;
-pub mod random;
 pub mod regenerate_thumbnail;
 pub mod reindex;
 pub mod rotate_image;
@@ -28,6 +27,5 @@ pub fn generate_put_routes() -> Vec<Route> {
         edit_config::update_password_handler,
         rotate_image::rotate_image
     ];
-    r.extend(routes![random::generate_random_data]);
     r
 }

@@ -86,33 +86,32 @@ backend/src/
 
 | Module | Depends on | Issues |
 |---|---|---|
-| `model/abstract_data` | `model::object`, `process::hash` | circular: `generate_random_data()` calls `process::hash::generate_random_hash()` |
+| `model/abstract_data` | `model::object` | clean |
 | `model/config` | `storage::files`, `tasks::batcher::reload_watcher` | legitimate — config save reloads watcher |
 | `model/expression` | `process::dir_album` | legitimate — filter evaluation needs dir-album cache |
 | `storage/db` | `model::*` | clean |
 | `storage/cache` | `model::*`, `storage::db` | clean |
 | `storage/files` | nothing in crate | pure filesystem path logic |
-| `storage/ser_de` | `model::*`, `router::get::get_prefetch::Prefetch` | circular — Prefetch should live in `model/response.rs` |
+| `storage/ser_de` | `model::*` | clean |
 | `process/index` | `process::*`, `storage::files`, `tasks::*` | clean |
 | `tasks/actor` | `process::*`, `storage::db`, `tasks::*` | clean |
 | `tasks/batcher` | `process::dir_album`, `storage::db`, `model::*`, `tasks::*` | clean |
 | `router/auth` | `model::*`, `router::*` | clean |
 
-### Unresolved issues
+### Resolved issues
 
 1. **`model/abstract_data` → `process/hash` circular dep** —
-   `generate_random_data()` calls `process::hash::generate_random_hash()`.
-   `generate_random_hash` is just `ArrayString::from(rng.gen::<u64>().to_string())`
-   and should live in `model/object.rs` to remove the layering violation.
+   `generate_random_data()` on `AbstractData` was dead code after the
+   `random::generate_random_data` endpoint was removed. Deleted the method;
+   the only remaining caller of `generate_random_hash()` is `process/dir_album.rs`,
+   which is in the same layer. No layering violation remains.
 
 2. **`storage/ser_de` → `router/get/get_prefetch` circular dep** —
-   `Prefetch` is a serializable response type encoded/decoded by `ser_de` but
-   defined in the router layer. Should move to `model/response.rs`.
+   `Prefetch` was moved from the router layer to `model/response.rs`.
 
 ### Accidental artifact
 
-- `backend/src/lib.rs.bak` committed — stale copy of pre-refactor `lib.rs`.
-  Should be removed.
+- `backend/src/lib.rs.bak` — removed.
 
 ### File sizes
 
