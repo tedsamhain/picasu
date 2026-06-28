@@ -117,7 +117,7 @@ and diffs the committed spec files — unannotated new routes or stale docs
 fail the gate.
 
 See `docs/openapi-generator.md` for the full design, and
-`docs/openapi-reference.md` for the rendered reference.
+`docs/mdbook/src/openapi-reference.md` for the rendered reference.
 
 **Future: scenario-to-endpoint tracing.** The scenario `call:` verb
 currently validates method+path pairs against `openapi.json`

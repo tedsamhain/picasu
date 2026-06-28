@@ -1,0 +1,7 @@
+[book]
+title = "picasu"
+authors = ["picasu contributors"]
+language = "en"
+
+[output.html]
+no-section-label = true
