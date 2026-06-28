@@ -23,6 +23,11 @@ backend-check:
 backend-test:
     cd backend && cargo nextest run
 
+# cargo nextest run (release)
+[group('backend')]
+backend-test-release:
+    cd backend && cargo nextest run --release
+
 # cargo deny check
 [group('backend')]
 backend-deny:
@@ -156,6 +161,12 @@ build: frontend-build backend-build
 # Build frontend then backend with embedded assets (release) — production build (CI/deployment)
 [group('global')]
 build-release: frontend-build backend-build-release
+
+# Build + test release build (CI): run backend tests first for quick feedback,
+# then compile release and validate with Playwright E2E
+[group('global')]
+test-release: backend-test-release build-release
+    PICASU_BINARY=backend/target/release/picasu just frontend-playwright
 
 # Remove the dev sandbox's generated app state (sandbox/data); leaves sandbox/images alone
 [group('global')]

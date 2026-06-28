@@ -37,13 +37,20 @@ export interface BackendHandle {
   stop(): Promise<void>
 }
 
+const REPO_ROOT = path.resolve(__dirname, '..', '..', '..')
+
 export async function startBackend(paths: WorkerPaths): Promise<BackendHandle> {
   fs.mkdirSync(paths.DATA_DIR, { recursive: true })
   fs.mkdirSync(paths.CONFIG_DIR, { recursive: true })
 
+  const binaryPath = process.env.PICASU_BINARY
+  const [cmd, cmdArgs, cmdOpts] = binaryPath
+    ? [path.resolve(REPO_ROOT, binaryPath), [], {}]
+    : ['cargo', ['run', '--bin', 'picasu'], { cwd: BACKEND_DIR }]
+
   const logTag = `[${path.basename(paths.DIR)}]`
-  const proc = spawn('cargo', ['run', '--bin', 'picasu'], {
-    cwd: BACKEND_DIR,
+  const proc = spawn(cmd, cmdArgs, {
+    ...cmdOpts,
     env: {
       ...process.env,
       PICASU_PORT: String(paths.BACKEND_PORT),
