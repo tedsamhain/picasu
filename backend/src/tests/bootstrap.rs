@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex, RwLock};
 
@@ -76,13 +75,6 @@ pub fn write_config(updates: &serde_json::Value) {
 /// All generated tests that call `POST /post/index/album` must hold this
 /// lock for their entire body to get `202 Accepted` instead of `409 Conflict`.
 pub static INDEX_SERIAL_GUARD: Mutex<()> = Mutex::new(());
-
-/// `TREE_SNAPSHOT` keys snapshots by `Utc::now().timestamp_millis()`
-/// (get_prefetch.rs). Two `prefetch` calls from different tests landing
-/// in the same millisecond will silently overwrite each other's
-/// snapshot. Tests that call `prefetch_locate` must hold this guard for
-/// their whole body to avoid tripping over it while running in parallel.
-pub static PREFETCH_SERIAL_GUARD: Mutex<()> = Mutex::new(());
 
 /// Build a Rocket test client with the current APP_CONFIG.
 pub fn make_client() -> Client {

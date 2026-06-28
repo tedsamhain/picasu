@@ -69,7 +69,7 @@ frontend-vitest:
 [group('frontend')]
 frontend-playwright:
     # filter scenarios: npx playwright test --grep "onboarding"
-    cd frontend && npm run test:e2e
+    cd frontend && npx playwright test
 
 # all frontend tests
 [group('frontend')]
