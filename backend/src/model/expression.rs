@@ -339,10 +339,11 @@ impl Expression {
 }
 #[cfg(test)]
 mod tests {
-    use super::Expression;
+    use super::{AlbumFilterValue, Expression, FilterValue};
     use crate::model::abstract_data::AbstractData;
     use crate::model::image::{ImageCombined, ImageMetadata};
     use crate::model::object::{ObjectSchema, ObjectType};
+    use crate::model::response::FileModify;
     use arrayvec::ArrayString;
 
     fn img() -> ImageCombined {
