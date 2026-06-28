@@ -58,7 +58,7 @@ The hook runs format + lint + typecheck on staged changes before every commit.
 On `main` it also runs the full test suite.
 
 - `just check` — lint + format check (backend, frontend, docs)
-- `just test` — run all tests (backend nextest + frontend vitest)
+- `just test` — run all tests (backend cargo test + frontend vitest)
 - `just run` — build and launch against `sandbox/`
 - `just plan` — view the project board (see `.plan/tasks/`)
 

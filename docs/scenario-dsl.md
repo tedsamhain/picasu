@@ -77,7 +77,7 @@ authentication before locking the API behind it.
 
 Compiled at build time by `build.rs` into one `#[test]` per YAML file.
 The runtime interpreter lives in `src/tests/backend_api.rs`. Run with
-`cargo nextest run`.
+`cargo test`.
 
 ### `when:` — single API call
 

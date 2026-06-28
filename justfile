@@ -18,15 +18,17 @@ backend-format:
 backend-check:
     cd backend && cargo fmt --check && cargo clippy -- -D warnings -A clippy::unwrap_used
 
-# cargo nextest run
+# cargo test
 [group('backend')]
-backend-test: frontend-build
-    cd backend && cargo nextest run
+backend-test:
+    test -d frontend/dist/assets || just frontend-build
+    cd backend && cargo test
 
-# cargo nextest run (release)
+# cargo test (release)
 [group('backend')]
-backend-test-release: frontend-build
-    cd backend && cargo nextest run --release
+backend-test-release:
+    test -d frontend/dist/assets || just frontend-build
+    cd backend && cargo test --release
 
 # cargo deny check
 [group('backend')]
@@ -156,7 +158,6 @@ setup-dev: install-dev
 install-dev:
     cargo install sccache
     cargo install cargo-deny cargo-audit
-    cargo install --locked cargo-nextest
     npm ci --prefix frontend
     npm install --prefix frontend --save-dev --save-exact widdershins
 
