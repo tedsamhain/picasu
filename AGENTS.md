@@ -18,7 +18,7 @@ Picasu is a self-hosted photo gallery for millions of images. The repo has two i
 **Entry points for a new agent:**
 
 1. **Architecture overview** — start with `docs/frontend.md` (frontend) and `docs/design.md` (backend). They cover routing, state, component tree, filter system, and design decisions.
-2. **Dev commands** — read `justfile` at the repo root. Key recipes: `just check` (lint), `just test` (backend nextest + frontend vitest), `just frontend-check`, `just frontend-test`, `just format` (auto-format)
+2. **Dev commands** — read `justfile` at the repo root. Key recipes: `just check` (lint), `just test` (backend cargo test + frontend vitest), `just frontend-check`, `just frontend-test`, `just format` (auto-format)
 3. **Backend sources** — `backend/src/main.rs` (server bootstrap), `backend/src/router/` (API routes), `backend/src/operations/` (domain logic), `backend/src/process/` (background tasks).
 4. **Frontend sources** — `frontend/src/main.ts` (app bootstrap), `frontend/src/route/routes.ts` (URL structure), `frontend/src/store/` (Pinia stores), `frontend/src/components/` (Vue components) — see `docs/frontend.md` for the component tree.
 5. **Testing** — Review `docs/test-strategy.md` and `docs/playwright_generator.md` before extending or modifying test scenarios or test infratructure.

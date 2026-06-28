@@ -29,7 +29,7 @@ A layered pipeline that catches defects at the earliest possible stage:
 | Layer            | What it catches                                       | How                                                |
 | ---------------- | ----------------------------------------------------- | -------------------------------------------------- |
 | Static (compile) | Category errors, unsafe code, style violations        | TypeScript, clippy, ESLint, `cargo fmt`/`prettier` |
-| Unit             | Pure-function logic errors                            | `#[cfg(test)]` blocks via `cargo nextest`          |
+| Unit             | Pure-function logic errors                            | `#[cfg(test)]` blocks via `cargo test`             |
 | Integration      | Multi-component interaction bugs                      | `src/tests/` against real redb in a tempdir        |
 | E2E — API        | HTTP contract violations, regressions                 | YAML scenarios → Rocket `local::Client`            |
 | E2E — UI         | Full-stack user-flow regressions                      | YAML scenarios → Playwright                        |
@@ -56,7 +56,7 @@ to catch configuration-specific divergence before a release.
 **Location:** `backend/tests/scenarios/*.yaml`
 **Runner:** `build.rs` generates one `#[test]` per YAML file, delegating to
 the runtime interpreter in `src/tests/backend_api.rs`.
-**Run:** `cargo nextest run`
+**Run:** `cargo test`
 
 Each YAML file is a given/when/assert spec for a real Rocket instance with
 ephemeral `IMAGE_HOME` and `DATA_HOME`. Internal redb state is opaque —
