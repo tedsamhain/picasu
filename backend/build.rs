@@ -40,17 +40,17 @@ fn main() {
         );
     }
 
-    let coverage_pct = if all_routes.is_empty() {
-        100.0
-    } else {
-        (annotated.len() as f64 / all_routes.len() as f64) * 100.0
-    };
-    println!(
-        "cargo:warning=utoipa annotation coverage: {:.1}% ({}/{})",
-        coverage_pct,
-        annotated.len(),
-        all_routes.len()
-    );
+    if !all_routes.is_empty() {
+        let annotated_count = annotated.len();
+        let total = all_routes.len();
+        if annotated_count != total {
+            let coverage_pct = (annotated_count as f64 / total as f64) * 100.0;
+            println!(
+                "cargo:warning=utoipa annotation coverage: {:.1}% ({}/{})",
+                coverage_pct, annotated_count, total
+            );
+        }
+    }
 
     generate_openapi_rs(&annotated, &backend_root.join("src").join("openapi.rs"));
 }
