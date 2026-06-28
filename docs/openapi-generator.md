@@ -50,7 +50,7 @@ This minimises the risk of undocumented or untested functions due to code drift.
        │                             │
        ▼                             ▼
 ┌──────────────┐      ┌──────────────────────────┐
-│ openapi.json │      │ docs/openapi-reference.md │
+│ openapi.json │      │ docs/mdbook/src/openapi-reference.md │
 │ (spec)       │      │ (widdershins markdown)    │
 └──────────────┘      └──────────────────────────┘
 ```
@@ -71,11 +71,11 @@ This minimises the risk of undocumented or untested functions due to code drift.
    `ApiDoc::openapi().to_json()` and writes the result to the file.
 
 3. **`just openapi-docs`** — chains `openapi-gen` with:
-   - `widdershins` to convert `openapi.json` → `docs/openapi-reference.md`
+   - `widdershins` to convert `openapi.json` → `docs/mdbook/src/openapi-reference.md`
    - `prettier` for consistent markdown formatting
 
 4. **`just openapi-docs-check`** — runs the full generation, then fails if
-   `openapi.json` or `docs/openapi-reference.md` differs from the committed
+   `openapi.json` or `docs/mdbook/src/openapi-reference.md` differs from the committed
    versions. Wired into `just precommit` on the `main` branch.
 
 ### Coverage check
@@ -160,9 +160,9 @@ The explicit schema list was redundant and has been removed.
 
 ## Files
 
-| File                        | Generator           | Role                                              |
-| --------------------------- | ------------------- | ------------------------------------------------- |
-| `backend/src/openapi.rs`    | `build.rs`          | ApiDoc struct with all routes (gitignored)        |
-| `backend/openapi.json`      | `ApiDoc::openapi()` | OpenAPI 3.1 spec                                  |
-| `docs/openapi-reference.md` | widdershins         | Human-readable API reference                      |
-| `build.rs`                  | —                   | Route scanner + `openapi.rs` generator + coverage |
+| File                                   | Generator           | Role                                              |
+| -------------------------------------- | ------------------- | ------------------------------------------------- |
+| `backend/src/openapi.rs`               | `build.rs`          | ApiDoc struct with all routes (gitignored)        |
+| `backend/openapi.json`                 | `ApiDoc::openapi()` | OpenAPI 3.1 spec                                  |
+| `docs/mdbook/src/openapi-reference.md` | widdershins         | Human-readable API reference                      |
+| `build.rs`                             | —                   | Route scanner + `openapi.rs` generator + coverage |
