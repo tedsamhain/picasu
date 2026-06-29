@@ -25,6 +25,7 @@
               :image-path="localSettings.imagePath"
               v-model:upload-folder="localSettings.uploadFolder"
               v-model:max-upload-size="localSettings.maxUploadSize"
+              v-model:fs-notify-watcher="localSettings.fsNotifyWatcher"
             />
           </v-row>
         </div>
@@ -66,6 +67,7 @@ const loading = ref(false)
 const localSettings = reactive<AppConfig>({
   readOnlyMode: false,
   disableImg: false,
+  fsNotifyWatcher: true,
   hasPassword: false,
   hasAuthKey: false,
   authKey: '',
@@ -87,6 +89,9 @@ const syncLocalWithStore = () => {
 const initData = async () => {
   loading.value = true
   const result = await tryWithMessageStore('mainId', async () => {
+    // Always re-fetch from backend so unsaved changes from a previous visit
+    // don't persist in the displayed state.
+    configStore.$patch({ config: undefined })
     await configStore.fetchConfig()
     syncLocalWithStore()
     return true
