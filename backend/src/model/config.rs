@@ -334,10 +334,12 @@ impl AppConfig {
         {
             config.disable_img = disabled;
         }
-        if let Ok(val) = std::env::var("PICASU_FS_NOTIFY_WATCHER")
-            && let Ok(enabled) = val.parse()
-        {
-            config.fs_notify_watcher = enabled;
+        if let Ok(val) = std::env::var("PICASU_FS_NOTIFY_WATCHER") {
+            if let Ok(enabled) = val.parse() {
+                config.fs_notify_watcher = enabled;
+            } else {
+                warn!("PICASU_FS_NOTIFY_WATCHER='{val}' is not 'true' or 'false', ignoring");
+            }
         }
         if let Ok(val) = std::env::var("PICASU_UPLOAD_FOLDER") {
             let trimmed = val.trim().to_string();
