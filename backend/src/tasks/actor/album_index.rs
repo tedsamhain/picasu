@@ -16,6 +16,9 @@ use crate::model::media::is_valid_media_file;
 use crate::router::AppResult;
 use crate::storage::files::get_data_path;
 use crate::storage::files::get_resolved_image_home;
+use crate::tasks::BATCH_COORDINATOR;
+use crate::tasks::batcher::flush_tree::FlushTreeTask;
+use crate::tasks::batcher::update_tree::UpdateTreeTask;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -203,6 +206,15 @@ pub fn index_album(src: &str) -> AppResult<()> {
                 increment_failed(job_id);
             }
         }
+
+        // Drain detached FlushTreeTask and UpdateTreeTask queues so the
+        // in-memory tree is fully visible before we transition to Completed.
+        let _ = BATCH_COORDINATOR
+            .execute_batch_waiting(FlushTreeTask::insert(vec![]))
+            .await;
+        let _ = BATCH_COORDINATOR
+            .execute_batch_waiting(UpdateTreeTask)
+            .await;
 
         let state = if cancel.load(Ordering::SeqCst) {
             AlbumIndexState::Canceled
