@@ -30,14 +30,10 @@ backend-test-release:
     test -d frontend/dist/assets || just frontend-build
     cd backend && cargo test --release
 
-# cargo deny check
-[group('backend')]
-backend-deny:
-    cd backend && cargo deny check
-
 # cargo audit
 [group('backend')]
 backend-audit:
+    cargo deny check
     cargo audit
 
 # cargo build (dev build)
@@ -216,7 +212,7 @@ run: build
 
 # Run security audits (backend + frontend)
 [group('global')]
-audit: backend-audit backend-deny frontend-audit
+audit: backend-audit frontend-audit
 
 # Run format, linter, static checks and tests
 [group('global')]
