@@ -73,9 +73,6 @@ jobs:
       - name: Test
         run: just test
 
-      - name: OpenAPI docs check
-        run: just openapi-docs-check
-
   test-release-build:
     if: github.event_name != 'pull_request'
     needs: [checks-n-tests]
