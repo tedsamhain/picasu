@@ -103,7 +103,10 @@ pub async fn edit_flags(
         .await
         .or_raise(|| (ErrorKind::Internal, "Failed to join blocking task"))??;
 
-    // Wait for the in-memory Tree to be updated
+    // Drain pending flush before rebuilding the in-memory tree.
+    let _ = BATCH_COORDINATOR
+        .execute_batch_waiting(FlushTreeTask::insert(vec![]))
+        .await;
     BATCH_COORDINATOR
         .execute_batch_waiting(UpdateTreeTask)
         .await
