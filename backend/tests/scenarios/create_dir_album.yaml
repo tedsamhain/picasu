@@ -15,6 +15,6 @@ then:
   - file_exists: /e2e_create_dir_album/parent/child
   - array_where:
       where:
-        dirPath: "${data_path}/e2e_create_dir_album/parent/child"
+        dirPath: "e2e_create_dir_album/parent/child"
       assert:
         parentAlbumId: "${parent}"
