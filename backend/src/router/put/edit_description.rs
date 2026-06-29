@@ -91,6 +91,9 @@ pub async fn set_user_defined_description(
     })
     .await
     .or_raise(|| (ErrorKind::Internal, "Failed to join blocking task"))??;
+    let _ = BATCH_COORDINATOR
+        .execute_batch_waiting(FlushTreeTask::insert(vec![]))
+        .await;
     BATCH_COORDINATOR
         .execute_batch_waiting(UpdateTreeTask)
         .await

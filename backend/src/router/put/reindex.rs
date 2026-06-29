@@ -105,6 +105,11 @@ pub async fn reindex(
     .await
     .or_raise(|| (ErrorKind::Internal, "Failed to join blocking task"))?;
 
-    BATCH_COORDINATOR.execute_batch_detached(UpdateTreeTask);
+    let _ = BATCH_COORDINATOR
+        .execute_batch_waiting(FlushTreeTask::insert(vec![]))
+        .await;
+    let _ = BATCH_COORDINATOR
+        .execute_batch_waiting(UpdateTreeTask)
+        .await;
     Ok(Status::Ok)
 }
