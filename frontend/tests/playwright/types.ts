@@ -53,7 +53,7 @@ export const GivenConfig = z
 
 export const GivenPhotoRaw = z
   .object({
-    photo_raw: z.string(),
+    photo_raw: z.string().min(1),
     format: z.enum(['jpeg', 'png']).optional(),
     width: z.number().int().positive().optional(),
     height: z.number().int().positive().optional()
