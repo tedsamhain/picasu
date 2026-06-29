@@ -30,8 +30,8 @@
 
       <v-divider></v-divider>
 
-      <!-- Regenerate Action -->
-      <ItemScanAlbum />
+      <!-- Scan Action (only when fs_notify_watcher is disabled) -->
+      <ItemScanAlbum v-if="!configStore.config?.fsNotifyWatcher" />
     </v-list>
   </v-menu>
 </template>
@@ -40,6 +40,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCollectionStore } from '@/store/collectionStore'
+import { useConfigStore } from '@/store/configStore'
 
 import ItemSetAsCover from '@Menu/MenuItem/ItemSetAsCover.vue'
 import ItemArchive from '@Menu/MenuItem/ItemArchive.vue'
@@ -57,6 +58,7 @@ import { getIsolationIdByRoute } from '@utils/getter'
 const route = useRoute()
 const isolationId = getIsolationIdByRoute(route)
 const collectionStore = useCollectionStore(isolationId)
+const configStore = useConfigStore('mainId')
 
 const editModeList = computed(() => Array.from(collectionStore.editModeCollection))
 

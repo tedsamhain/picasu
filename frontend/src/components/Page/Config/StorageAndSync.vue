@@ -4,31 +4,14 @@
       <v-card-title class="font-weight-bold">Image Library</v-card-title>
       <v-divider thickness="4" variant="double"></v-divider>
 
+      <!-- Image Path (always first) -->
       <v-list-item
-        title="Backend watches filesystem for modifications."
-        subtitle="Scan manually when DB out of sync, e.g. files copied while backend was offline."
-        prepend-icon="mdi-folder-network-outline"
+        v-if="imagePath"
+        title="Image Path"
+        :subtitle="imagePath"
+        prepend-icon="mdi-folder-open-outline"
         lines="two"
-      >
-        <template #append>
-          <v-btn
-            color="primary"
-            variant="flat"
-            prepend-icon="mdi-magnify-scan"
-            class="text-none font-weight-medium"
-            :disabled="!imagePath || isScanRunning"
-            :loading="scanLoading"
-            @click="startScan"
-          >
-            Scan Now
-          </v-btn>
-        </template>
-      </v-list-item>
-
-      <v-list v-if="imagePath" lines="one">
-        <v-list-item :title="'Server Path: ' + imagePath"></v-list-item>
-      </v-list>
-
+      ></v-list-item>
       <v-empty-state
         v-else
         icon="mdi-folder-open-outline"
@@ -38,6 +21,40 @@
 
       <v-divider></v-divider>
 
+      <!-- Filesystem watcher toggle -->
+      <v-list-item
+        :title="
+          fsNotifyWatcher
+            ? 'Backend watches filesystem for modifications.'
+            : 'Backend filesystem watcher is unavailable / disabled.'
+        "
+        :subtitle="
+          fsNotifyWatcher
+            ? 'Scan manually when DB out of sync, e.g. files copied while backend was offline.'
+            : 'Album-level manual scan functions enabled. Recommendation to strictly upload to designated upload folder only.'
+        "
+        lines="two"
+      >
+        <template #prepend>
+          <v-icon
+            :icon="fsNotifyWatcher ? 'mdi-folder-network-outline' : 'mdi-folder-network'"
+            :color="fsNotifyWatcher ? undefined : 'error'"
+            class="mr-4"
+          ></v-icon>
+        </template>
+        <template #append>
+          <v-switch
+            v-model="fsNotifyWatcher"
+            hide-details
+            color="primary"
+            density="compact"
+          ></v-switch>
+        </template>
+      </v-list-item>
+
+      <v-divider></v-divider>
+
+      <!-- Scan status -->
       <v-list-item
         title="Scan Status"
         :subtitle="statusSubtitle"
@@ -45,18 +62,31 @@
         lines="two"
       >
         <template #append>
-          <v-btn
-            v-if="isScanRunning"
-            variant="outlined"
-            color="warning"
-            prepend-icon="mdi-stop"
-            class="text-none"
-            :loading="cancelLoading"
-            :disabled="status.cancelRequested"
-            @click="cancelJob"
-          >
-            Cancel
-          </v-btn>
+          <div class="d-flex align-center ga-3">
+            <v-btn
+              v-if="isScanRunning"
+              variant="outlined"
+              color="warning"
+              prepend-icon="mdi-stop"
+              class="text-none"
+              :loading="cancelLoading"
+              :disabled="status.cancelRequested"
+              @click="cancelJob"
+            >
+              Cancel
+            </v-btn>
+            <v-btn
+              color="primary"
+              variant="flat"
+              prepend-icon="mdi-magnify-scan"
+              class="text-none font-weight-medium"
+              :disabled="!imagePath || isScanRunning"
+              :loading="scanLoading"
+              @click="startScan"
+            >
+              Scan Now
+            </v-btn>
+          </div>
         </template>
       </v-list-item>
 
@@ -71,26 +101,40 @@
 
       <v-divider></v-divider>
 
+      <!-- Upload Folder -->
       <v-list-item
         title="Upload Folder"
-        subtitle="Subfolder within to Image Library path"
+        subtitle="Subfolder within the Image Library path for uploads"
         prepend-icon="mdi-tray-arrow-up"
         lines="two"
       >
         <template #append>
-          <v-text-field
-            v-model="uploadFolder"
-            density="compact"
-            variant="outlined"
-            hide-details
-            placeholder="uploads"
-            style="max-width: 160px"
-          ></v-text-field>
+          <div class="d-flex align-center ga-3">
+            <v-btn
+              color="primary"
+              variant="flat"
+              prepend-icon="mdi-folder-search-outline"
+              class="text-none font-weight-medium"
+              :disabled="!imagePath"
+              @click="showFolderPicker = true"
+            >
+              Browse
+            </v-btn>
+            <v-text-field
+              v-model="uploadFolder"
+              density="compact"
+              variant="outlined"
+              hide-details
+              placeholder="uploads"
+              style="min-width: 120px; max-width: 220px"
+            ></v-text-field>
+          </div>
         </template>
       </v-list-item>
 
       <v-divider></v-divider>
 
+      <!-- Max Upload Size -->
       <v-list-item
         title="Max Upload Size"
         subtitle="Maximum size for a single file upload (e.g. 500MiB, 1GiB)"
@@ -104,7 +148,7 @@
             variant="outlined"
             hide-details
             placeholder="100MiB"
-            style="max-width: 160px"
+            style="min-width: 120px; max-width: 220px"
           ></v-text-field>
         </template>
       </v-list-item>
@@ -116,6 +160,13 @@
       </v-card-actions>
     </v-card>
   </v-col>
+
+  <!-- Upload folder browser -->
+  <ServerFilePicker
+    v-model="showFolderPicker"
+    :initial-path="imagePath ?? ''"
+    @select="onFolderSelected"
+  />
 </template>
 
 <script setup lang="ts">
@@ -129,16 +180,30 @@ import {
   type AlbumIndexStatus,
   type AlbumIndexState
 } from '@/api/fs'
+import ServerFilePicker from '@/components/Page/Config/ServerFilePicker.vue'
 
 const props = defineProps<{ imagePath: string | null }>()
 const uploadFolder = defineModel<string>('uploadFolder', { required: true })
 const maxUploadSize = defineModel<string>('maxUploadSize', { required: true })
+const fsNotifyWatcher = defineModel<boolean>('fsNotifyWatcher', { required: true })
 const configStore = useConfigStore('mainId')
 const messageStore = useMessageStore('mainId')
 
 const saving = ref(false)
 const scanLoading = ref(false)
 const cancelLoading = ref(false)
+const showFolderPicker = ref(false)
+
+const onFolderSelected = (fullPath: string) => {
+  const base = props.imagePath
+  if (base !== null && fullPath.startsWith(base)) {
+    const sep = base.endsWith('/') || base.endsWith('\\') ? '' : (fullPath[base.length] ?? '/')
+    const relative = fullPath.slice(base.length + sep.length)
+    uploadFolder.value = relative || fullPath
+  } else {
+    uploadFolder.value = fullPath
+  }
+}
 const status = ref<AlbumIndexStatus>(emptyStatus())
 let pollTimer: ReturnType<typeof setInterval> | undefined
 
@@ -256,7 +321,8 @@ const save = async () => {
   saving.value = true
   const success = await configStore.updateConfig({
     uploadFolder: uploadFolder.value,
-    maxUploadSize: maxUploadSize.value
+    maxUploadSize: maxUploadSize.value,
+    fsNotifyWatcher: fsNotifyWatcher.value
   })
   if (success === true) {
     messageStore.success('Path settings saved successfully')

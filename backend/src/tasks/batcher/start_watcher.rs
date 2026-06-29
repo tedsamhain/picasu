@@ -61,14 +61,19 @@ fn start_watcher_task_internal() -> Result<()> {
         return Ok(());
     }
 
-    // Get the raw path from config system
-    let raw_image_path = APP_CONFIG
-        .get()
-        .expect("APP_CONFIG not initialized")
-        .read()
-        .expect("lock poisoned")
-        .image_home
-        .clone();
+    let (fs_notify_watcher_enabled, raw_image_path) = {
+        let cfg = APP_CONFIG
+            .get()
+            .expect("APP_CONFIG not initialized")
+            .read()
+            .expect("lock poisoned");
+        (cfg.fs_notify_watcher, cfg.image_home.clone())
+    };
+
+    if !fs_notify_watcher_enabled {
+        info!("fs_notify_watcher disabled — skipping filesystem watcher");
+        return Ok(());
+    }
 
     let Some(raw_image_path) = raw_image_path else {
         info!("No path to watch");
@@ -119,7 +124,15 @@ fn submit_to_debounce_pool(path: PathBuf) {
             }
         };
 
+        let watcher_still_enabled = APP_CONFIG
+            .get()
+            .expect("APP_CONFIG not initialized")
+            .read()
+            .expect("lock poisoned")
+            .fs_notify_watcher;
+
         if should_run
+            && watcher_still_enabled
             && is_valid_media_file(&path)
             && let Some(image_root) = get_resolved_image_home()
             && let Ok(relative) = path.strip_prefix(&image_root)

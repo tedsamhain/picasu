@@ -19,6 +19,10 @@ fn generate_secret_key() -> String {
     general_purpose::STANDARD.encode(secret)
 }
 
+fn default_true() -> bool {
+    true
+}
+
 fn default_upload_folder() -> String {
     "uploads".to_string()
 }
@@ -47,6 +51,8 @@ pub struct AppConfig {
     pub max_upload_size: String,
     pub read_only_mode: bool,
     pub disable_img: bool,
+    #[serde(default = "default_true")]
+    pub fs_notify_watcher: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -64,6 +70,7 @@ impl Default for AppConfig {
             max_upload_size: default_max_upload_size(),
             read_only_mode: false,
             disable_img: false,
+            fs_notify_watcher: true,
             password: None,
             auth_key: None,
         }
@@ -122,6 +129,8 @@ pub(crate) struct TomlGallery {
     pub(crate) read_only_mode: bool,
     #[serde(default)]
     pub(crate) disable_img: bool,
+    #[serde(default = "default_true")]
+    pub(crate) fs_notify_watcher: bool,
 }
 
 impl Default for TomlGallery {
@@ -132,6 +141,7 @@ impl Default for TomlGallery {
             upload_folder: default_upload_folder(),
             read_only_mode: false,
             disable_img: false,
+            fs_notify_watcher: true,
         }
     }
 }
@@ -157,6 +167,7 @@ impl From<TomlFile> for AppConfig {
             max_upload_size: t.server.max_upload_size,
             read_only_mode: t.gallery.read_only_mode,
             disable_img: t.gallery.disable_img,
+            fs_notify_watcher: t.gallery.fs_notify_watcher,
             password: t.secrets.password,
             auth_key: t.secrets.auth_key,
         }
@@ -177,6 +188,7 @@ impl From<AppConfig> for TomlFile {
                 upload_folder: c.upload_folder,
                 read_only_mode: c.read_only_mode,
                 disable_img: c.disable_img,
+                fs_notify_watcher: c.fs_notify_watcher,
             },
             secrets: TomlSecrets {
                 password: c.password,
@@ -322,6 +334,11 @@ impl AppConfig {
         {
             config.disable_img = disabled;
         }
+        if let Ok(val) = std::env::var("PICASU_FS_NOTIFY_WATCHER")
+            && let Ok(enabled) = val.parse()
+        {
+            config.fs_notify_watcher = enabled;
+        }
         if let Ok(val) = std::env::var("PICASU_UPLOAD_FOLDER") {
             let trimmed = val.trim().to_string();
             if !trimmed.is_empty() {
@@ -423,6 +440,7 @@ mod tests {
             max_upload_size: "500MiB".to_string(),
             read_only_mode: true,
             disable_img: false,
+            fs_notify_watcher: false,
             password: Some("secret".to_string()),
             auth_key: None,
         };

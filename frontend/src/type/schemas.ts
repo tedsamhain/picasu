@@ -219,7 +219,8 @@ export const PublicConfigSchema = z.object({
   uploadFolder: z.string(),
   maxUploadSize: z.string(),
   readOnlyMode: z.boolean(),
-  disableImg: z.boolean()
+  disableImg: z.boolean(),
+  fsNotifyWatcher: z.boolean()
 })
 
 export const TokenResponseSchema = z.object({

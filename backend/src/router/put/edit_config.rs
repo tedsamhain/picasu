@@ -23,6 +23,7 @@ pub struct PartialUpdateConfigRequest {
     pub max_upload_size: Option<String>,
     pub read_only_mode: Option<bool>,
     pub disable_img: Option<bool>,
+    pub fs_notify_watcher: Option<bool>,
     pub auth_key: Option<String>,
 }
 
@@ -72,6 +73,9 @@ pub async fn update_config_handler(
         }
         if let Some(disable_img) = req_data.disable_img {
             current_config.disable_img = disable_img;
+        }
+        if let Some(fs_notify_watcher) = req_data.fs_notify_watcher {
+            current_config.fs_notify_watcher = fs_notify_watcher;
         }
         if let Some(key) = req_data.auth_key {
             let trimmed = key.trim();

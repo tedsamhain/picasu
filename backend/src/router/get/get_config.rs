@@ -23,6 +23,7 @@ pub struct ConfigResponse {
     pub max_upload_size: String,
     pub read_only_mode: bool,
     pub disable_img: bool,
+    pub fs_notify_watcher: bool,
     pub has_password: bool,
     pub has_auth_key: bool,
 }
@@ -52,6 +53,7 @@ pub fn get_config_handler(auth: GuardResult<GuardShare>) -> AppResult<Json<Confi
         max_upload_size: config.max_upload_size.clone(),
         read_only_mode: config.read_only_mode,
         disable_img: config.disable_img,
+        fs_notify_watcher: config.fs_notify_watcher,
         has_password: config.password.is_some(),
         has_auth_key: config.auth_key.is_some(),
     };
