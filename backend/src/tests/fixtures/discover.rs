@@ -77,9 +77,6 @@ pub fn discover_photo_hash(client: &Client, relative_path: &str) -> String {
 }
 
 pub fn discover_album_id(client: &Client, relative_dir: &str) -> String {
-    let image_home = image_home();
-    let abs_dir = image_home.join(relative_dir);
-
     let cookie = auth_cookie(client);
     let albums_resp = client.get("/get/get-albums").cookie(cookie).dispatch();
     assert_eq!(albums_resp.status(), Status::Ok, "get-albums");
@@ -87,11 +84,10 @@ pub fn discover_album_id(client: &Client, relative_dir: &str) -> String {
         serde_json::from_slice(&albums_resp.into_bytes().expect("albums body"))
             .expect("valid albums JSON");
     let albums = albums_body.as_array().expect("albums array");
-    let abs_dir_str = abs_dir.to_string_lossy();
     let album = albums
         .iter()
-        .find(|a| a["dirPath"].as_str() == Some(&abs_dir_str))
-        .unwrap_or_else(|| panic!("no album found for dir {abs_dir_str}"));
+        .find(|a| a["dirPath"].as_str() == Some(relative_dir))
+        .unwrap_or_else(|| panic!("no album found for dir {relative_dir}"));
     album["albumId"].as_str().expect("albumId").to_owned()
 }
 

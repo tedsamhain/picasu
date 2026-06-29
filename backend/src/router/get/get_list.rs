@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::model::album::Share;
+use crate::model::config::APP_CONFIG;
 use crate::process::dir_album::get_parent_album_id;
 use crate::router::auth::GuardAuth;
 use crate::router::{AppResult, GuardResult};
@@ -57,21 +58,38 @@ pub struct AlbumInfo {
 pub async fn get_albums(auth: GuardResult<GuardAuth>) -> AppResult<Json<Vec<AlbumInfo>>> {
     let _ = auth?;
     tokio::task::spawn_blocking(move || {
+        let image_home = APP_CONFIG
+            .get()
+            .expect("APP_CONFIG not initialized")
+            .read()
+            .expect("lock poisoned")
+            .image_home
+            .clone();
+
         let album_list = TREE
             .read_albums()
             .map_err(|e| e.context("Failed to read albums"))?;
         let album_info_list = album_list
             .into_iter()
             .map(|album| {
+                // parent_album_id lookup uses the raw absolute path stored in the DB
                 let parent_album_id =
                     album.metadata.dir_path.as_deref().and_then(|dir| {
                         get_parent_album_id(Path::new(dir)).map(|id| id.to_string())
                     });
+                // Expose dir_path as a path relative to IMAGE_HOME so the frontend
+                // never needs to know or handle the absolute image library location.
+                let dir_path = album.metadata.dir_path.as_deref().map(|dir| {
+                    image_home
+                        .as_ref()
+                        .and_then(|root| Path::new(dir).strip_prefix(root).ok())
+                        .map_or_else(|| dir.to_string(), |rel| rel.to_string_lossy().into_owned())
+                });
                 AlbumInfo {
                     album_id: album.object.id.to_string(),
                     album_name: album.metadata.title,
                     share_list: album.metadata.share_list,
-                    dir_path: album.metadata.dir_path,
+                    dir_path,
                     parent_album_id,
                 }
             })

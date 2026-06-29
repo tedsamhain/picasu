@@ -19,22 +19,22 @@ then:
   - response.status: 200
   - array_where:
       where:
-        dirPath: "${data_path}/e2e_d"
+        dirPath: "e2e_d"
       assert:
         parentAlbumId: null
-        dirPath: "${data_path}/e2e_d"
+        dirPath: "e2e_d"
         albumId: ${e2e_id}
   - array_where:
       where:
-        dirPath: "${data_path}/e2e_d/vacation"
+        dirPath: "e2e_d/vacation"
       assert:
         parentAlbumId: ${e2e_id}
-        dirPath: "${data_path}/e2e_d/vacation"
+        dirPath: "e2e_d/vacation"
         albumId: ${parent_id}
   - array_where:
       where:
-        dirPath: "${data_path}/e2e_d/vacation/day1"
+        dirPath: "e2e_d/vacation/day1"
       assert:
         parentAlbumId: ${parent_id}
-        dirPath: "${data_path}/e2e_d/vacation/day1"
+        dirPath: "e2e_d/vacation/day1"
         albumId: ${child_id}
