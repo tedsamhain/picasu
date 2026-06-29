@@ -38,7 +38,7 @@ backend-deny:
 # cargo audit
 [group('backend')]
 backend-audit:
-    cd backend && cargo audit
+    cargo audit
 
 # cargo build (dev build)
 [group('backend')]
