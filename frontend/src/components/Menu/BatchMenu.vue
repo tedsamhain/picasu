@@ -31,7 +31,7 @@
       <v-divider></v-divider>
 
       <!-- Scan Action (only when fs_notify_watcher is disabled) -->
-      <ItemScanAlbum v-if="!configStore.config?.fsNotifyWatcher" />
+      <ItemScanAlbum v-if="!(configStore.config?.fsNotifyWatcher ?? false)" />
     </v-list>
   </v-menu>
 </template>
