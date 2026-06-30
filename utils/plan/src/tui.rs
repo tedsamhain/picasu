@@ -418,12 +418,14 @@ impl App<'_> {
         let type_w: usize = 8;
         let prio_w: usize = 8;
         let slot = |w: usize| w + 1;
-        // Color scheme — white-background row, priority color bg for vivid fields
-        let sel_base = Style::default()
+        // Color scheme — BOLD only on active field, non-active selected row has plain bg
+        let sel_base = Style::default().bg(Color::White).fg(Color::Black);
+        let sel_act = Style::default()
             .bg(Color::White)
             .fg(Color::Black)
             .add_modifier(Modifier::BOLD);
-        let sel_prio = |pc: Color| {
+        let sel_prio_base = |pc: Color| Style::default().bg(pc).fg(Color::Black);
+        let sel_prio_act = |pc: Color| {
             Style::default()
                 .bg(pc)
                 .fg(Color::Black)
@@ -491,10 +493,14 @@ impl App<'_> {
                         };
                         format!("{:<w$}", format!(" {}", s), w = slen)
                     };
-                    spans.push(Span::styled(
-                        slug,
-                        if is_sel { sel_base } else { Style::default() },
-                    ));
+                    let slug_st = if is_sel && is_act(3) {
+                        sel_act
+                    } else if is_sel {
+                        sel_base
+                    } else {
+                        Style::default()
+                    };
+                    spans.push(Span::styled(slug, slug_st));
 
                     // Type (field 0)
                     let content = if is_act(0) {
@@ -510,10 +516,14 @@ impl App<'_> {
                             w = slot(type_w)
                         )
                     };
-                    spans.push(Span::styled(
-                        content,
-                        if is_sel { sel_base } else { Style::default() },
-                    ));
+                    let type_st = if is_sel && is_act(0) {
+                        sel_act
+                    } else if is_sel {
+                        sel_base
+                    } else {
+                        Style::default()
+                    };
+                    spans.push(Span::styled(content, type_st));
 
                     // Priority (field 1) — vivid colors get colored bg, low uses plain row highlight
                     let pc = priority_color(&task.task.priority);
@@ -531,14 +541,18 @@ impl App<'_> {
                             w = slot(prio_w)
                         )
                     };
-                    let st = if is_sel && vivid {
-                        sel_prio(pc)
+                    let prio_st = if is_sel && vivid && is_act(1) {
+                        sel_prio_act(pc)
+                    } else if is_sel && vivid {
+                        sel_prio_base(pc)
+                    } else if is_sel && is_act(1) {
+                        sel_act
                     } else if is_sel {
                         sel_base
                     } else {
                         Style::default().fg(pc)
                     };
-                    spans.push(Span::styled(content, st));
+                    spans.push(Span::styled(content, prio_st));
 
                     // Area (field 2)
                     let content = if is_act(2) {
@@ -546,10 +560,14 @@ impl App<'_> {
                     } else {
                         format!(" {}", task.task.area)
                     };
-                    spans.push(Span::styled(
-                        content,
-                        if is_sel { sel_base } else { Style::default() },
-                    ));
+                    let area_st = if is_sel && is_act(2) {
+                        sel_act
+                    } else if is_sel {
+                        sel_base
+                    } else {
+                        Style::default()
+                    };
+                    spans.push(Span::styled(content, area_st));
 
                     lines.push(Line::from(spans));
                 }
