@@ -21,6 +21,10 @@ export default defineConfig({
     ['html', { outputFolder: path.join(TEST_DIR, 'html-report'), open: 'never' }]
   ],
 
+  expect: {
+    timeout: isCI ? 15_000 : 5_000
+  },
+
   use: {
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
