@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Paragraph, Wrap},
+    widgets::Paragraph,
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -86,6 +86,7 @@ struct App<'a> {
     preview_scroll: usize,
     preview_offset: usize,
     preview_theme: usize,
+    preview_width: usize,
 }
 
 struct Column {
@@ -124,6 +125,7 @@ impl<'a> App<'a> {
             preview_scroll: 0,
             preview_offset: 0,
             preview_theme: 0,
+            preview_width: 80,
         };
 
         app.sort_tasks();
@@ -300,7 +302,7 @@ impl App<'_> {
         self.render_footer(frame, footer_area);
     }
 
-    fn render_preview(&self, frame: &mut Frame) {
+    fn render_preview(&mut self, frame: &mut Frame) {
         let [title_area, body_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(frame.area());
         let ts = themes();
@@ -313,14 +315,30 @@ impl App<'_> {
             Style::default().fg(Color::DarkGray),
         ));
         frame.render_widget(title, title_area);
-        // Text width: 90% of terminal, max 120, left-aligned with 1-char margin
-        let tw = ((body_area.width.saturating_sub(1) as f64 * 0.9) as u16).clamp(40, 120);
-        let text_area = Rect::new(body_area.x + 1, body_area.y, tw, body_area.height);
+        let tw = ((body_area.width.saturating_sub(1) as f64 * 0.9) as u16).clamp(40, 120) as usize;
+        if tw != self.preview_width
+            && self.mode == Mode::Preview
+            && let Some((_slug, path)) = self.current_task_path()
+            && let Ok(content) = std::fs::read_to_string(path)
+        {
+            self.preview_width = tw;
+            self.preview = render_markdown(
+                &themes()[self.preview_theme.min(themes().len() - 1)],
+                &content,
+                tw,
+            );
+            self.preview_scroll = 0;
+            self.preview_offset = 0;
+        }
         frame.render_widget(
             Paragraph::new(self.preview.clone())
-                .wrap(Wrap { trim: false })
                 .scroll((self.preview_scroll as u16, self.preview_offset as u16)),
-            text_area,
+            Rect::new(
+                body_area.x + 1,
+                body_area.y,
+                body_area.width.saturating_sub(1),
+                body_area.height,
+            ),
         );
     }
 
@@ -740,7 +758,7 @@ impl App<'_> {
     fn render_content(&mut self, content: &str) {
         let ts = themes();
         let theme = &ts[self.preview_theme.min(ts.len() - 1)];
-        self.preview = render_markdown(theme, content);
+        self.preview = render_markdown(theme, content, self.preview_width);
     }
 
     fn current_task_path(&self) -> Option<(&str, &Path)> {
@@ -781,7 +799,7 @@ fn strip_frontmatter(text: &str) -> &str {
     text
 }
 
-fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
+fn render_markdown(th: &MarkdownTheme, text: &str, wrap: usize) -> Vec<Line<'static>> {
     use pulldown_cmark::{Event, Parser, Tag, TagEnd};
     use pulldown_cmark::{HeadingLevel, Options};
 
@@ -875,8 +893,21 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                 _ => {}
             },
             Event::End(tag) => match tag {
-                TagEnd::Heading(_) | TagEnd::Paragraph => {
+                TagEnd::Heading(_) => {
                     flush(&mut lines, &mut spans);
+                    style_stack.clear();
+                    lines.push(Line::from(""));
+                }
+                TagEnd::Paragraph => {
+                    // Wrap paragraph spans at textwidth
+                    if !spans.is_empty() {
+                        let text: String = spans.iter().map(|s| s.content.as_ref()).collect();
+                        let wrapped = wrap_lines(&text, wrap);
+                        for seg in &wrapped {
+                            lines.push(Line::from(seg.clone()));
+                        }
+                        spans.clear();
+                    }
                     style_stack.clear();
                     lines.push(Line::from(""));
                 }
@@ -1170,7 +1201,7 @@ mod quick_table_test {
     fn table_renders_header_and_body() {
         let md = "| **Name** | `Code` |\n|---|---|\n| foo | bar |\n";
         let th = &themes()[0];
-        let lines = render_markdown(th, md);
+        let lines = render_markdown(th, md, 80);
         // Should have header + separator + body + blank → at least 3 lines
         let total: String = lines
             .iter()
