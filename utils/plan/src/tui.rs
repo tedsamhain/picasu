@@ -1081,7 +1081,7 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                             continue;
                         }
                         if rendered_first {
-                            let mut sep = String::from(" ");
+                            let mut sep = String::from("|");
                             for &w in &col_w {
                                 sep.push_str(&format!(" {:-<w$}|", "-", w = w));
                             }
@@ -1095,7 +1095,7 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                             .collect();
                         let max_ln = cell_lines.iter().map(|c| c.len()).max().unwrap_or(1);
                         for li in 0..max_ln {
-                            let mut buf = String::from(" ");
+                            let mut buf = String::from("|");
                             for i in 0..ncols {
                                 let txt = cell_lines[i].get(li).map(|s| s.as_str()).unwrap_or("");
                                 let w = col_w[i];
