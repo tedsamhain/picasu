@@ -660,18 +660,36 @@ impl App<'_> {
         {
             let width = 80u16;
             let mut skin = ratskin::RatSkin::default();
-            skin.skin.headers[0].set_fg(termimad::crossterm::style::Color::Cyan);
-            skin.skin.headers[1].set_fg(termimad::crossterm::style::Color::Cyan);
-            skin.skin.headers[2].set_fg(termimad::crossterm::style::Color::Blue);
+            use termimad::crossterm::style::{Attribute, Attributes, Color};
+            // h1: bold cyan, h2: plain cyan, h3+: italic cyan
+            for h in &mut skin.skin.headers {
+                h.compound_style.remove_attr(Attribute::Underlined);
+            }
+            skin.skin.headers[0] = termimad::LineStyle::new(
+                termimad::CompoundStyle::new(
+                    Some(Color::Cyan),
+                    None,
+                    Attributes::from(Attribute::Bold),
+                ),
+                Default::default(),
+            );
+            skin.skin.headers[1] = termimad::LineStyle::new(
+                termimad::CompoundStyle::new(Some(Color::Cyan), None, Attributes::none()),
+                Default::default(),
+            );
+            for h in &mut skin.skin.headers[2..] {
+                h.compound_style.set_fg(Color::Cyan);
+                h.compound_style.add_attr(Attribute::Italic);
+            }
             skin.skin
                 .italic
                 .set_fg(termimad::crossterm::style::Color::Magenta);
             skin.skin.inline_code.set_fgbg(
-                termimad::crossterm::style::Color::Yellow,
+                termimad::crossterm::style::Color::Cyan,
                 termimad::crossterm::style::Color::DarkGrey,
             );
             skin.skin.code_block.set_fgbg(
-                termimad::crossterm::style::Color::White,
+                termimad::crossterm::style::Color::Cyan,
                 termimad::crossterm::style::Color::DarkGrey,
             );
             skin.skin
