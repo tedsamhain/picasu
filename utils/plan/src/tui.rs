@@ -660,19 +660,26 @@ impl App<'_> {
         {
             let width = 80u16;
             let mut skin = ratskin::RatSkin::default();
-            let c = |r: u8, g: u8, b: u8| termimad::crossterm::style::Color::Rgb { r, g, b };
-            skin.skin.headers[0].set_fg(c(0, 180, 255));
-            skin.skin.headers[1].set_fg(c(0, 180, 255));
-            skin.skin.headers[2].set_fg(c(100, 150, 255));
-            skin.skin.bold.set_fg(c(255, 220, 80));
-            skin.skin.italic.set_fg(c(220, 140, 255));
+            skin.skin.headers[0].set_fg(termimad::crossterm::style::Color::Cyan);
+            skin.skin.headers[1].set_fg(termimad::crossterm::style::Color::Cyan);
+            skin.skin.headers[2].set_fg(termimad::crossterm::style::Color::Blue);
             skin.skin
-                .inline_code
-                .set_fgbg(c(255, 255, 150), c(60, 60, 60));
+                .bold
+                .set_fg(termimad::crossterm::style::Color::Yellow);
             skin.skin
-                .code_block
-                .set_fgbg(c(200, 200, 200), c(50, 50, 50));
-            skin.skin.bullet.set_fg(c(80, 220, 80));
+                .italic
+                .set_fg(termimad::crossterm::style::Color::Magenta);
+            skin.skin.inline_code.set_fgbg(
+                termimad::crossterm::style::Color::Yellow,
+                termimad::crossterm::style::Color::DarkGrey,
+            );
+            skin.skin.code_block.set_fgbg(
+                termimad::crossterm::style::Color::White,
+                termimad::crossterm::style::Color::DarkGrey,
+            );
+            skin.skin
+                .bullet
+                .set_fg(termimad::crossterm::style::Color::Green);
             let text = ratskin::RatSkin::parse_text(&content);
             self.preview = skin.parse(text, width);
             self.preview_scroll = 0;
