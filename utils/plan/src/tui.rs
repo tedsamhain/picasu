@@ -1083,7 +1083,7 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                         if rendered_first {
                             let mut sep = String::from("|");
                             for &w in &col_w {
-                                sep.push_str(&format!(" {:-<w$}|", "-", w = w));
+                                sep.push_str(&format!("{:-<w$}|", "-", w = w + 1));
                             }
                             lines.push(Line::from(sep));
                         }
