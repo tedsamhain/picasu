@@ -735,12 +735,24 @@ impl App<'_> {
         let theme = &THEMES[self.preview_theme.min(THEMES.len() - 1)];
         let mut skin = ratskin::RatSkin::default();
 
-        skin.skin.set_headers_fg(theme.headers_fg);
-        skin.skin.headers[0]
-            .compound_style
-            .add_attr(Attribute::Bold);
-        for h in &mut skin.skin.headers[2..] {
-            h.compound_style.add_attr(Attribute::Italic);
+        use termimad::crossterm::style::Attributes;
+        let base = termimad::CompoundStyle::new(Some(theme.headers_fg), None, Attributes::none());
+        let h1 = termimad::CompoundStyle::new(
+            Some(theme.headers_fg),
+            None,
+            Attributes::from(Attribute::Bold),
+        );
+        let h3 = termimad::CompoundStyle::new(
+            Some(theme.headers_fg),
+            None,
+            Attributes::from(Attribute::Italic),
+        );
+        for (i, h) in skin.skin.headers.iter_mut().enumerate() {
+            h.compound_style = match i {
+                0 => h1.clone(),
+                1 => base.clone(),
+                _ => h3.clone(),
+            };
         }
         if let Some(c) = theme.bold_fg {
             skin.skin.bold.set_fg(c);
