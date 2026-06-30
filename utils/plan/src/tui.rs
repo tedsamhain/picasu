@@ -422,13 +422,13 @@ impl App<'_> {
         let sel_base = Style::default().bg(Color::White).fg(Color::Black);
         let sel_act = Style::default()
             .bg(Color::White)
-            .fg(Color::Black)
+            .fg(Color::Rgb(0, 0, 0))
             .add_modifier(Modifier::BOLD);
         let sel_prio_base = |pc: Color| Style::default().bg(pc).fg(Color::Black);
         let sel_prio_act = |pc: Color| {
             Style::default()
                 .bg(pc)
-                .fg(Color::Black)
+                .fg(Color::Rgb(0, 0, 0))
                 .add_modifier(Modifier::BOLD)
         };
         let is_vivid = |c: Color| {
