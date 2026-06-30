@@ -19,7 +19,6 @@ struct MarkdownTheme {
     bold: Style,
     dim: Style,
     code: Style,
-    bullet: Style,
 }
 
 fn themes() -> Vec<MarkdownTheme> {
@@ -34,7 +33,6 @@ fn themes() -> Vec<MarkdownTheme> {
             bold: Style::default().add_modifier(Modifier::BOLD),
             dim: Style::default().add_modifier(Modifier::BOLD),
             code: Style::default().fg(Color::Yellow),
-            bullet: Style::default(),
         },
         MarkdownTheme {
             name: "classic",
@@ -46,7 +44,6 @@ fn themes() -> Vec<MarkdownTheme> {
             bold: Style::default().add_modifier(Modifier::BOLD),
             dim: Style::default().add_modifier(Modifier::BOLD),
             code: Style::default().fg(Color::Yellow),
-            bullet: Style::default().fg(Color::Green),
         },
     ]
 }
@@ -781,9 +778,7 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
 
         // List item
         if let Some(item) = trimmed.strip_prefix("- ") {
-            let bullet_s = Span::styled("\u{2022}", th.bullet);
-            let text_s = Span::raw(format!(" {}", item));
-            lines.push(Line::from(vec![bullet_s, text_s]));
+            lines.push(Line::from(format!("  - {}", item)));
             continue;
         }
         // Code block fence
