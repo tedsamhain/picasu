@@ -313,10 +313,9 @@ impl App<'_> {
             Style::default().fg(Color::DarkGray),
         ));
         frame.render_widget(title, title_area);
-        // Text width: 90% of terminal, max 120
-        let tw = ((body_area.width as f64 * 0.9) as u16).clamp(40, 120);
-        let pad = body_area.width.saturating_sub(tw) / 2;
-        let text_area = Rect::new(body_area.x + pad, body_area.y, tw, body_area.height);
+        // Text width: 90% of terminal, max 120, left-aligned with 1-char margin
+        let tw = ((body_area.width.saturating_sub(1) as f64 * 0.9) as u16).clamp(40, 120);
+        let text_area = Rect::new(body_area.x + 1, body_area.y, tw, body_area.height);
         frame.render_widget(
             Paragraph::new(self.preview.clone())
                 .wrap(Wrap { trim: false })
