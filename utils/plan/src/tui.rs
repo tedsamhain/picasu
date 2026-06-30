@@ -15,6 +15,7 @@ const FIELD_COUNT: usize = 4; // type, priority, area, slug
 pub enum Action {
     None,
     Quit,
+    OpenPreview,
     OpenEditor,
 }
 
@@ -182,6 +183,29 @@ pub fn run_tui(
             Ok(action) => match action {
                 Action::None => {}
                 Action::Quit => break,
+                Action::OpenPreview => {
+                    if let Some((_slug, path)) = app.current_task_path() {
+                        ratatui::restore();
+                        let previewers = ["glow", "view", "cat"];
+                        let cmd = previewers.iter().find(|cmd| {
+                            std::process::Command::new(cmd)
+                                .arg("--version")
+                                .stdout(std::process::Stdio::null())
+                                .stderr(std::process::Stdio::null())
+                                .status()
+                                .is_ok()
+                        });
+                        if let Some(cmd) = cmd {
+                            std::process::Command::new(cmd).arg(path).status().ok();
+                        }
+                        if let Ok(t) = ratatui::try_init() {
+                            terminal = t;
+                        } else {
+                            eprintln!("failed to re-init terminal after preview");
+                            break;
+                        }
+                    }
+                }
                 Action::OpenEditor => {
                     if let Some((_slug, path)) = app.current_task_path() {
                         ratatui::restore();
@@ -473,7 +497,7 @@ impl App<'_> {
 
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
         let text = format!(
-            " Enter:filter  e:edit  {}  Ctrl-c:quit ",
+            " Enter:preview  f:filter  e:edit  {}  Ctrl-c:quit ",
             if self.has_active_filters() {
                 "q:clear-filters"
             } else {
@@ -532,6 +556,11 @@ impl App<'_> {
                     }
                 }
                 KeyCode::Enter => {
+                    if !self.columns.is_empty() {
+                        return Ok(Action::OpenPreview);
+                    }
+                }
+                KeyCode::Char('f') => {
                     if !self.columns.is_empty() {
                         let col = &self.columns[self.selected_column];
                         if let Some(&task_idx) = col.task_indices.get(self.selected_task) {
