@@ -33,7 +33,7 @@ fn themes() -> Vec<MarkdownTheme> {
                 .add_modifier(Modifier::UNDERLINED),
             h3: Style::default().fg(Color::Cyan),
             bold: Style::default().add_modifier(Modifier::BOLD),
-            dim: Style::default().add_modifier(Modifier::BOLD),
+            dim: Style::default().add_modifier(Modifier::UNDERLINED),
             code: Style::default().fg(Color::Yellow),
         },
         MarkdownTheme {
@@ -46,7 +46,7 @@ fn themes() -> Vec<MarkdownTheme> {
                 .add_modifier(Modifier::UNDERLINED),
             h3: Style::default().fg(Color::Cyan),
             bold: Style::default().add_modifier(Modifier::BOLD),
-            dim: Style::default().add_modifier(Modifier::BOLD),
+            dim: Style::default().add_modifier(Modifier::UNDERLINED),
             code: Style::default().fg(Color::Yellow),
         },
     ]
@@ -790,6 +790,57 @@ fn wrap_lines(text: &str, max: usize) -> Vec<String> {
     out
 }
 
+fn wrap_spans(spans: &[Span<'static>], max: usize) -> Vec<Vec<Span<'static>>> {
+    let mut out: Vec<Vec<Span<'static>>> = Vec::new();
+    let mut cur: Vec<(String, Style)> = Vec::new();
+    let mut line_len = 0usize;
+
+    for span in spans {
+        let text = span.content.as_ref();
+        let style = span.style;
+        let mut word = String::new();
+
+        for ch in text.chars() {
+            if ch == ' ' {
+                if !word.is_empty() {
+                    let wlen = word.len();
+                    if line_len + wlen > max && !cur.is_empty() {
+                        out.push(cur.drain(..).map(|(s, st)| Span::styled(s, st)).collect());
+                        line_len = 0;
+                    }
+                    cur.push((std::mem::take(&mut word), style));
+                    line_len += wlen;
+                }
+                if line_len + 1 > max && !cur.is_empty() {
+                    out.push(cur.drain(..).map(|(s, st)| Span::styled(s, st)).collect());
+                    line_len = 0;
+                } else {
+                    cur.push((" ".to_string(), style));
+                    line_len += 1;
+                }
+            } else {
+                word.push(ch);
+            }
+        }
+
+        if !word.is_empty() {
+            let wlen = word.len();
+            if line_len + wlen > max && !cur.is_empty() {
+                out.push(cur.drain(..).map(|(s, st)| Span::styled(s, st)).collect());
+                line_len = 0;
+            }
+            cur.push((std::mem::take(&mut word), style));
+            line_len += wlen;
+        }
+    }
+
+    if !cur.is_empty() {
+        out.push(cur.drain(..).map(|(s, st)| Span::styled(s, st)).collect());
+    }
+
+    out
+}
+
 fn strip_frontmatter(text: &str) -> &str {
     if let Some(rest) = text.trim_start().strip_prefix("---")
         && let Some(end) = rest.find("---")
@@ -899,12 +950,11 @@ fn render_markdown(th: &MarkdownTheme, text: &str, wrap: usize) -> Vec<Line<'sta
                     lines.push(Line::from(""));
                 }
                 TagEnd::Paragraph => {
-                    // Wrap paragraph spans at textwidth
+                    // Wrap paragraph spans at textwidth, preserving styles
                     if !spans.is_empty() {
-                        let text: String = spans.iter().map(|s| s.content.as_ref()).collect();
-                        let wrapped = wrap_lines(&text, wrap);
-                        for seg in &wrapped {
-                            lines.push(Line::from(seg.clone()));
+                        let wrapped = wrap_spans(&spans, wrap);
+                        for line_spans in wrapped {
+                            lines.push(Line::from(line_spans));
                         }
                         spans.clear();
                     }
