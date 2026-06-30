@@ -2,21 +2,21 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 #[derive(Deserialize, Debug)]
-struct Task {
-    status: String,
+pub struct Task {
+    pub status: String,
     #[serde(rename = "type")]
-    task_type: String,
-    priority: String,
+    pub task_type: String,
+    pub priority: String,
     #[serde(default)]
-    area: String,
+    pub area: String,
 }
 
-struct LoadedTask {
-    slug: String,
-    task: Task,
+pub struct LoadedTask {
+    pub slug: String,
+    pub task: Task,
 }
 
-const KANBAN_ORDER: &[&str] = &["idea", "backlog", "open", "in-progress", "blocked", "done"];
+pub const KANBAN_ORDER: &[&str] = &["idea", "backlog", "open", "in-progress", "blocked", "done"];
 
 pub fn validate_all(root: &std::path::Path) -> bool {
     let plan_dir = root.join(".plan");
@@ -210,7 +210,7 @@ pub fn list_tasks(
     }
 }
 
-fn load_and_filter_tasks(
+pub fn load_and_filter_tasks(
     entries: &[PathBuf],
     status_filter: Option<&str>,
     type_filter: Option<&str>,
@@ -296,7 +296,7 @@ fn load_and_filter_tasks(
     tasks
 }
 
-fn cmp_tasks(a: &LoadedTask, b: &LoadedTask, sort_keys: &[String]) -> std::cmp::Ordering {
+pub fn cmp_tasks(a: &LoadedTask, b: &LoadedTask, sort_keys: &[String]) -> std::cmp::Ordering {
     let keys: &[String] = if sort_keys.is_empty() {
         &["priority".into(), "slug".into()]
     } else {
@@ -312,7 +312,7 @@ fn cmp_tasks(a: &LoadedTask, b: &LoadedTask, sort_keys: &[String]) -> std::cmp::
     std::cmp::Ordering::Equal
 }
 
-fn cmp_by_key(a: &LoadedTask, b: &LoadedTask, key: &str) -> std::cmp::Ordering {
+pub fn cmp_by_key(a: &LoadedTask, b: &LoadedTask, key: &str) -> std::cmp::Ordering {
     match key {
         "status" => {
             let oa = kanban_ord(&a.task.status);
@@ -532,7 +532,7 @@ fn display_table(tasks: &[LoadedTask]) {
     writeln!(stdout).unwrap();
 }
 
-fn read_task_files(tasks_dir: &std::path::Path) -> Result<Vec<PathBuf>, String> {
+pub fn read_task_files(tasks_dir: &std::path::Path) -> Result<Vec<PathBuf>, String> {
     match std::fs::read_dir(tasks_dir) {
         Ok(rd) => {
             let mut v: Vec<PathBuf> = rd

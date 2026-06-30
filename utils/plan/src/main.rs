@@ -1,7 +1,14 @@
 mod plan;
+mod tui;
 
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let raw_args: Vec<String> = std::env::args().skip(1).collect();
+    let is_tui = raw_args.first().map(|s| s == "tui").unwrap_or(false);
+    let args: Vec<String> = if is_tui {
+        raw_args.into_iter().skip(1).collect()
+    } else {
+        raw_args
+    };
     let mut status_filter: Option<String> = None;
     let mut type_filter: Option<String> = None;
     let mut priority_filter: Option<String> = None;
@@ -115,6 +122,18 @@ fn main() {
         return;
     }
 
+    if is_tui {
+        tui::run_tui(
+            &root,
+            status_filter.as_deref(),
+            type_filter.as_deref(),
+            priority_filter.as_deref(),
+            area_filter.as_deref(),
+            search_query.as_deref(),
+        );
+        return;
+    }
+
     plan::list_tasks(
         &root,
         status_filter.as_deref(),
@@ -144,7 +163,8 @@ fn resolve_filter_or_sort(
 }
 
 fn print_help() {
-    println!("plan [FLAGS]\n");
+    println!("plan [FLAGS]");
+    println!("plan tui [FLAGS]  interactive kanban browser\n");
     println!(
         "Search tasks in .plan directory. Default is table view sorted by priority then slug.\n"
     );
@@ -158,6 +178,8 @@ fn print_help() {
     println!("  -k, --kanban         group by status (vertical sections)");
     println!("  --lint               validate frontmatter only, then exit");
     println!("  --format             normalize frontmatter + body, then exit\n");
+    println!("Subcommands:");
+    println!("  tui                  interactive kanban browser\n");
     println!("Frontmatter is validated on every invocation; warnings go to stderr.\n");
     println!("Examples:");
     println!("  plan -a -p            sort by area then priority");
