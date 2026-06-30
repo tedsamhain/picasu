@@ -1,5 +1,5 @@
-use crate::model::abstract_data::AbstractData;
 use crate::process::transitor::index_to_hash;
+use crate::process::xmp_write::write_sidecar_for;
 use crate::storage::db::{open_data_table, open_tree_snapshot_table};
 
 use crate::error::{AppError, ErrorKind, ResultExt};
@@ -10,6 +10,7 @@ use crate::tasks::BATCH_COORDINATOR;
 use crate::tasks::batcher::flush_tree::FlushTreeTask;
 use crate::tasks::batcher::update_tree::UpdateTreeTask;
 use anyhow::Result;
+use log::warn;
 use rocket::serde::{Deserialize, json::Json};
 use serde::Serialize;
 
@@ -65,23 +66,10 @@ pub async fn set_user_defined_description(
         {
             let mut abstract_data = guard.value();
 
-            match &mut abstract_data {
-                AbstractData::Image(img) => {
-                    img.object
-                        .description
-                        .clone_from(&set_user_defined_description.description);
-                }
-                AbstractData::Video(vid) => {
-                    vid.object
-                        .description
-                        .clone_from(&set_user_defined_description.description);
-                }
-                AbstractData::Album(album) => {
-                    album
-                        .object
-                        .description
-                        .clone_from(&set_user_defined_description.description);
-                }
+            abstract_data.set_description(set_user_defined_description.description.clone());
+
+            if let Err(e) = write_sidecar_for(&abstract_data) {
+                warn!("Failed to write XMP sidecar: {e}");
             }
 
             BATCH_COORDINATOR.execute_batch_detached(FlushTreeTask::insert(vec![abstract_data]));
