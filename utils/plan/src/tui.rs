@@ -1165,9 +1165,7 @@ fn render_markdown(th: &MarkdownTheme, text: &str, wrap: usize) -> Vec<Line<'sta
             Event::TaskListMarker(checked) => {
                 item_checked = Some(checked);
             }
-            Event::SoftBreak | Event::HardBreak => {
-                push_span(&mut spans, " ", &Style::default());
-            }
+            Event::SoftBreak | Event::HardBreak => flush(&mut lines, &mut spans),
             Event::Html(t) => push_span(&mut spans, &t, &Style::default()),
             _ => {}
         }
