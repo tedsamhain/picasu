@@ -736,16 +736,7 @@ impl App<'_> {
     }
 }
 
-fn strip_frontmatter(text: &str) -> &str {
-    if let Some(rest) = text.trim_start().strip_prefix("---")
-        && let Some(end) = rest.find("---")
-    {
-        return rest[end + 3..].trim_start();
-    }
-    text
-}
-
-fn word_wrap_lines(text: &str, max: usize) -> Vec<String> {
+fn wrap_lines(text: &str, max: usize) -> Vec<String> {
     if text.len() <= max {
         return vec![text.to_string()];
     }
@@ -755,8 +746,6 @@ fn word_wrap_lines(text: &str, max: usize) -> Vec<String> {
         if cur.len() + word.trim_end().len() > max && !cur.is_empty() {
             out.push(cur.trim_end().to_string());
             cur = word.trim_start().to_string();
-        } else if cur.is_empty() {
-            cur = word.trim_start().to_string();
         } else {
             cur.push_str(word);
         }
@@ -764,10 +753,16 @@ fn word_wrap_lines(text: &str, max: usize) -> Vec<String> {
     if !cur.is_empty() {
         out.push(cur.trim_end().to_string());
     }
-    if out.is_empty() {
-        out.push(text.to_string());
-    }
     out
+}
+
+fn strip_frontmatter(text: &str) -> &str {
+    if let Some(rest) = text.trim_start().strip_prefix("---")
+        && let Some(end) = rest.find("---")
+    {
+        return rest[end + 3..].trim_start();
+    }
+    text
 }
 
 fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
@@ -787,6 +782,9 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
     let mut cur_row: Vec<String> = Vec::new();
     let mut cur_cell = String::new();
     let mut in_cell = false;
+    // List item state
+    let mut item_text = String::new();
+    let mut in_item = false;
 
     let push_span = |spans: &mut Vec<Span<'static>>, text: &str, style: &Style| {
         if !text.is_empty() {
@@ -822,7 +820,8 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                 Tag::List(_) => {}
                 Tag::Item => {
                     flush(&mut lines, &mut spans);
-                    push_span(&mut spans, "  - ", &Style::default());
+                    in_item = true;
+                    item_text.clear();
                 }
                 Tag::CodeBlock(_) => {
                     flush(&mut lines, &mut spans);
@@ -862,7 +861,22 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                     lines.push(Line::from(""));
                 }
                 TagEnd::List(_) => {}
-                TagEnd::Item => flush(&mut lines, &mut spans),
+                TagEnd::Item => {
+                    in_item = false;
+                    flush(&mut lines, &mut spans);
+                    if !item_text.is_empty() {
+                        let indent = "    ";
+                        let first = format!("  - {}", item_text.trim());
+                        for (i, seg) in wrap_lines(&first, 78).iter().enumerate() {
+                            let s = if i == 0 {
+                                seg.clone()
+                            } else {
+                                format!("{}{}", indent, seg)
+                            };
+                            lines.push(Line::from(s));
+                        }
+                    }
+                }
                 TagEnd::CodeBlock => {
                     in_code_block = false;
                     flush(&mut lines, &mut spans);
@@ -897,35 +911,22 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                         if row.is_empty() {
                             continue;
                         }
-                        let cell_lines: Vec<Vec<String>> = row
-                            .iter()
-                            .enumerate()
-                            .map(|(i, c)| {
-                                let w = col_w.get(i).copied().unwrap_or(10).saturating_sub(2);
-                                word_wrap_lines(c, w.max(3))
-                            })
-                            .collect();
-                        let max_ln = cell_lines.iter().map(|c| c.len()).max().unwrap_or(1);
-                        for li in 0..max_ln {
-                            let mut buf = String::from(" ");
-                            for i in 0..ncols {
-                                let txt = cell_lines
-                                    .get(i)
-                                    .and_then(|c| c.get(li))
-                                    .map(|s| s.as_str())
-                                    .unwrap_or("");
-                                let w = col_w.get(i).copied().unwrap_or(10).saturating_sub(2);
-                                buf.push_str(&format!(" {:<w$} |", txt, w = w));
-                            }
-                            lines.push(Line::from(buf));
+                        let mut buf = String::from(" ");
+                        for i in 0..ncols {
+                            let txt = row.get(i).map(|s| s.as_str()).unwrap_or("");
+                            let w = col_w.get(i).copied().unwrap_or(10).saturating_sub(2);
+                            buf.push_str(&format!(" {:<w$} |", txt, w = w));
                         }
+                        lines.push(Line::from(buf));
                     }
                     lines.push(Line::from(""));
                 }
                 _ => {}
             },
             Event::Text(t) => {
-                if in_cell {
+                if in_item {
+                    item_text.push_str(&t);
+                } else if in_cell {
                     cur_cell.push_str(&t);
                 } else if in_code_block {
                     for (i, l) in t.lines().enumerate() {
@@ -940,7 +941,9 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                 }
             }
             Event::Code(t) => {
-                if in_cell {
+                if in_item {
+                    item_text.push_str(&t);
+                } else if in_cell {
                     cur_cell.push_str(&t);
                 } else {
                     push_span(&mut spans, &t, &th.code);
