@@ -778,11 +778,13 @@ fn strip_frontmatter(text: &str) -> &str {
 }
 
 fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
-    use pulldown_cmark::HeadingLevel;
     use pulldown_cmark::{Event, Parser, Tag, TagEnd};
+    use pulldown_cmark::{HeadingLevel, Options};
 
     let body = strip_frontmatter(text);
-    let parser = Parser::new(body);
+    let mut opts = Options::empty();
+    opts.insert(Options::ENABLE_TABLES);
+    let parser = Parser::new_ext(body, opts);
 
     let mut lines: Vec<Line<'static>> = Vec::new();
     let mut spans: Vec<Span<'static>> = Vec::new();
