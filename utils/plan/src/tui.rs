@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Paragraph, Wrap},
+    widgets::Paragraph,
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -80,6 +80,7 @@ struct App<'a> {
     mode: Mode,
     preview: Vec<Line<'static>>,
     preview_scroll: usize,
+    preview_offset: usize,
     preview_theme: usize,
 }
 
@@ -117,6 +118,7 @@ impl<'a> App<'a> {
             mode: Mode::Browse,
             preview: Vec::new(),
             preview_scroll: 0,
+            preview_offset: 0,
             preview_theme: 0,
         };
 
@@ -301,7 +303,7 @@ impl App<'_> {
         let tn = ts[self.preview_theme.min(ts.len() - 1)].name;
         let title = Line::from(Span::styled(
             format!(
-                " Preview [{}] \u{2014} q/Esc:close  c:theme  \u{2191}\u{2193}:scroll",
+                " Preview [{}] \u{2014} q/Esc:close  c:theme  \u{2191}\u{2193}\u{2190}\u{2192}:pan",
                 tn
             ),
             Style::default().fg(Color::DarkGray),
@@ -309,8 +311,7 @@ impl App<'_> {
         frame.render_widget(title, title_area);
         frame.render_widget(
             Paragraph::new(self.preview.clone())
-                .wrap(Wrap { trim: false })
-                .scroll((self.preview_scroll as u16, 0)),
+                .scroll((self.preview_scroll as u16, self.preview_offset as u16)),
             body_area,
         );
     }
@@ -603,6 +604,12 @@ impl App<'_> {
                     KeyCode::Down | KeyCode::Char('j') => {
                         self.preview_scroll = self.preview_scroll.saturating_add(1);
                     }
+                    KeyCode::Left | KeyCode::Char('h') => {
+                        self.preview_offset = self.preview_offset.saturating_sub(8);
+                    }
+                    KeyCode::Right | KeyCode::Char('l') => {
+                        self.preview_offset = self.preview_offset.saturating_add(8);
+                    }
                     KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => {
                         return Ok(Action::Quit);
                     }
@@ -708,6 +715,7 @@ impl App<'_> {
             self.preview_theme = 0;
             self.render_content(&content);
             self.preview_scroll = 0;
+            self.preview_offset = 0;
             self.mode = Mode::Preview;
         }
     }
@@ -860,16 +868,36 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                     style_stack.clear();
                     lines.push(Line::from(""));
                 }
-                TagEnd::List(_) => {}
+                TagEnd::List(_) => {
+                    lines.push(Line::from(""));
+                }
                 TagEnd::Item => {
                     in_item = false;
                     flush(&mut lines, &mut spans);
                     if !item_text.is_empty() {
-                        let indent = "    ";
-                        let first = format!("  - {}", item_text.trim());
+                        let trimmed = item_text.trim();
+                        let (prefix, indent_sz) = if let Some(rest) = trimmed.strip_prefix("[") {
+                            if rest.starts_with("] ") {
+                                ("  - [ ] ".to_string(), 6)
+                            } else if rest.starts_with("x] ") {
+                                ("  - [x] ".to_string(), 6)
+                            } else {
+                                ("  - ".to_string(), 4)
+                            }
+                        } else {
+                            ("  - ".to_string(), 4)
+                        };
+                        let content = if prefix.len() > 4 {
+                            // checkbox: content is after "[ ] " or "[x] "
+                            trimmed[4..].to_string()
+                        } else {
+                            trimmed.to_string()
+                        };
+                        let first = format!("{}{}", prefix, content);
+                        let indent = " ".repeat(indent_sz);
                         for (i, seg) in wrap_lines(&first, 78).iter().enumerate() {
-                            let s = if i == 0 {
-                                seg.clone()
+                            let s: String = if i == 0 {
+                                seg.into()
                             } else {
                                 format!("{}{}", indent, seg)
                             };
