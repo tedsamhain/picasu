@@ -15,8 +15,13 @@ const FIELD_COUNT: usize = 4; // type, priority, area, slug
 pub enum Action {
     None,
     Quit,
-    OpenPreview,
     OpenEditor,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Mode {
+    Browse,
+    Preview,
 }
 
 struct App<'a> {
@@ -35,6 +40,9 @@ struct App<'a> {
     filter_priority: Option<String>,
     filter_area: Option<String>,
     filter_search: Option<String>,
+    mode: Mode,
+    preview: Vec<Line<'static>>,
+    preview_scroll: usize,
 }
 
 struct Column {
@@ -68,6 +76,9 @@ impl<'a> App<'a> {
             filter_priority: None,
             filter_area: None,
             filter_search: None,
+            mode: Mode::Browse,
+            preview: Vec::new(),
+            preview_scroll: 0,
         };
 
         app.sort_tasks();
@@ -183,39 +194,6 @@ pub fn run_tui(
             Ok(action) => match action {
                 Action::None => {}
                 Action::Quit => break,
-                Action::OpenPreview => {
-                    if let Some((_slug, path)) = app.current_task_path() {
-                        ratatui::restore();
-                        let previewers = ["glow", "view", "cat"];
-                        let cmd = previewers.iter().find(|cmd| {
-                            std::process::Command::new(cmd)
-                                .arg("--version")
-                                .stdout(std::process::Stdio::null())
-                                .stderr(std::process::Stdio::null())
-                                .status()
-                                .is_ok()
-                        });
-                        if let Some(cmd) = cmd {
-                            std::process::Command::new(cmd)
-                                .env("PAGER", "cat")
-                                .arg(path)
-                                .status()
-                                .ok();
-                        }
-                        loop {
-                            if let Ok(Event::Key(k)) = crossterm::event::read()
-                                && matches!(k.code, KeyCode::Char('q') | KeyCode::Esc)
-                            {
-                                break;
-                            }
-                        }
-                        if let Ok(t) = ratatui::try_init() {
-                            terminal = t;
-                        } else {
-                            break;
-                        }
-                    }
-                }
                 Action::OpenEditor => {
                     if let Some((_slug, path)) = app.current_task_path() {
                         ratatui::restore();
@@ -247,6 +225,13 @@ pub fn run_tui(
 
 impl App<'_> {
     fn render(&mut self, frame: &mut Frame) {
+        match self.mode {
+            Mode::Browse => self.render_browse(frame),
+            Mode::Preview => self.render_preview(frame),
+        }
+    }
+
+    fn render_browse(&mut self, frame: &mut Frame) {
         let slug_w = self
             .tasks
             .iter()
@@ -268,6 +253,20 @@ impl App<'_> {
         self.render_header(frame, head_area, slug_w, type_w, prio_w, slot);
         self.render_task_area(frame, task_area, slug_w, type_w, prio_w, slot);
         self.render_footer(frame, footer_area);
+    }
+
+    fn render_preview(&self, frame: &mut Frame) {
+        let [title_area, body_area] =
+            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(frame.area());
+        let title = Line::from(Span::styled(
+            " Preview \u{2014} q/Esc to close, \u{2191}\u{2193} to scroll ",
+            Style::default().fg(Color::DarkGray),
+        ));
+        frame.render_widget(title, title_area);
+        frame.render_widget(
+            Paragraph::new(self.preview.clone()).scroll((self.preview_scroll as u16, 0)),
+            body_area,
+        );
     }
 
     fn render_header(
@@ -549,43 +548,65 @@ impl App<'_> {
             if key.kind != KeyEventKind::Press {
                 return Ok(Action::None);
             }
-            return Ok(match key.code {
-                KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => Action::Quit,
-                KeyCode::Char('q') | KeyCode::Esc => {
-                    if self.has_active_filters() {
-                        self.filter_status = None;
-                        self.filter_type = None;
-                        self.filter_priority = None;
-                        self.filter_area = None;
-                        self.filter_search = None;
-                        self.reload_tasks();
-                        Action::None
-                    } else {
-                        Action::Quit
+            match self.mode {
+                Mode::Preview => match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => self.mode = Mode::Browse,
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        self.preview_scroll = self.preview_scroll.saturating_sub(1);
                     }
-                }
-                KeyCode::Enter if !self.columns.is_empty() => Action::OpenPreview,
-                KeyCode::Char('f') if !self.columns.is_empty() => {
-                    let col = &self.columns[self.selected_column];
-                    if let Some(&task_idx) = col.task_indices.get(self.selected_task) {
-                        let task = &self.tasks[task_idx];
-                        match self.selected_field {
-                            0 => self.filter_type = Some(task.task.task_type.clone()),
-                            1 => self.filter_priority = Some(task.task.priority.clone()),
-                            2 => self.filter_area = Some(task.task.area.clone()),
-                            3 => self.filter_search = Some(task.slug.clone()),
-                            _ => {}
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        self.preview_scroll = self.preview_scroll.saturating_add(1);
+                    }
+                    KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => {
+                        return Ok(Action::Quit);
+                    }
+                    _ => {}
+                },
+                Mode::Browse => {
+                    return Ok(match key.code {
+                        KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => {
+                            Action::Quit
                         }
-                        self.reload_tasks();
-                    }
-                    Action::None
+                        KeyCode::Char('q') | KeyCode::Esc => {
+                            if self.has_active_filters() {
+                                self.filter_status = None;
+                                self.filter_type = None;
+                                self.filter_priority = None;
+                                self.filter_area = None;
+                                self.filter_search = None;
+                                self.reload_tasks();
+                                Action::None
+                            } else {
+                                Action::Quit
+                            }
+                        }
+                        KeyCode::Enter if !self.columns.is_empty() => {
+                            self.open_preview();
+                            Action::None
+                        }
+                        KeyCode::Char('f') if !self.columns.is_empty() => {
+                            let col = &self.columns[self.selected_column];
+                            if let Some(&task_idx) = col.task_indices.get(self.selected_task) {
+                                let task = &self.tasks[task_idx];
+                                match self.selected_field {
+                                    0 => self.filter_type = Some(task.task.task_type.clone()),
+                                    1 => self.filter_priority = Some(task.task.priority.clone()),
+                                    2 => self.filter_area = Some(task.task.area.clone()),
+                                    3 => self.filter_search = Some(task.slug.clone()),
+                                    _ => {}
+                                }
+                                self.reload_tasks();
+                            }
+                            Action::None
+                        }
+                        KeyCode::Char('e') if !self.columns.is_empty() => Action::OpenEditor,
+                        _ => {
+                            self.handle_task_key(key.code);
+                            Action::None
+                        }
+                    });
                 }
-                KeyCode::Char('e') if !self.columns.is_empty() => Action::OpenEditor,
-                _ => {
-                    self.handle_task_key(key.code);
-                    Action::None
-                }
-            });
+            }
         }
         Ok(Action::None)
     }
@@ -630,6 +651,19 @@ impl App<'_> {
                 };
             }
             _ => {}
+        }
+    }
+
+    fn open_preview(&mut self) {
+        if let Some((_slug, path)) = self.current_task_path()
+            && let Ok(content) = std::fs::read_to_string(path)
+        {
+            let width = 80u16;
+            let skin = ratskin::RatSkin::default();
+            let text = ratskin::RatSkin::parse_text(&content);
+            self.preview = skin.parse(text, width);
+            self.preview_scroll = 0;
+            self.mode = Mode::Preview;
         }
     }
 
