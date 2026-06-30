@@ -1,0 +1,15 @@
+name: xmp sidecar is written when a tag is edited
+# Verifies Group 3: after calling edit_tag, a .xmp sidecar appears next to the original file.
+given:
+  - photo: /e2e_z1/photo.jpg
+    id_as: $photo
+when:
+  - call: POST /get/prefetch?locate=${photo}
+    capture:
+      ts: response.prefetch.timestamp
+      idx: response.prefetch.locateTo
+  - call: PUT /put/edit_tag
+    raw_body: '{"indexArray":[${idx}],"addTagsArray":["z1_landscape"],"removeTagsArray":[],"timestamp":${ts}}'
+then:
+  - response.status: 200
+  - file_exists: /e2e_z1/photo.xmp

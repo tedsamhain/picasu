@@ -1,0 +1,28 @@
+name: delete removes original file and xmp sidecar from disk
+# Verifies Group 4c: delete_data removes the file + sidecar from disk.
+given:
+  - photo: /e2e_z3/photo.jpg
+    id_as: $photo
+when:
+  # Write a sidecar first by editing a tag
+  - call: POST /get/prefetch?locate=${photo}
+    capture:
+      ts: response.prefetch.timestamp
+      idx: response.prefetch.locateTo
+  - call: PUT /put/edit_tag
+    raw_body: '{"indexArray":[${idx}],"addTagsArray":["z3_tag"],"removeTagsArray":[],"timestamp":${ts}}'
+    then:
+      - response.status: 200
+      - file_exists: /e2e_z3/photo.xmp
+  # Re-capture timestamp after edit (tree updated)
+  - call: POST /get/prefetch?locate=${photo}
+    capture:
+      ts: response.prefetch.timestamp
+      idx: response.prefetch.locateTo
+  # Delete the item
+  - call: DELETE /delete/delete-data
+    raw_body: '{"deleteList":[${idx}],"timestamp":${ts}}'
+then:
+  - response.status: 200
+  - file_absent: /e2e_z3/photo.jpg
+  - file_absent: /e2e_z3/photo.xmp
