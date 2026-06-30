@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::Paragraph,
+    widgets::{Paragraph, Wrap},
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -315,6 +315,7 @@ impl App<'_> {
         frame.render_widget(title, title_area);
         frame.render_widget(
             Paragraph::new(self.preview.clone())
+                .wrap(Wrap { trim: false })
                 .scroll((self.preview_scroll as u16, self.preview_offset as u16)),
             body_area,
         );
@@ -884,9 +885,9 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                         let trimmed = item_text.trim();
                         let (prefix, indent_sz) = if let Some(rest) = trimmed.strip_prefix("[") {
                             if rest.starts_with("] ") {
-                                ("  - [ ] ".to_string(), 6)
+                                ("  - [ ] ".to_string(), 8)
                             } else if rest.starts_with("x] ") {
-                                ("  - [x] ".to_string(), 6)
+                                ("  - [x] ".to_string(), 8)
                             } else {
                                 ("  - ".to_string(), 4)
                             }
