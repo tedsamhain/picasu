@@ -1074,16 +1074,18 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                         col_w[max_i] += slack;
                     }
 
-                    // Render rows with word-wrap
-                    let mut rendered_first = false;
+                    // Render rows — first separator uses =, rest use -
+                    let mut sep_count = 0usize;
                     for row in &trimmed {
                         if row.is_empty() {
                             continue;
                         }
-                        if rendered_first {
+                        if sep_count > 0 {
+                            let ch = if sep_count == 1 { '=' } else { '-' };
                             let mut sep = String::from("|");
                             for &w in &col_w {
-                                sep.push_str(&format!("{:-<w$}|", "-", w = w + 1));
+                                let dashes: String = std::iter::repeat_n(ch, w + 1).collect();
+                                sep.push_str(&format!("{}|", dashes));
                             }
                             lines.push(Line::from(sep));
                         }
@@ -1093,28 +1095,17 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                                 wrap_lines(txt, col_w.get(i).copied().unwrap_or(10))
                             })
                             .collect();
-                        let is_header = !rendered_first;
                         let max_ln = cell_lines.iter().map(|c| c.len()).max().unwrap_or(1);
                         for li in 0..max_ln {
-                            let mut spans: Vec<Span<'static>> = Vec::new();
-                            spans.push(Span::raw("|"));
+                            let mut buf = String::from("|");
                             for i in 0..ncols {
                                 let txt = cell_lines[i].get(li).map(|s| s.as_str()).unwrap_or("");
                                 let w = col_w[i];
-                                if is_header {
-                                    spans.push(Span::raw(" "));
-                                    spans.push(Span::styled(
-                                        format!("{:<w$}", txt, w = w),
-                                        Style::default().add_modifier(Modifier::UNDERLINED),
-                                    ));
-                                    spans.push(Span::raw("|"));
-                                } else {
-                                    spans.push(Span::raw(format!(" {:<w$}|", txt, w = w)));
-                                }
+                                buf.push_str(&format!(" {:<w$}|", txt, w = w));
                             }
-                            lines.push(Line::from(spans));
+                            lines.push(Line::from(buf));
                         }
-                        rendered_first = true;
+                        sep_count += 1;
                     }
                     lines.push(Line::from(""));
                 }
@@ -1194,6 +1185,6 @@ mod quick_table_test {
             lines
         );
         assert!(total.contains("foo"), "Missing body 'foo' in: {:?}", lines);
-        assert!(total.contains("-"), "Missing separator in: {:?}", lines);
+        assert!(total.contains("="), "Missing separator in: {:?}", lines);
     }
 }
