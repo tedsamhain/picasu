@@ -664,9 +664,6 @@ impl App<'_> {
             skin.skin.headers[1].set_fg(termimad::crossterm::style::Color::Cyan);
             skin.skin.headers[2].set_fg(termimad::crossterm::style::Color::Blue);
             skin.skin
-                .bold
-                .set_fg(termimad::crossterm::style::Color::Yellow);
-            skin.skin
                 .italic
                 .set_fg(termimad::crossterm::style::Color::Magenta);
             skin.skin.inline_code.set_fgbg(
