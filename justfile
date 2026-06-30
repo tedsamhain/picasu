@@ -66,7 +66,13 @@ frontend-vitest:
 # run frontend e2e (playwright) tests
 [group('frontend')]
 frontend-playwright:
+    #!/usr/bin/env bash
+    set -e
+    # Pre-build backend once so parallel test workers don't fight for the cargo build lock.
+    # Skipped when PICASU_BINARY is already set (e.g. test-release supplies the release binary).
+    [ -n "${PICASU_BINARY:-}" ] || cargo build --bin picasu
     # filter scenarios: npx playwright test --grep "onboarding"
+    export PICASU_BINARY="${PICASU_BINARY:-$(pwd)/target/debug/picasu}"
     cd frontend && npx playwright test
 
 # all frontend tests

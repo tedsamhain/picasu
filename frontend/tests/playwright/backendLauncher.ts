@@ -45,7 +45,7 @@ export async function startBackend(paths: WorkerPaths): Promise<BackendHandle> {
 
   const binaryPath = process.env.PICASU_BINARY
   const [cmd, cmdArgs, cmdOpts] = binaryPath
-    ? [path.resolve(REPO_ROOT, binaryPath), [], {}]
+    ? [path.resolve(REPO_ROOT, binaryPath), [], { cwd: BACKEND_DIR }]
     : ['cargo', ['run', '--bin', 'picasu'], { cwd: BACKEND_DIR }]
 
   const logTag = `[${path.basename(paths.DIR)}]`
