@@ -941,69 +941,121 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                         .map(|row| row.iter().map(|c| c.trim().to_string()).collect())
                         .collect();
 
-                    // Compute min and preferred widths
-                    let mut min_w: Vec<usize> = vec![0; ncols];
+                    // Compute widths per column
+                    struct ColW {
+                        min: usize,
+                        p60: usize,
+                        p80: usize,
+                        p100: usize,
+                    }
+                    let mut cols: Vec<ColW> = Vec::new();
+                    for _ in 0..ncols {
+                        cols.push(ColW {
+                            min: 0,
+                            p60: 0,
+                            p80: 0,
+                            p100: 0,
+                        });
+                    }
                     let mut all_lens: Vec<Vec<usize>> = vec![Vec::new(); ncols];
+
                     for row in &trimmed {
                         for (i, cell) in row.iter().enumerate() {
-                            let longest_word = cell
+                            let lw = cell
                                 .split_whitespace()
                                 .map(|w| w.len())
                                 .max()
                                 .unwrap_or(cell.len());
-                            min_w[i] = min_w[i].max(longest_word.min(40));
+                            cols[i].min = cols[i].min.max(lw.min(40));
                             all_lens[i].push(cell.len());
                         }
                     }
-                    // Preferred = median
-                    let pref_w: Vec<usize> = all_lens
-                        .iter()
-                        .enumerate()
-                        .map(|(i, lens)| {
-                            let mut s = lens.clone();
-                            s.sort_unstable();
-                            let med = s.get(s.len() / 2).copied().unwrap_or(4);
-                            med.max(min_w[i]).min(40)
-                        })
-                        .collect();
 
-                    // Target width: 78, minus borders (ncols * 3 + 1)
-                    let border_w = ncols * 3 + 1; // "| x |" per column plus initial " "
+                    for i in 0..ncols {
+                        let mut s = all_lens[i].clone();
+                        s.sort_unstable();
+                        let min = cols[i].min;
+                        let n = s.len();
+                        let idx60 = ((n as f64 * 0.6).ceil() as usize).saturating_sub(1);
+                        let idx80 = ((n as f64 * 0.8).ceil() as usize).saturating_sub(1);
+                        let last = n.saturating_sub(1);
+                        let cap = |v: usize| v.max(min).min(40);
+                        cols[i].p60 = cap(s.get(idx60).copied().unwrap_or(4));
+                        cols[i].p80 = cap(s.get(idx80).copied().unwrap_or(4)).max(cols[i].p60);
+                        cols[i].p100 = cap(s.get(last).copied().unwrap_or(4)).max(cols[i].p80);
+                    }
+
+                    let border_w = ncols * 3 + 1;
                     let target = 78usize.saturating_sub(border_w);
-                    let total_pref: usize = pref_w.iter().sum();
 
-                    // Allocate widths
-                    let mut col_w: Vec<usize> = if total_pref <= target {
-                        pref_w.clone()
-                    } else {
-                        // Scale down proportional to pref, but not below min
-                        let deficit = total_pref - target;
-                        let flex: usize = pref_w
+                    // Start at p60, try to promote to p80 then p100
+                    let mut col_w: Vec<usize> = cols.iter().map(|c| c.p60).collect();
+                    let used: usize = col_w.iter().sum();
+
+                    // If total at p60 already exceeds target, scale down proportionally
+                    if used > target {
+                        let deficit = used - target;
+                        let flex: usize = col_w
                             .iter()
-                            .zip(&min_w)
-                            .map(|(p, m)| p.saturating_sub(*m))
+                            .zip(&cols)
+                            .map(|(&w, c)| w.saturating_sub(c.min))
                             .sum();
-                        pref_w
+                        col_w = col_w
                             .iter()
                             .enumerate()
-                            .map(|(i, &p)| {
-                                let room = p.saturating_sub(min_w[i]);
-                                let cut = if flex > 0 {
+                            .map(|(i, &w)| {
+                                let room = w.saturating_sub(cols[i].min);
+                                w.saturating_sub(if flex > 0 {
                                     deficit * room / flex.max(1)
                                 } else {
                                     0
-                                };
-                                p.saturating_sub(cut).max(min_w[i])
+                                })
+                                .max(cols[i].min)
                             })
-                            .collect()
-                    };
+                            .collect();
+                    }
 
-                    // Clamp total to target (rounding may leave slack) — add to widest column
-                    let cur_total: usize = col_w.iter().sum();
-                    if cur_total < target
-                        && let Some(max_idx) = (0..ncols).max_by_key(|&i| col_w[i])
+                    // Promote columns: first to p80 then p100, prioritizing large jumps
+                    for &level in &[1, 2] {
+                        // 1 = p80, 2 = p100
+                        if col_w.iter().sum::<usize>() >= target {
+                            break;
+                        }
+                        let mut order: Vec<usize> = (0..ncols).collect();
+                        let gain = |i: usize| -> usize {
+                            let target_w = if level == 1 {
+                                cols[i].p80
+                            } else {
+                                cols[i].p100
+                            };
+                            target_w.saturating_sub(col_w[i])
+                        };
+                        order.sort_by_key(|&b| std::cmp::Reverse(gain(b)));
+                        for &i in &order {
+                            let target_w = if level == 1 {
+                                cols[i].p80
+                            } else {
+                                cols[i].p100
+                            };
+                            let add = target_w.saturating_sub(col_w[i]);
+                            if add == 0 {
+                                continue;
+                            }
+                            let room = target - col_w.iter().sum::<usize>();
+                            let take = add.min(room);
+                            col_w[i] += take;
+                            if col_w.iter().sum::<usize>() >= target {
+                                break;
+                            }
+                        }
+                    }
+
+                    // Distribute remaining slack to largest column
+                    let slack = target.saturating_sub(col_w.iter().sum());
+                    if slack > 0
+                        && let Some(max_i) = (0..ncols).max_by_key(|&i| col_w[i])
                     {
-                        col_w[max_idx] += target - cur_total;
+                        col_w[max_i] += slack;
                     }
 
                     // Render rows with word-wrap
