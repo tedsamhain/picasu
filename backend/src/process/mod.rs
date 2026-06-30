@@ -7,6 +7,7 @@ pub mod thumbnail;
 pub mod transitor;
 pub mod video;
 pub mod xmp;
+pub mod xmp_write;
 
 use crate::model::album::ResolvedShare;
 

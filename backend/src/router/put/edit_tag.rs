@@ -1,6 +1,7 @@
 use crate::error::{AppError, ErrorKind, ResultExt};
 use crate::model::abstract_data::AbstractData;
 use crate::process::transitor::index_to_hash;
+use crate::process::xmp_write::write_sidecar_for;
 use crate::router::auth::GuardAuth;
 use crate::router::auth::GuardReadOnlyMode;
 use crate::router::{AppResult, GuardResult};
@@ -10,6 +11,7 @@ use crate::tasks::BATCH_COORDINATOR;
 use crate::tasks::batcher::flush_tree::FlushTreeTask;
 use crate::tasks::batcher::update_tree::UpdateTreeTask;
 use anyhow::Result;
+use log::warn;
 use rocket::serde::{Deserialize, Serialize, json::Json};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -71,6 +73,9 @@ pub async fn edit_tag(
                     tags.remove(tag);
                 }
 
+                if let Err(e) = write_sidecar_for(&abstract_data) {
+                    warn!("Failed to write XMP sidecar: {e}");
+                }
                 data_to_flush.push(abstract_data);
             }
         }
