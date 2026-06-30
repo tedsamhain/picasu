@@ -734,143 +734,121 @@ impl App<'_> {
     }
 }
 
-/// Word-wrap text into lines of at most `max` characters.
-/// Returns None if no wrapping needed.
-fn word_wrap(text: &str, max: usize) -> Option<Vec<String>> {
-    if text.len() <= max {
-        return None;
+fn strip_frontmatter(text: &str) -> &str {
+    if let Some(rest) = text.trim_start().strip_prefix("---")
+        && let Some(end) = rest.find("---")
+    {
+        return rest[end + 3..].trim_start();
     }
-    let mut lines = Vec::new();
-    let mut current = String::new();
-    for word in text.split_inclusive(' ') {
-        if current.len() + word.trim_end().len() > max {
-            if !current.is_empty() {
-                lines.push(current.trim_end().to_string());
-            }
-            current = word.trim_start().to_string();
-        } else {
-            current.push_str(word);
-        }
-    }
-    if !current.is_empty() {
-        lines.push(current.trim_end().to_string());
-    }
-    Some(lines)
+    text
 }
 
 fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
-    let mut lines = Vec::new();
-    let mut in_fm = false;
-    let mut fm_count = 0;
+    use pulldown_cmark::HeadingLevel;
+    use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 
-    for raw in text.lines() {
-        let line = raw.trim_end_matches('\r');
-        if line.trim() == "---" {
-            fm_count += 1;
-            if fm_count == 1 {
-                in_fm = true;
-                continue;
-            }
-            if fm_count == 2 {
-                in_fm = false;
-                continue;
-            }
-        }
-        if in_fm {
-            continue;
-        }
+    let body = strip_frontmatter(text);
+    let parser = Parser::new(body);
 
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            lines.push(Line::from(""));
-            continue;
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut style_stack: Vec<Style> = Vec::new();
+    let push_span = |spans: &mut Vec<Span<'static>>, text: &str, style: &Style| {
+        if !text.is_empty() {
+            spans.push(Span::styled(text.to_string(), *style));
         }
+    };
 
-        // Headings with # markers
-        if let Some(h) = trimmed.strip_prefix("### ") {
-            lines.push(Line::from(Span::styled(format!("### {}", h), th.h3)));
-            continue;
+    let flush = |lines: &mut Vec<Line<'static>>, spans: &mut Vec<Span<'static>>| {
+        if !spans.is_empty() {
+            lines.push(Line::from(std::mem::take(spans)));
         }
-        if let Some(h) = trimmed.strip_prefix("## ") {
-            lines.push(Line::from(Span::styled(format!("## {}", h), th.h2)));
-            continue;
-        }
-        if let Some(h) = trimmed.strip_prefix("# ") {
-            lines.push(Line::from(Span::styled(format!("# {}", h), th.h1)));
-            continue;
-        }
+    };
 
-        // List item — wrapped at preview width, continuation indented to align
-        if let Some(item) = trimmed.strip_prefix("- ") {
-            let indent = "    ";
-            let first = format!("  - {}", item);
-            if let Some(wrapped) = word_wrap(&first, 78) {
-                for (i, seg) in wrapped.iter().enumerate() {
-                    let s = if i == 0 {
-                        seg.clone()
-                    } else {
-                        format!("{}{}", indent, seg)
+    for event in parser {
+        match event {
+            Event::Start(tag) => match tag {
+                Tag::Heading { level, .. } => {
+                    flush(&mut lines, &mut spans);
+                    let prefix = match level {
+                        HeadingLevel::H1 => "# ",
+                        HeadingLevel::H2 => "## ",
+                        _ => "### ",
                     };
-                    lines.push(Line::from(s));
+                    let s = match level {
+                        HeadingLevel::H1 => th.h1,
+                        HeadingLevel::H2 => th.h2,
+                        _ => th.h3,
+                    };
+                    push_span(&mut spans, prefix, &s);
+                    style_stack.push(s);
                 }
+                Tag::Paragraph => {
+                    flush(&mut lines, &mut spans);
+                }
+                Tag::List(_) => {}
+                Tag::Item => {
+                    flush(&mut lines, &mut spans);
+                    push_span(&mut spans, "  - ", &Style::default());
+                }
+                Tag::CodeBlock(_) => {
+                    flush(&mut lines, &mut spans);
+                }
+                Tag::Strong => {
+                    let s = style_stack.last().map_or(th.bold, |base| {
+                        let mut combined = *base;
+                        combined = combined.add_modifier(Modifier::BOLD);
+                        combined
+                    });
+                    style_stack.push(s);
+                }
+                Tag::Emphasis => {
+                    let s = style_stack.last().map_or(th.dim, |base| {
+                        let mut combined = *base;
+                        combined = combined.add_modifier(Modifier::DIM);
+                        combined
+                    });
+                    style_stack.push(s);
+                }
+                Tag::Strikethrough => {}
+                _ => {}
+            },
+            Event::End(tag) => match tag {
+                TagEnd::Heading(_) | TagEnd::Paragraph => {
+                    flush(&mut lines, &mut spans);
+                    style_stack.clear();
+                    lines.push(Line::from(""));
+                }
+                TagEnd::List(_) => {}
+                TagEnd::Item => {
+                    flush(&mut lines, &mut spans);
+                }
+                TagEnd::CodeBlock => {
+                    flush(&mut lines, &mut spans);
+                    lines.push(Line::from(""));
+                }
+                TagEnd::Strong | TagEnd::Emphasis => {
+                    style_stack.pop();
+                }
+                _ => {}
+            },
+            Event::Text(t) => {
+                let style = style_stack.last().copied().unwrap_or_default();
+                push_span(&mut spans, &t, &style);
             }
-            continue;
-        }
-        // Code block fence
-        if trimmed.starts_with("```") {
-            continue;
-        }
-
-        // Inline formatting: **bold**, `code`, *italic*
-        let mut spans: Vec<Span<'static>> = Vec::new();
-        let mut rest = line.to_string();
-        while !rest.is_empty() {
-            if let Some(idx) = rest.find("**") {
-                let before = &rest[..idx];
-                if !before.is_empty() {
-                    spans.push(Span::raw(before.to_string()));
-                }
-                let after = &rest[idx + 2..];
-                if let Some(end) = after.find("**") {
-                    spans.push(Span::styled(after[..end].to_string(), th.bold));
-                    rest = after[end + 2..].to_string();
-                } else {
-                    spans.push(Span::raw(rest[idx..].to_string()));
-                    break;
-                }
-            } else if let Some(idx) = rest.find('`') {
-                let before = &rest[..idx];
-                if !before.is_empty() {
-                    spans.push(Span::raw(before.to_string()));
-                }
-                let after = &rest[idx + 1..];
-                if let Some(end) = after.find('`') {
-                    spans.push(Span::styled(after[..end].to_string(), th.code));
-                    rest = after[end + 1..].to_string();
-                } else {
-                    spans.push(Span::raw(rest[idx..].to_string()));
-                    break;
-                }
-            } else if let Some(idx) = rest.find('*') {
-                let before = &rest[..idx];
-                if !before.is_empty() {
-                    spans.push(Span::raw(before.to_string()));
-                }
-                let after = &rest[idx + 1..];
-                if let Some(end) = after.find('*') {
-                    spans.push(Span::styled(after[..end].to_string(), th.dim));
-                    rest = after[end + 1..].to_string();
-                } else {
-                    spans.push(Span::raw(rest[idx..].to_string()));
-                    break;
-                }
-            } else {
-                spans.push(Span::raw(rest.clone()));
-                break;
+            Event::Code(t) => {
+                push_span(&mut spans, &t, &th.code);
             }
+            Event::SoftBreak | Event::HardBreak => {
+                flush(&mut lines, &mut spans);
+            }
+            Event::Html(t) => {
+                push_span(&mut spans, &t, &Style::default());
+            }
+            _ => {}
         }
-        lines.push(Line::from(spans));
     }
+    flush(&mut lines, &mut spans);
     lines
 }
 
