@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Paragraph, Wrap},
+    widgets::Paragraph,
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -315,7 +315,6 @@ impl App<'_> {
         frame.render_widget(title, title_area);
         frame.render_widget(
             Paragraph::new(self.preview.clone())
-                .wrap(Wrap { trim: false })
                 .scroll((self.preview_scroll as u16, self.preview_offset as u16)),
             body_area,
         );
@@ -800,6 +799,7 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
     // List item state
     let mut item_text = String::new();
     let mut in_item = false;
+    let mut item_checked: Option<bool> = None;
 
     let push_span = |spans: &mut Vec<Span<'static>>, text: &str, style: &Style| {
         if !text.is_empty() {
@@ -837,6 +837,7 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                     flush(&mut lines, &mut spans);
                     in_item = true;
                     item_text.clear();
+                    item_checked = None;
                 }
                 Tag::CodeBlock(_) => {
                     flush(&mut lines, &mut spans);
@@ -882,23 +883,11 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                     in_item = false;
                     flush(&mut lines, &mut spans);
                     if !item_text.is_empty() {
-                        let trimmed = item_text.trim();
-                        let (prefix, indent_sz) = if let Some(rest) = trimmed.strip_prefix("[") {
-                            if rest.starts_with("] ") {
-                                ("  - [ ] ".to_string(), 8)
-                            } else if rest.starts_with("x] ") {
-                                ("  - [x] ".to_string(), 8)
-                            } else {
-                                ("  - ".to_string(), 4)
-                            }
-                        } else {
-                            ("  - ".to_string(), 4)
-                        };
-                        let content = if prefix.len() > 4 {
-                            // checkbox: content is after "[ ] " or "[x] "
-                            trimmed[4..].to_string()
-                        } else {
-                            trimmed.to_string()
+                        let content = item_text.trim();
+                        let (prefix, indent_sz) = match item_checked {
+                            Some(true) => ("  - [x] ".to_string(), 8),
+                            Some(false) => ("  - [ ] ".to_string(), 8),
+                            None => ("  - ".to_string(), 4),
                         };
                         let first = format!("{}{}", prefix, content);
                         let indent = " ".repeat(indent_sz);
@@ -1137,6 +1126,9 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                 } else {
                     push_span(&mut spans, &t, &th.code);
                 }
+            }
+            Event::TaskListMarker(checked) => {
+                item_checked = Some(checked);
             }
             Event::SoftBreak | Event::HardBreak => flush(&mut lines, &mut spans),
             Event::Html(t) => push_span(&mut spans, &t, &Style::default()),
