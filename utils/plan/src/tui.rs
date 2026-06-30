@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::Paragraph,
+    widgets::{Paragraph, Wrap},
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -313,10 +313,15 @@ impl App<'_> {
             Style::default().fg(Color::DarkGray),
         ));
         frame.render_widget(title, title_area);
+        // Text width: 90% of terminal, max 120
+        let tw = ((body_area.width as f64 * 0.9) as u16).clamp(40, 120);
+        let pad = body_area.width.saturating_sub(tw) / 2;
+        let text_area = Rect::new(body_area.x + pad, body_area.y, tw, body_area.height);
         frame.render_widget(
             Paragraph::new(self.preview.clone())
+                .wrap(Wrap { trim: false })
                 .scroll((self.preview_scroll as u16, self.preview_offset as u16)),
-            body_area,
+            text_area,
         );
     }
 
