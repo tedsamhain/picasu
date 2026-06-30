@@ -10,6 +10,55 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 const FIELD_COUNT: usize = 4; // type, priority, area, slug
+use termimad::crossterm::style::Color as TmColor;
+
+struct Theme {
+    name: &'static str,
+    headers_fg: TmColor,
+    bold_fg: Option<TmColor>,
+    italic_fg: Option<TmColor>,
+    bullet_fg: Option<TmColor>,
+    inline_code_fg: TmColor,
+    inline_code_bg: TmColor,
+    code_block_fg: TmColor,
+    code_block_bg: TmColor,
+}
+
+const THEMES: &[Theme] = &[
+    Theme {
+        name: "default",
+        headers_fg: TmColor::White,
+        bold_fg: None,
+        italic_fg: None,
+        bullet_fg: None,
+        inline_code_fg: TmColor::White,
+        inline_code_bg: TmColor::DarkGrey,
+        code_block_fg: TmColor::White,
+        code_block_bg: TmColor::DarkGrey,
+    },
+    Theme {
+        name: "vibrant",
+        headers_fg: TmColor::Cyan,
+        bold_fg: Some(TmColor::Yellow),
+        italic_fg: Some(TmColor::Magenta),
+        bullet_fg: Some(TmColor::Green),
+        inline_code_fg: TmColor::Cyan,
+        inline_code_bg: TmColor::DarkGrey,
+        code_block_fg: TmColor::Cyan,
+        code_block_bg: TmColor::DarkGrey,
+    },
+    Theme {
+        name: "classic",
+        headers_fg: TmColor::Blue,
+        bold_fg: Some(TmColor::Red),
+        italic_fg: Some(TmColor::Magenta),
+        bullet_fg: None,
+        inline_code_fg: TmColor::Green,
+        inline_code_bg: TmColor::DarkGrey,
+        code_block_fg: TmColor::White,
+        code_block_bg: TmColor::DarkGrey,
+    },
+];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Action {
@@ -260,11 +309,11 @@ impl App<'_> {
     fn render_preview(&self, frame: &mut Frame) {
         let [title_area, body_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(frame.area());
-        let themes = ["default", "vibrant", "classic"];
+        let t = THEMES[self.preview_theme.min(THEMES.len() - 1)].name;
         let title = Line::from(Span::styled(
             format!(
                 " Preview [{}] \u{2014} q/Esc:close  c:theme  \u{2191}\u{2193}:scroll",
-                themes[self.preview_theme.min(themes.len() - 1)]
+                t
             ),
             Style::default().fg(Color::DarkGray),
         ));
@@ -682,38 +731,35 @@ impl App<'_> {
     }
 
     fn build_preview(&mut self, content: &str) {
-        let width = 80u16;
-        let themes: [fn() -> ratskin::RatSkin; 3] = [
-            || ratskin::RatSkin::default(),
-            || {
-                use termimad::crossterm::style::{Attribute, Color};
-                let mut s = ratskin::RatSkin::default();
-                s.skin.bold.set_fg(Color::Yellow);
-                s.skin.italic.set_fg(Color::Magenta);
-                s.skin.headers[0].compound_style.set_fg(Color::Cyan);
-                s.skin.headers[0].compound_style.add_attr(Attribute::Bold);
-                s.skin.headers[1].compound_style.set_fg(Color::Cyan);
-                for h in &mut s.skin.headers[2..] {
-                    h.compound_style.set_fg(Color::Cyan);
-                    h.compound_style.add_attr(Attribute::Italic);
-                }
-                s.skin.inline_code.set_fgbg(Color::Cyan, Color::DarkGrey);
-                s.skin.code_block.set_fgbg(Color::Cyan, Color::DarkGrey);
-                s
-            },
-            || {
-                use termimad::crossterm::style::Color;
-                let mut s = ratskin::RatSkin::default();
-                s.skin.set_headers_fg(Color::Blue);
-                s.skin.bold.set_fg(Color::Red);
-                s.skin.italic.set_fg(Color::Magenta);
-                s.skin.inline_code.set_fgbg(Color::Green, Color::DarkGrey);
-                s.skin.code_block.set_fgbg(Color::White, Color::DarkGrey);
-                s
-            },
-        ];
+        use termimad::crossterm::style::Attribute;
+        let theme = &THEMES[self.preview_theme.min(THEMES.len() - 1)];
+        let mut skin = ratskin::RatSkin::default();
+
+        skin.skin.set_headers_fg(theme.headers_fg);
+        skin.skin.headers[0]
+            .compound_style
+            .add_attr(Attribute::Bold);
+        for h in &mut skin.skin.headers[2..] {
+            h.compound_style.add_attr(Attribute::Italic);
+        }
+        if let Some(c) = theme.bold_fg {
+            skin.skin.bold.set_fg(c);
+        }
+        if let Some(c) = theme.italic_fg {
+            skin.skin.italic.set_fg(c);
+        }
+        if let Some(c) = theme.bullet_fg {
+            skin.skin.bullet.set_fg(c);
+        }
+        skin.skin
+            .inline_code
+            .set_fgbg(theme.inline_code_fg, theme.inline_code_bg);
+        skin.skin
+            .code_block
+            .set_fgbg(theme.code_block_fg, theme.code_block_bg);
+
         let text = ratskin::RatSkin::parse_text(content);
-        self.preview = themes[self.preview_theme]().parse(text, width);
+        self.preview = skin.parse(text, 80);
     }
 
     fn current_task_path(&self) -> Option<(&str, &Path)> {
