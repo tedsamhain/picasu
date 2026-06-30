@@ -417,6 +417,29 @@ impl App<'_> {
             .clamp(4, 28);
         let type_w: usize = 8;
         let prio_w: usize = 8;
+        let slot = |w: usize| w + 1;
+        // Color scheme — white-background row, priority color bg for vivid fields
+        let sel_base = Style::default()
+            .bg(Color::White)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD);
+        let sel_prio = |pc: Color| {
+            Style::default()
+                .bg(pc)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD)
+        };
+        let is_vivid = |c: Color| {
+            matches!(
+                c,
+                Color::Red
+                    | Color::Yellow
+                    | Color::Blue
+                    | Color::Magenta
+                    | Color::Cyan
+                    | Color::Green
+            )
+        };
 
         let mut lines: Vec<Line<'static>> = Vec::new();
         let mut selected_line = 0usize;
@@ -430,11 +453,9 @@ impl App<'_> {
                 column.status.to_uppercase(),
                 column.task_indices.len()
             );
-            let dash_count = area.width.saturating_sub(header.len() as u16 + 2);
-            let sep = "─".repeat(dash_count.max(1) as usize);
-
+            let dash = area.width.saturating_sub(header.len() as u16 + 2);
             lines.push(Line::from(Span::styled(
-                format!("{} {}", header, sep),
+                format!("{} {}", header, "─".repeat(dash.max(1) as usize)),
                 Style::default().fg(color).add_modifier(Modifier::BOLD),
             )));
 
@@ -443,112 +464,93 @@ impl App<'_> {
             } else {
                 for (row_idx, &task_idx) in column.task_indices.iter().enumerate() {
                     let task = &self.tasks[task_idx];
-                    let is_selected = is_active && row_idx == self.selected_task;
-
-                    if is_selected {
+                    let is_sel = is_active && row_idx == self.selected_task;
+                    if is_sel {
                         selected_line = lines.len();
                     }
+                    let is_act = |f: usize| is_sel && self.selected_field == f;
 
-                    let row_style = Style::default().add_modifier(Modifier::REVERSED);
-                    let active = |f: usize| -> bool { is_selected && self.selected_field == f };
                     let mut spans = Vec::new();
 
-                    // Each field slot = max_value_width + 2 (for [ ] or space+space).
-                    // Non-active: pad " value" to slot_width
-                    // Active:     pad "[value]" to slot_width
-                    let slug_slot = slug_w + 1;
-                    let type_slot = type_w + 1;
-                    let prio_slot = prio_w + 1;
-
                     // Slug (field 3)
-                    if active(3) {
-                        let max_inner = slug_slot.saturating_sub(2);
-                        let inner = if task.slug.len() > max_inner {
-                            format!("{}…", &task.slug[..max_inner.saturating_sub(1)])
+                    let slen = slot(slug_w);
+                    let slug = if is_act(3) {
+                        let n = slen.saturating_sub(2);
+                        let s = if task.slug.len() > n {
+                            format!("{}…", &task.slug[..n.saturating_sub(1)])
                         } else {
                             task.slug.clone()
                         };
-                        spans.push(Span::styled(
-                            format!("{:<w$}", format!("[{}]", inner), w = slug_slot),
-                            row_style,
-                        ));
+                        format!("{:<w$}", format!("[{}]", s), w = slen)
                     } else {
-                        let max_slug = slug_slot.saturating_sub(1);
-                        let slug = if task.slug.len() > max_slug {
-                            format!("{}…", &task.slug[..max_slug.saturating_sub(1)])
+                        let n = slen.saturating_sub(1);
+                        let s = if task.slug.len() > n {
+                            format!("{}…", &task.slug[..n.saturating_sub(1)])
                         } else {
                             task.slug.clone()
                         };
-                        spans.push(Span::styled(
-                            format!("{:<w$}", format!(" {}", slug), w = slug_slot),
-                            if is_selected {
-                                row_style
-                            } else {
-                                Style::default()
-                            },
-                        ));
-                    }
+                        format!("{:<w$}", format!(" {}", s), w = slen)
+                    };
+                    spans.push(Span::styled(
+                        slug,
+                        if is_sel { sel_base } else { Style::default() },
+                    ));
 
                     // Type (field 0)
-                    if active(0) {
-                        spans.push(Span::styled(
-                            format!(
-                                "{:<w$}",
-                                format!("[{}]", task.task.task_type),
-                                w = type_slot
-                            ),
-                            if is_selected {
-                                row_style
-                            } else {
-                                Style::default()
-                            },
-                        ));
+                    let content = if is_act(0) {
+                        format!(
+                            "{:<w$}",
+                            format!("[{}]", task.task.task_type),
+                            w = slot(type_w)
+                        )
                     } else {
-                        spans.push(Span::styled(
-                            format!("{:<w$}", format!(" {}", task.task.task_type), w = type_slot),
-                            if is_selected {
-                                row_style
-                            } else {
-                                Style::default()
-                            },
-                        ));
-                    }
+                        format!(
+                            "{:<w$}",
+                            format!(" {}", task.task.task_type),
+                            w = slot(type_w)
+                        )
+                    };
+                    spans.push(Span::styled(
+                        content,
+                        if is_sel { sel_base } else { Style::default() },
+                    ));
 
-                    // Priority (field 1)
+                    // Priority (field 1) — vivid colors get colored bg, low uses plain row highlight
                     let pc = priority_color(&task.task.priority);
-                    if active(1) {
-                        spans.push(Span::styled(
-                            format!("{:<w$}", format!("[{}]", task.task.priority), w = prio_slot),
-                            if is_selected {
-                                Style::default().fg(pc).add_modifier(Modifier::REVERSED)
-                            } else {
-                                Style::default().fg(pc)
-                            },
-                        ));
+                    let vivid = is_vivid(pc);
+                    let content = if is_act(1) {
+                        format!(
+                            "{:<w$}",
+                            format!("[{}]", task.task.priority),
+                            w = slot(prio_w)
+                        )
                     } else {
-                        spans.push(Span::styled(
-                            format!("{:<w$}", format!(" {}", task.task.priority), w = prio_slot),
-                            if is_selected {
-                                Style::default().fg(pc).add_modifier(Modifier::REVERSED)
-                            } else {
-                                Style::default().fg(pc)
-                            },
-                        ));
-                    }
+                        format!(
+                            "{:<w$}",
+                            format!(" {}", task.task.priority),
+                            w = slot(prio_w)
+                        )
+                    };
+                    let st = if is_sel && vivid {
+                        sel_prio(pc)
+                    } else if is_sel {
+                        sel_base
+                    } else {
+                        Style::default().fg(pc)
+                    };
+                    spans.push(Span::styled(content, st));
 
                     // Area (field 2)
-                    if active(2) {
-                        spans.push(Span::styled(format!("[{}]", task.task.area), row_style));
+                    let content = if is_act(2) {
+                        format!("[{}]", task.task.area)
                     } else {
-                        spans.push(Span::styled(
-                            format!(" {}", task.task.area),
-                            if is_selected {
-                                row_style
-                            } else {
-                                Style::default()
-                            },
-                        ));
-                    }
+                        format!(" {}", task.task.area)
+                    };
+                    spans.push(Span::styled(
+                        content,
+                        if is_sel { sel_base } else { Style::default() },
+                    ));
+
                     lines.push(Line::from(spans));
                 }
             }
@@ -557,10 +559,8 @@ impl App<'_> {
         }
 
         lines.pop();
-
         let visible_lines = area.height as usize;
         let vert_scroll = selected_line.saturating_sub(visible_lines.saturating_sub(2));
-
         frame.render_widget(Paragraph::new(lines).scroll((vert_scroll as u16, 0)), area);
     }
 
