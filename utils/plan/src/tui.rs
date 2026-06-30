@@ -43,6 +43,7 @@ struct App<'a> {
     mode: Mode,
     preview: Vec<Line<'static>>,
     preview_scroll: usize,
+    preview_theme: usize,
 }
 
 struct Column {
@@ -79,6 +80,7 @@ impl<'a> App<'a> {
             mode: Mode::Browse,
             preview: Vec::new(),
             preview_scroll: 0,
+            preview_theme: 0,
         };
 
         app.sort_tasks();
@@ -258,8 +260,12 @@ impl App<'_> {
     fn render_preview(&self, frame: &mut Frame) {
         let [title_area, body_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(frame.area());
+        let themes = ["default", "vibrant", "classic"];
         let title = Line::from(Span::styled(
-            " Preview \u{2014} q/Esc to close, \u{2191}\u{2193} to scroll ",
+            format!(
+                " Preview [{}] \u{2014} q/Esc:close  c:theme  \u{2191}\u{2193}:scroll",
+                themes[self.preview_theme.min(themes.len() - 1)]
+            ),
             Style::default().fg(Color::DarkGray),
         ));
         frame.render_widget(title, title_area);
@@ -560,6 +566,7 @@ impl App<'_> {
                     KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => {
                         return Ok(Action::Quit);
                     }
+                    KeyCode::Char('c') => self.cycle_theme(),
                     _ => {}
                 },
                 Mode::Browse => {
@@ -658,13 +665,55 @@ impl App<'_> {
         if let Some((_slug, path)) = self.current_task_path()
             && let Ok(content) = std::fs::read_to_string(path)
         {
-            let width = 80u16;
-            let skin = ratskin::RatSkin::default();
-            let text = ratskin::RatSkin::parse_text(&content);
-            self.preview = skin.parse(text, width);
+            self.preview_theme = 0;
+            self.build_preview(&content);
             self.preview_scroll = 0;
             self.mode = Mode::Preview;
         }
+    }
+
+    fn cycle_theme(&mut self) {
+        if let Some((_slug, path)) = self.current_task_path()
+            && let Ok(content) = std::fs::read_to_string(path)
+        {
+            self.preview_theme = (self.preview_theme + 1) % 3;
+            self.build_preview(&content);
+        }
+    }
+
+    fn build_preview(&mut self, content: &str) {
+        let width = 80u16;
+        let themes: [fn() -> ratskin::RatSkin; 3] = [
+            || ratskin::RatSkin::default(),
+            || {
+                use termimad::crossterm::style::{Attribute, Color};
+                let mut s = ratskin::RatSkin::default();
+                s.skin.bold.set_fg(Color::Yellow);
+                s.skin.italic.set_fg(Color::Magenta);
+                s.skin.headers[0].compound_style.set_fg(Color::Cyan);
+                s.skin.headers[0].compound_style.add_attr(Attribute::Bold);
+                s.skin.headers[1].compound_style.set_fg(Color::Cyan);
+                for h in &mut s.skin.headers[2..] {
+                    h.compound_style.set_fg(Color::Cyan);
+                    h.compound_style.add_attr(Attribute::Italic);
+                }
+                s.skin.inline_code.set_fgbg(Color::Cyan, Color::DarkGrey);
+                s.skin.code_block.set_fgbg(Color::Cyan, Color::DarkGrey);
+                s
+            },
+            || {
+                use termimad::crossterm::style::Color;
+                let mut s = ratskin::RatSkin::default();
+                s.skin.set_headers_fg(Color::Blue);
+                s.skin.bold.set_fg(Color::Red);
+                s.skin.italic.set_fg(Color::Magenta);
+                s.skin.inline_code.set_fgbg(Color::Green, Color::DarkGrey);
+                s.skin.code_block.set_fgbg(Color::White, Color::DarkGrey);
+                s
+            },
+        ];
+        let text = ratskin::RatSkin::parse_text(content);
+        self.preview = themes[self.preview_theme]().parse(text, width);
     }
 
     fn current_task_path(&self) -> Option<(&str, &Path)> {
