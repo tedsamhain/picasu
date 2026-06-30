@@ -37,7 +37,6 @@ impl SortField {
         }
     }
 
-    #[allow(dead_code)]
     pub fn as_sort_key(&self) -> &'static str {
         match self {
             SortField::Type => "type",
@@ -116,7 +115,6 @@ impl SortState {
 
     /// Returns sort keys with direction for use with plan::cmp_by_key.
     /// The first entry is primary sort, second (if any) is secondary.
-    #[allow(dead_code)]
     pub fn sort_keys(&self) -> Vec<(&'static str, SortDirection)> {
         let mut keys = Vec::new();
         if let Some((f, d)) = self.primary {
@@ -143,10 +141,9 @@ enum FocusZone {
 }
 
 struct App<'a> {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // kept for future use (e.g. error messages, path resolution)
     root: &'a Path,
     tasks: Vec<crate::plan::LoadedTask>,
-    #[allow(dead_code)]
     task_paths: HashMap<String, PathBuf>,
     focus: FocusZone,
     columns: Vec<Column>,
@@ -164,9 +161,7 @@ struct Column {
 }
 
 impl<'a> App<'a> {
-    fn new(root: &'a Path, tasks: Vec<crate::plan::LoadedTask>) -> Self {
-        let entries =
-            crate::plan::read_task_files(&root.join(".plan").join("tasks")).unwrap_or_default();
+    fn new(root: &'a Path, tasks: Vec<crate::plan::LoadedTask>, entries: &[PathBuf]) -> Self {
         let path_map: HashMap<String, PathBuf> = entries
             .iter()
             .filter_map(|p| {
@@ -275,7 +270,7 @@ pub fn run_tui(
         return;
     }
 
-    let mut app = App::new(root, tasks);
+    let mut app = App::new(root, tasks, &entries);
     let mut terminal = match ratatui::try_init() {
         Ok(t) => t,
         Err(e) => {
@@ -399,7 +394,7 @@ impl App<'_> {
         if self.selected_column < self.scroll_offset {
             self.scroll_offset = self.selected_column;
         } else if self.selected_column >= self.scroll_offset + max_visible {
-            self.scroll_offset = self.selected_column + 1 - max_visible;
+            self.scroll_offset = (self.selected_column + 1).saturating_sub(max_visible);
         }
 
         let visible_columns = self.columns[self.scroll_offset..]
@@ -600,7 +595,6 @@ impl App<'_> {
                 }
             }
             KeyCode::Char(' ') => {}
-            KeyCode::Enter => {}
             _ => {}
         }
     }
@@ -741,11 +735,6 @@ mod tests {
         s.toggle(SortField::Type);
         s.toggle(SortField::Priority);
         s.toggle(SortField::Area);
-        // Area → primary, Type → secondary (Priority was pushed to nowhere)
-        // Wait: let me trace correctly:
-        // 1. toggle(Type): primary = Type, secondary = None
-        // 2. toggle(Priority): primary = Priority, secondary = Type
-        // 3. toggle(Area): primary = Area, secondary = Priority
         assert_eq!(s.primary, Some((SortField::Area, SortDirection::Ascending)));
         assert_eq!(
             s.secondary,
