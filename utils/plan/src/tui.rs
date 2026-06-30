@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::Paragraph,
 };
 use std::collections::HashMap;
 use std::path::Path;
@@ -152,7 +152,6 @@ struct App<'a> {
     sort_state: SortState,
     sort_cursor: usize,
     quit: bool,
-    scroll_offset: usize,
 }
 
 struct Column {
@@ -183,7 +182,6 @@ impl<'a> App<'a> {
             sort_state: SortState::new(),
             sort_cursor: 0,
             quit: false,
-            scroll_offset: 0,
         };
 
         app.apply_sort();
@@ -381,110 +379,97 @@ impl App<'_> {
     }
 
     fn render_task_area(&mut self, frame: &mut Frame, area: Rect) {
-        let total_cols = self.columns.len();
-        if total_cols == 0 || area.width < 10 {
+        if self.columns.is_empty() || area.width < 10 {
             return;
         }
 
-        // Determine visible columns based on terminal width
-        let min_col_width = 20u16;
-        let max_visible = usize::from((area.width / min_col_width).max(1)).min(total_cols);
-
-        // Keep scroll_offset in bounds
-        if self.selected_column < self.scroll_offset {
-            self.scroll_offset = self.selected_column;
-        } else if self.selected_column >= self.scroll_offset + max_visible {
-            self.scroll_offset = (self.selected_column + 1).saturating_sub(max_visible);
-        }
-
-        let visible_columns = self.columns[self.scroll_offset..]
+        let slug_w = self
+            .tasks
             .iter()
-            .take(max_visible)
-            .enumerate();
-        let col_width = area.width / max_visible as u16;
+            .map(|t| t.slug.len())
+            .max()
+            .unwrap_or(4)
+            .clamp(4, 28);
+        let type_w = 8;
+        let prio_w = 8;
 
-        for (vis_idx, column) in visible_columns {
-            let col_start = self.scroll_offset + vis_idx;
-            let x = area.x + vis_idx as u16 * col_width;
-            let col_area = Rect::new(x, area.y, col_width, area.height);
+        let mut lines: Vec<Line<'static>> = Vec::new();
+        let mut selected_line = 0usize;
 
-            self.render_column(frame, col_area, column, col_start);
-        }
-    }
+        for (col_idx, column) in self.columns.iter().enumerate() {
+            let is_active = col_idx == self.selected_column;
+            let color = status_color(&column.status);
 
-    fn render_column(&self, frame: &mut Frame, area: Rect, column: &Column, col_idx: usize) {
-        let is_active = col_idx == self.selected_column;
+            let header = format!(
+                "{} ({})",
+                column.status.to_uppercase(),
+                column.task_indices.len()
+            );
+            let dash_count = area.width.saturating_sub(header.len() as u16 + 2);
+            let sep = "─".repeat(dash_count.max(1) as usize);
 
-        // Column header
-        let status_color = status_color(&column.status);
-        let header_label = format!(
-            " {} ({}) ",
-            column.status.to_uppercase(),
-            column.task_indices.len()
-        );
-        let header_style = Style::default()
-            .fg(status_color)
-            .add_modifier(Modifier::BOLD);
-        let header_line = Line::from(Span::styled(header_label.clone(), header_style));
+            lines.push(Line::from(Span::styled(
+                format!("{} {}", header, sep),
+                Style::default().fg(color).add_modifier(Modifier::BOLD),
+            )));
 
-        // Separator
-        let dash_count = area.width.saturating_sub(header_label.len().max(5) as u16);
-        let sep = "─".repeat(dash_count as usize);
-
-        let mut lines = vec![header_line, Line::from(Span::raw(sep))];
-
-        // Task rows
-        for (row_idx, &task_idx) in column.task_indices.iter().enumerate() {
-            let is_selected = is_active && row_idx == self.selected_task;
-            let task = &self.tasks[task_idx];
-
-            let slug = &task.slug;
-            let task_type = &task.task.task_type;
-            let priority = &task.task.priority;
-            let area = &task.task.area;
-
-            let task_line = if is_selected {
-                let indicator = "› ";
-                Line::from(vec![
-                    Span::styled(
-                        format!(
-                            "{}{:<width$}",
-                            indicator,
-                            slug,
-                            width = 14usize.saturating_sub(2)
-                        ),
-                        Style::default().add_modifier(Modifier::REVERSED),
-                    ),
-                    Span::styled(
-                        format!(" {:<8}", task_type),
-                        Style::default().add_modifier(Modifier::REVERSED),
-                    ),
-                    Span::styled(
-                        format!(" {:<6}", priority),
-                        Style::default().add_modifier(Modifier::REVERSED),
-                    ),
-                    Span::styled(
-                        format!(" {}", area),
-                        Style::default().add_modifier(Modifier::REVERSED),
-                    ),
-                ])
+            if column.task_indices.is_empty() {
+                lines.push(Line::from(Span::raw(" (none)")));
             } else {
-                let pc = priority_color(priority);
-                Line::from(vec![
-                    Span::raw(format!("  {:<14}", slug)),
-                    Span::raw(format!(" {:<8}", task_type)),
-                    Span::styled(format!(" {:<6}", priority), Style::default().fg(pc)),
-                    Span::raw(format!(" {}", area)),
-                ])
-            };
+                for (row_idx, &task_idx) in column.task_indices.iter().enumerate() {
+                    let task = &self.tasks[task_idx];
+                    let is_selected = is_active && row_idx == self.selected_task;
 
-            lines.push(task_line);
+                    if is_selected {
+                        selected_line = lines.len();
+                    }
+
+                    let line = if is_selected {
+                        Line::from(vec![Span::styled(
+                            format!(
+                                "› {:<slug_w$} {:<type_w$} {:<prio_w$} {}",
+                                task.slug,
+                                task.task.task_type,
+                                task.task.priority,
+                                task.task.area,
+                                slug_w = slug_w,
+                                type_w = type_w,
+                                prio_w = prio_w
+                            ),
+                            Style::default().add_modifier(Modifier::REVERSED),
+                        )])
+                    } else {
+                        Line::from(vec![
+                            Span::raw(format!(
+                                " {:<slug_w$} {:<type_w$} ",
+                                task.slug,
+                                task.task.task_type,
+                                slug_w = slug_w,
+                                type_w = type_w
+                            )),
+                            Span::styled(
+                                format!("{:<prio_w$}", task.task.priority, prio_w = prio_w),
+                                Style::default().fg(priority_color(&task.task.priority)),
+                            ),
+                            Span::raw(format!(" {}", task.task.area)),
+                        ])
+                    };
+
+                    lines.push(line);
+                }
+            }
+
+            lines.push(Line::from(""));
         }
 
-        frame.render_widget(
-            Paragraph::new(lines).block(Block::default().borders(Borders::NONE)),
-            area,
-        );
+        // Trim trailing blank line
+        lines.pop();
+
+        // Vertical scroll to keep selected line visible
+        let visible_lines = area.height as usize;
+        let vert_scroll = selected_line.saturating_sub(visible_lines.saturating_sub(2));
+
+        frame.render_widget(Paragraph::new(lines).scroll((vert_scroll as u16, 0)), area);
     }
 
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
