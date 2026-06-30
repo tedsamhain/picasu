@@ -11,6 +11,45 @@ use std::path::{Path, PathBuf};
 
 const FIELD_COUNT: usize = 4; // type, priority, area, slug
 
+struct MarkdownTheme {
+    name: &'static str,
+    h1: Style,
+    h2: Style,
+    h3: Style,
+    bold: Style,
+    dim: Style,
+    code: Style,
+    bullet: Style,
+}
+
+fn themes() -> Vec<MarkdownTheme> {
+    let n = |fg| Style::default().fg(fg);
+    let nb = |fg| Style::default().fg(fg).add_modifier(Modifier::BOLD);
+    let nc = |fg| Style::default().fg(fg).bg(Color::DarkGray);
+    vec![
+        MarkdownTheme {
+            name: "default",
+            h1: nb(Color::Cyan),
+            h2: nb(Color::Cyan),
+            h3: nb(Color::Cyan),
+            bold: n(Color::White),
+            dim: n(Color::DarkGray),
+            code: nc(Color::Green),
+            bullet: n(Color::White),
+        },
+        MarkdownTheme {
+            name: "classic",
+            h1: nb(Color::Yellow),
+            h2: nb(Color::Cyan),
+            h3: n(Color::Cyan).add_modifier(Modifier::DIM),
+            bold: n(Color::Yellow),
+            dim: n(Color::DarkGray),
+            code: nc(Color::Green),
+            bullet: n(Color::Green),
+        },
+    ]
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Action {
     None,
@@ -43,6 +82,7 @@ struct App<'a> {
     mode: Mode,
     preview: Vec<Line<'static>>,
     preview_scroll: usize,
+    preview_theme: usize,
 }
 
 struct Column {
@@ -79,6 +119,7 @@ impl<'a> App<'a> {
             mode: Mode::Browse,
             preview: Vec::new(),
             preview_scroll: 0,
+            preview_theme: 0,
         };
 
         app.sort_tasks();
@@ -258,8 +299,13 @@ impl App<'_> {
     fn render_preview(&self, frame: &mut Frame) {
         let [title_area, body_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(frame.area());
+        let ts = themes();
+        let tn = ts[self.preview_theme.min(ts.len() - 1)].name;
         let title = Line::from(Span::styled(
-            " Preview \u{2014} q/Esc:close  \u{2191}\u{2193}:scroll ",
+            format!(
+                " Preview [{}] \u{2014} q/Esc:close  c:theme  \u{2191}\u{2193}:scroll",
+                tn
+            ),
             Style::default().fg(Color::DarkGray),
         ));
         frame.render_widget(title, title_area);
@@ -560,6 +606,7 @@ impl App<'_> {
                     KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => {
                         return Ok(Action::Quit);
                     }
+                    KeyCode::Char('c') => self.cycle_theme(),
                     _ => {}
                 },
                 Mode::Browse => {
@@ -658,10 +705,26 @@ impl App<'_> {
         if let Some((_slug, path)) = self.current_task_path()
             && let Ok(content) = std::fs::read_to_string(path)
         {
-            self.preview = render_markdown(&content);
+            self.preview_theme = 0;
+            self.render_content(&content);
             self.preview_scroll = 0;
             self.mode = Mode::Preview;
         }
+    }
+
+    fn cycle_theme(&mut self) {
+        if let Some((_slug, path)) = self.current_task_path()
+            && let Ok(content) = std::fs::read_to_string(path)
+        {
+            self.preview_theme = (self.preview_theme + 1) % themes().len();
+            self.render_content(&content);
+        }
+    }
+
+    fn render_content(&mut self, content: &str) {
+        let ts = themes();
+        let theme = &ts[self.preview_theme.min(ts.len() - 1)];
+        self.preview = render_markdown(theme, content);
     }
 
     fn current_task_path(&self) -> Option<(&str, &Path)> {
@@ -673,14 +736,13 @@ impl App<'_> {
     }
 }
 
-fn render_markdown(text: &str) -> Vec<Line<'static>> {
+fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     let mut in_fm = false;
     let mut fm_count = 0;
 
     for raw in text.lines() {
         let line = raw.trim_end_matches('\r');
-        // Strip YAML frontmatter
         if line.trim() == "---" {
             fm_count += 1;
             if fm_count == 1 {
@@ -702,29 +764,25 @@ fn render_markdown(text: &str) -> Vec<Line<'static>> {
             continue;
         }
 
-        // Heading ##
+        // Headings with # markers
+        if let Some(h) = trimmed.strip_prefix("### ") {
+            lines.push(Line::from(Span::styled(format!("### {}", h), th.h3)));
+            continue;
+        }
         if let Some(h) = trimmed.strip_prefix("## ") {
-            lines.push(Line::from(Span::styled(
-                h.to_string(),
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            )));
+            lines.push(Line::from(Span::styled(format!("## {}", h), th.h2)));
             continue;
         }
-        // Heading #
         if let Some(h) = trimmed.strip_prefix("# ") {
-            lines.push(Line::from(Span::styled(
-                h.to_string(),
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            )));
+            lines.push(Line::from(Span::styled(format!("# {}", h), th.h1)));
             continue;
         }
+
         // List item
         if let Some(item) = trimmed.strip_prefix("- ") {
-            lines.push(Line::from(format!("  \u{2022} {}", item)));
+            let bullet_s = Span::styled("\u{2022}", th.bullet);
+            let text_s = Span::raw(format!(" {}", item));
+            lines.push(Line::from(vec![bullet_s, text_s]));
             continue;
         }
         // Code block fence
@@ -732,11 +790,10 @@ fn render_markdown(text: &str) -> Vec<Line<'static>> {
             continue;
         }
 
-        // Plain paragraph — apply inline formatting (**bold**, *italic*, `code`)
+        // Inline formatting: **bold**, `code`, *italic*
         let mut spans: Vec<Span<'static>> = Vec::new();
         let mut rest = line.to_string();
         while !rest.is_empty() {
-            // **bold**
             if let Some(idx) = rest.find("**") {
                 let before = &rest[..idx];
                 if !before.is_empty() {
@@ -744,47 +801,33 @@ fn render_markdown(text: &str) -> Vec<Line<'static>> {
                 }
                 let after = &rest[idx + 2..];
                 if let Some(end) = after.find("**") {
-                    spans.push(Span::styled(
-                        after[..end].to_string(),
-                        Style::default().add_modifier(Modifier::BOLD),
-                    ));
+                    spans.push(Span::styled(after[..end].to_string(), th.bold));
                     rest = after[end + 2..].to_string();
                 } else {
                     spans.push(Span::raw(rest[idx..].to_string()));
                     break;
                 }
-            }
-            // `code`
-            else if let Some(idx) = rest.find('`') {
+            } else if let Some(idx) = rest.find('`') {
                 let before = &rest[..idx];
                 if !before.is_empty() {
                     spans.push(Span::raw(before.to_string()));
                 }
                 let after = &rest[idx + 1..];
                 if let Some(end) = after.find('`') {
-                    spans.push(Span::styled(
-                        after[..end].to_string(),
-                        Style::default().fg(Color::Green).bg(Color::DarkGray),
-                    ));
+                    spans.push(Span::styled(after[..end].to_string(), th.code));
                     rest = after[end + 1..].to_string();
                 } else {
                     spans.push(Span::raw(rest[idx..].to_string()));
                     break;
                 }
-            }
-            // *italic* — only if followed by text and closing *
-            else if let Some(idx) = rest.find('*') {
-                // Check it's not ** (handled above)
+            } else if let Some(idx) = rest.find('*') {
                 let before = &rest[..idx];
                 if !before.is_empty() {
                     spans.push(Span::raw(before.to_string()));
                 }
                 let after = &rest[idx + 1..];
                 if let Some(end) = after.find('*') {
-                    spans.push(Span::styled(
-                        after[..end].to_string(),
-                        Style::default().add_modifier(Modifier::DIM),
-                    ));
+                    spans.push(Span::styled(after[..end].to_string(), th.dim));
                     rest = after[end + 1..].to_string();
                 } else {
                     spans.push(Span::raw(rest[idx..].to_string()));
