@@ -130,6 +130,13 @@ impl SortState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Action {
+    None,
+    Quit,
+    OpenEditor,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum FocusZone {
     SortBar,
     TaskList,
@@ -282,9 +289,33 @@ pub fn run_tui(
             eprintln!("render error: {e}");
             break;
         }
-        if let Err(e) = app.handle_events() {
-            eprintln!("event error: {e}");
-            break;
+        match app.handle_events() {
+            Ok(action) => match action {
+                Action::None => {}
+                Action::Quit => break,
+                Action::OpenEditor => {
+                    if let Some((_slug, path)) = app.current_task_path() {
+                        ratatui::restore();
+                        let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+                        let status = std::process::Command::new(&editor).arg(path).status();
+                        if let Ok(s) = status
+                            && !s.success()
+                        {
+                            eprintln!("{editor} exited with code: {:?}", s.code());
+                        }
+                        if let Ok(t) = ratatui::try_init() {
+                            terminal = t;
+                        } else {
+                            eprintln!("failed to re-init terminal after editor");
+                            break;
+                        }
+                    }
+                }
+            },
+            Err(e) => {
+                eprintln!("event error: {e}");
+                break;
+            }
         }
     }
 
@@ -471,20 +502,25 @@ impl App<'_> {
 }
 
 impl App<'_> {
-    fn handle_events(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn handle_events(&mut self) -> Result<Action, Box<dyn std::error::Error>> {
         if event::poll(std::time::Duration::from_millis(100))?
             && let Event::Key(key) = event::read()?
         {
             if key.kind != KeyEventKind::Press {
-                return Ok(());
+                return Ok(Action::None);
             }
             match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
+                KeyCode::Char('q') | KeyCode::Esc => return Ok(Action::Quit),
                 KeyCode::Tab => {
                     self.focus = match self.focus {
                         FocusZone::SortBar => FocusZone::TaskList,
                         FocusZone::TaskList => FocusZone::SortBar,
                     };
+                }
+                KeyCode::Enter => {
+                    if self.focus == FocusZone::TaskList && !self.columns.is_empty() {
+                        return Ok(Action::OpenEditor);
+                    }
                 }
                 _ => match self.focus {
                     FocusZone::SortBar => self.handle_sort_bar_key(key.code),
@@ -492,7 +528,7 @@ impl App<'_> {
                 },
             }
         }
-        Ok(())
+        Ok(Action::None)
     }
 
     fn handle_sort_bar_key(&mut self, code: KeyCode) {
@@ -564,6 +600,14 @@ impl App<'_> {
             KeyCode::Enter => {}
             _ => {}
         }
+    }
+
+    fn current_task_path(&self) -> Option<(&str, &Path)> {
+        let col = self.columns.get(self.selected_column)?;
+        let task_idx = col.task_indices.get(self.selected_task)?;
+        let task = self.tasks.get(*task_idx)?;
+        let path = self.task_paths.get(&task.slug)?;
+        Some((&task.slug, path))
     }
 }
 
