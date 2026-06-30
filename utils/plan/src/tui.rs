@@ -249,7 +249,7 @@ impl App<'_> {
         // Each padded with same slot widths so columns align
         let mut spans = Vec::new();
         spans.push(Span::styled(
-            format!("{:<w$}", format!(" {}", "Slug"), w = slot(slug_w)),
+            format!("{:<w$}", format!(" {}", "Issue"), w = slot(slug_w)),
             if self.selected_field == 3 {
                 Style::default()
                     .fg(Color::Black)
