@@ -184,24 +184,18 @@ pub fn run_tui(
                 Action::None => {}
                 Action::Quit => break,
                 Action::OpenPreview => {
-                    if let Some((_slug, path)) = app.current_task_path() {
+                    if let Some((_slug, path)) = app.current_task_path()
+                        && let Ok(content) = std::fs::read_to_string(path)
+                    {
                         ratatui::restore();
-                        let previewers = ["glow", "view", "cat"];
-                        let cmd = previewers.iter().find(|cmd| {
-                            std::process::Command::new(cmd)
-                                .arg("--version")
-                                .stdout(std::process::Stdio::null())
-                                .stderr(std::process::Stdio::null())
-                                .status()
-                                .is_ok()
-                        });
-                        if let Some(cmd) = cmd {
-                            std::process::Command::new(cmd).arg(path).status().ok();
-                        }
+                        let skin = termimad::MadSkin::default();
+                        let fmt = termimad::FmtText::from(&skin, &content, None);
+                        println!("{}", fmt);
+                        println!("\n--- Press Enter to continue ---");
+                        let _ = crossterm::event::read();
                         if let Ok(t) = ratatui::try_init() {
                             terminal = t;
                         } else {
-                            eprintln!("failed to re-init terminal after preview");
                             break;
                         }
                     }
@@ -539,10 +533,8 @@ impl App<'_> {
             if key.kind != KeyEventKind::Press {
                 return Ok(Action::None);
             }
-            match key.code {
-                KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => {
-                    return Ok(Action::Quit);
-                }
+            return Ok(match key.code {
+                KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => Action::Quit,
                 KeyCode::Char('q') | KeyCode::Esc => {
                     if self.has_active_filters() {
                         self.filter_status = None;
@@ -551,38 +543,33 @@ impl App<'_> {
                         self.filter_area = None;
                         self.filter_search = None;
                         self.reload_tasks();
+                        Action::None
                     } else {
-                        return Ok(Action::Quit);
+                        Action::Quit
                     }
                 }
-                KeyCode::Enter => {
-                    if !self.columns.is_empty() {
-                        return Ok(Action::OpenPreview);
-                    }
-                }
-                KeyCode::Char('f') => {
-                    if !self.columns.is_empty() {
-                        let col = &self.columns[self.selected_column];
-                        if let Some(&task_idx) = col.task_indices.get(self.selected_task) {
-                            let task = &self.tasks[task_idx];
-                            match self.selected_field {
-                                0 => self.filter_type = Some(task.task.task_type.clone()),
-                                1 => self.filter_priority = Some(task.task.priority.clone()),
-                                2 => self.filter_area = Some(task.task.area.clone()),
-                                3 => self.filter_search = Some(task.slug.clone()),
-                                _ => {}
-                            }
-                            self.reload_tasks();
+                KeyCode::Enter if !self.columns.is_empty() => Action::OpenPreview,
+                KeyCode::Char('f') if !self.columns.is_empty() => {
+                    let col = &self.columns[self.selected_column];
+                    if let Some(&task_idx) = col.task_indices.get(self.selected_task) {
+                        let task = &self.tasks[task_idx];
+                        match self.selected_field {
+                            0 => self.filter_type = Some(task.task.task_type.clone()),
+                            1 => self.filter_priority = Some(task.task.priority.clone()),
+                            2 => self.filter_area = Some(task.task.area.clone()),
+                            3 => self.filter_search = Some(task.slug.clone()),
+                            _ => {}
                         }
+                        self.reload_tasks();
                     }
+                    Action::None
                 }
-                KeyCode::Char('e') => {
-                    if !self.columns.is_empty() {
-                        return Ok(Action::OpenEditor);
-                    }
+                KeyCode::Char('e') if !self.columns.is_empty() => Action::OpenEditor,
+                _ => {
+                    self.handle_task_key(key.code);
+                    Action::None
                 }
-                _ => self.handle_task_key(key.code),
-            }
+            });
         }
         Ok(Action::None)
     }
