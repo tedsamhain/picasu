@@ -1114,22 +1114,12 @@ fn render_markdown(th: &MarkdownTheme, text: &str, wrap: usize) -> Vec<Line<'sta
                             }
                             lines.push(Line::from(sep));
                         }
-                        let cell_lines: Vec<Vec<String>> = (0..ncols)
-                            .map(|i| {
-                                let txt = row.get(i).map(|s| s.as_str()).unwrap_or("");
-                                wrap_lines(txt, col_w.get(i).copied().unwrap_or(10))
-                            })
-                            .collect();
-                        let max_ln = cell_lines.iter().map(|c| c.len()).max().unwrap_or(1);
-                        for li in 0..max_ln {
-                            let mut buf = String::from("|");
-                            for i in 0..ncols {
-                                let txt = cell_lines[i].get(li).map(|s| s.as_str()).unwrap_or("");
-                                let w = col_w[i];
-                                buf.push_str(&format!(" {:<w$}|", txt, w = w));
-                            }
-                            lines.push(Line::from(buf));
+                        let mut buf = String::from("|");
+                        for (i, &w) in col_w.iter().enumerate() {
+                            let txt = row.get(i).map(|s| s.as_str()).unwrap_or("");
+                            buf.push_str(&format!(" {:<w$}|", txt, w = w));
                         }
+                        lines.push(Line::from(buf));
                         sep_count += 1;
                     }
                     lines.push(Line::from(""));
@@ -1165,7 +1155,15 @@ fn render_markdown(th: &MarkdownTheme, text: &str, wrap: usize) -> Vec<Line<'sta
             Event::TaskListMarker(checked) => {
                 item_checked = Some(checked);
             }
-            Event::SoftBreak | Event::HardBreak => flush(&mut lines, &mut spans),
+            Event::SoftBreak | Event::HardBreak => {
+                if in_item {
+                    item_text.push(' ');
+                } else if in_cell {
+                    cur_cell.push(' ');
+                } else {
+                    push_span(&mut spans, " ", &Style::default());
+                }
+            }
             Event::Html(t) => push_span(&mut spans, &t, &Style::default()),
             _ => {}
         }
