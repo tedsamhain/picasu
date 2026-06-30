@@ -444,14 +444,14 @@ impl App<'_> {
                         selected_line = lines.len();
                     }
 
-                    // fields: 0=type, 1=priority, 2=area, 3=slug
+                    let active_style = Style::default()
+                        .add_modifier(Modifier::REVERSED | Modifier::BOLD | Modifier::UNDERLINED);
+                    let row_style = Style::default().add_modifier(Modifier::REVERSED);
+
                     let indicator = if is_selected { "›" } else { " " };
-                    let slug_hl = is_selected && self.selected_field == 3;
-                    let type_hl = is_selected && self.selected_field == 0;
-                    let prio_hl = is_selected && self.selected_field == 1;
-                    let area_hl = is_selected && self.selected_field == 2;
 
                     let mut spans = Vec::new();
+                    // Slug (field 3)
                     spans.push(Span::styled(
                         format!(
                             " {}{:<slug_w$}",
@@ -459,35 +459,46 @@ impl App<'_> {
                             task.slug,
                             slug_w = slug_w.saturating_sub(1)
                         ),
-                        if slug_hl {
-                            Style::default().add_modifier(Modifier::REVERSED)
+                        if is_selected && self.selected_field == 3 {
+                            active_style
+                        } else if is_selected {
+                            row_style
                         } else {
                             Style::default()
                         },
                     ));
+                    // Type (field 0)
                     spans.push(Span::styled(
                         format!(" {:<type_w$}", task.task.task_type, type_w = type_w),
-                        if type_hl {
-                            Style::default().add_modifier(Modifier::REVERSED)
+                        if is_selected && self.selected_field == 0 {
+                            active_style
+                        } else if is_selected {
+                            row_style
                         } else {
                             Style::default()
                         },
                     ));
+                    // Priority (field 1)
                     let pc = priority_color(&task.task.priority);
                     spans.push(Span::styled(
                         format!(" {:<prio_w$}", task.task.priority, prio_w = prio_w),
-                        if prio_hl {
+                        if is_selected && self.selected_field == 1 {
+                            Style::default().fg(pc).add_modifier(
+                                Modifier::REVERSED | Modifier::BOLD | Modifier::UNDERLINED,
+                            )
+                        } else if is_selected {
                             Style::default().fg(pc).add_modifier(Modifier::REVERSED)
                         } else {
                             Style::default().fg(pc)
                         },
                     ));
+                    // Area (field 2)
                     spans.push(Span::styled(
                         format!(" {}", task.task.area),
-                        if area_hl {
-                            Style::default().add_modifier(Modifier::REVERSED)
+                        if is_selected && self.selected_field == 2 {
+                            active_style
                         } else if is_selected {
-                            Style::default().add_modifier(Modifier::DIM)
+                            row_style
                         } else {
                             Style::default()
                         },
