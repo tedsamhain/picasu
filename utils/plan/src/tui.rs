@@ -451,66 +451,77 @@ impl App<'_> {
 
                     let row_style = Style::default().add_modifier(Modifier::REVERSED);
                     let active = |f: usize| -> bool { is_selected && self.selected_field == f };
-
                     let mut spans = Vec::new();
-                    // Slug (field 3) — row indicator + truncated slug, [brackets] when active
+
+                    // Slug (field 3) — [brackets] when active
                     let max_slug = slug_w.saturating_sub(1);
-                    let slug = if task.slug.len() > max_slug {
-                        format!("{}…", &task.slug[..max_slug.saturating_sub(1)])
+                    let non_active_trunc = max_slug + 1;
+                    if active(3) {
+                        let inner_len = max_slug.saturating_sub(1);
+                        let inner = if task.slug.len() > inner_len {
+                            format!("{}…", &task.slug[..inner_len.saturating_sub(1)])
+                        } else {
+                            task.slug.clone()
+                        };
+                        spans.push(Span::styled(
+                            format!(" {:<w$}", format!("[{}]", inner), w = non_active_trunc),
+                            row_style,
+                        ));
                     } else {
-                        task.slug.clone()
+                        let slug = if task.slug.len() > non_active_trunc {
+                            format!("{}…", &task.slug[..non_active_trunc.saturating_sub(1)])
+                        } else {
+                            task.slug.clone()
+                        };
+                        spans.push(Span::styled(
+                            format!(" {:<w$}", slug, w = non_active_trunc),
+                            if is_selected {
+                                row_style
+                            } else {
+                                Style::default()
+                            },
+                        ));
+                    }
+
+                    // Type (field 0) — [brackets] when active
+                    let type_content = if active(0) {
+                        format!("[{}]", task.task.task_type)
+                    } else {
+                        task.task.task_type.clone()
                     };
                     spans.push(Span::styled(
-                        if active(3) {
-                            format!("›[{:<w$}]", slug, w = max_slug.saturating_sub(1))
-                        } else {
-                            format!(
-                                " {}{:<w$}",
-                                if is_selected { "›" } else { " " },
-                                slug,
-                                w = max_slug
-                            )
-                        },
+                        format!(" {:<w$}", type_content, w = type_w),
                         if is_selected {
                             row_style
                         } else {
                             Style::default()
                         },
                     ));
-                    // Type (field 0) — [brackets] when active
-                    spans.push(Span::styled(
-                        if active(0) {
-                            format!("[{:<w$}]", task.task.task_type, w = type_w - 1)
-                        } else {
-                            format!(" {:<w$}", task.task.task_type, w = type_w)
-                        },
-                        if is_selected {
-                            row_style
-                        } else {
-                            Style::default()
-                        },
-                    ));
+
                     // Priority (field 1) — [brackets] when active
                     let pc = priority_color(&task.task.priority);
+                    let prio_content = if active(1) {
+                        format!("[{}]", task.task.priority)
+                    } else {
+                        task.task.priority.clone()
+                    };
                     spans.push(Span::styled(
-                        if active(1) {
-                            format!("[{:<w$}]", task.task.priority, w = prio_w - 1)
-                        } else {
-                            format!(" {:<w$}", task.task.priority, w = prio_w)
-                        },
+                        format!(" {:<w$}", prio_content, w = prio_w),
                         if is_selected {
                             Style::default().fg(pc).add_modifier(Modifier::REVERSED)
                         } else {
                             Style::default().fg(pc)
                         },
                     ));
+
                     // Area (field 2) — [brackets] when active
+                    let area_content = if active(2) {
+                        format!("[{}]", task.task.area)
+                    } else {
+                        task.task.area.clone()
+                    };
                     spans.push(Span::styled(
-                        if active(2) {
-                            format!("[{}]", task.task.area)
-                        } else {
-                            format!(" {}", task.task.area)
-                        },
+                        format!(" {}", area_content),
                         if is_selected {
                             row_style
                         } else {
