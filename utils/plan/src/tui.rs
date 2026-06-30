@@ -213,41 +213,6 @@ pub fn run_tui(
 
 impl App<'_> {
     fn render(&mut self, frame: &mut Frame) {
-        let [sort_bar_area, task_area, footer_area] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Fill(1),
-            Constraint::Length(1),
-        ])
-        .areas(frame.area());
-
-        self.render_header(frame, sort_bar_area);
-        self.render_task_area(frame, task_area);
-        self.render_footer(frame, footer_area);
-    }
-
-    fn render_header(&self, frame: &mut Frame, area: Rect) {
-        let labels = ["Type", "Priority", "Area", "Slug"];
-        let mut spans = Vec::new();
-        spans.push(Span::raw(" "));
-        for (i, label) in labels.iter().enumerate() {
-            let style = if self.selected_field == i {
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-            spans.push(Span::styled(format!(" {} ", label), style));
-        }
-        frame.render_widget(Paragraph::new(Line::from(spans)), area);
-    }
-
-    fn render_task_area(&mut self, frame: &mut Frame, area: Rect) {
-        if self.columns.is_empty() || area.width < 10 {
-            return;
-        }
-
         let slug_w = self
             .tasks
             .iter()
@@ -258,6 +223,61 @@ impl App<'_> {
         let type_w: usize = 8;
         let prio_w: usize = 8;
         let slot = |w: usize| w + 1;
+
+        let [head_area, task_area, footer_area] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Fill(1),
+            Constraint::Length(1),
+        ])
+        .areas(frame.area());
+
+        self.render_header(frame, head_area, slug_w, type_w, prio_w, slot);
+        self.render_task_area(frame, task_area, slug_w, type_w, prio_w, slot);
+        self.render_footer(frame, footer_area);
+    }
+
+    fn render_header(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        slug_w: usize,
+        type_w: usize,
+        prio_w: usize,
+        slot: impl Fn(usize) -> usize,
+    ) {
+        let header_slug = format!("{:<w$}", format!(" {}", "Slug"), w = slot(slug_w));
+        let header_type = format!("{:<w$}", format!(" {}", "Type"), w = slot(type_w));
+        let header_prio = format!("{:<w$}", format!(" {}", "Priority"), w = slot(prio_w));
+        let headers = [header_type, header_prio, header_slug, "Area".into()];
+        let mut spans = Vec::new();
+        // order: slug, type, priority, area — same as task rows
+        let order = [3usize, 0, 1, 2];
+        for &i in &order {
+            let style = if self.selected_field == i {
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::White)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            spans.push(Span::styled(&headers[i], style));
+        }
+        frame.render_widget(Paragraph::new(Line::from(spans)), area);
+    }
+
+    fn render_task_area(
+        &mut self,
+        frame: &mut Frame,
+        area: Rect,
+        slug_w: usize,
+        type_w: usize,
+        prio_w: usize,
+        slot: impl Fn(usize) -> usize,
+    ) {
+        if self.columns.is_empty() || area.width < 10 {
+            return;
+        }
         // Color scheme — BOLD only on active field, non-active selected row has plain bg
         let sel_base = Style::default().bg(Color::White).fg(Color::Black);
         let sel_act = Style::default()
