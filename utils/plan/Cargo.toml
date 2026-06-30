@@ -18,3 +18,4 @@ ratatui = "0.30"
 crossterm = "0.28"
 clap = { version = "4", features = ["derive"] }
 ratskin = "0.3"
+termimad = "0.34"
