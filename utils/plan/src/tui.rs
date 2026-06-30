@@ -415,8 +415,8 @@ impl App<'_> {
             .max()
             .unwrap_or(4)
             .clamp(4, 28);
-        let type_w = 8;
-        let prio_w = 8;
+        let type_w: usize = 8;
+        let prio_w: usize = 8;
 
         let mut lines: Vec<Line<'static>> = Vec::new();
         let mut selected_line = 0usize;
@@ -453,28 +453,34 @@ impl App<'_> {
                     let active = |f: usize| -> bool { is_selected && self.selected_field == f };
                     let mut spans = Vec::new();
 
-                    // Slug (field 3) — [brackets] when active
-                    let max_slug = slug_w.saturating_sub(1);
-                    let non_active_trunc = max_slug + 1;
+                    // Each field slot = max_value_width + 2 (for [ ] or space+space).
+                    // Non-active: pad " value" to slot_width
+                    // Active:     pad "[value]" to slot_width
+                    let slug_slot = slug_w + 1;
+                    let type_slot = type_w + 1;
+                    let prio_slot = prio_w + 1;
+
+                    // Slug (field 3)
                     if active(3) {
-                        let inner_len = max_slug.saturating_sub(1);
-                        let inner = if task.slug.len() > inner_len {
-                            format!("{}…", &task.slug[..inner_len.saturating_sub(1)])
+                        let max_inner = slug_slot.saturating_sub(2);
+                        let inner = if task.slug.len() > max_inner {
+                            format!("{}…", &task.slug[..max_inner.saturating_sub(1)])
                         } else {
                             task.slug.clone()
                         };
                         spans.push(Span::styled(
-                            format!(" {:<w$}", format!("[{}]", inner), w = non_active_trunc),
+                            format!("{:<w$}", format!("[{}]", inner), w = slug_slot),
                             row_style,
                         ));
                     } else {
-                        let slug = if task.slug.len() > non_active_trunc {
-                            format!("{}…", &task.slug[..non_active_trunc.saturating_sub(1)])
+                        let max_slug = slug_slot.saturating_sub(1);
+                        let slug = if task.slug.len() > max_slug {
+                            format!("{}…", &task.slug[..max_slug.saturating_sub(1)])
                         } else {
                             task.slug.clone()
                         };
                         spans.push(Span::styled(
-                            format!(" {:<w$}", slug, w = non_active_trunc),
+                            format!("{:<w$}", format!(" {}", slug), w = slug_slot),
                             if is_selected {
                                 row_style
                             } else {
@@ -483,51 +489,66 @@ impl App<'_> {
                         ));
                     }
 
-                    // Type (field 0) — [brackets] when active
-                    let type_content = if active(0) {
-                        format!("[{}]", task.task.task_type)
+                    // Type (field 0)
+                    if active(0) {
+                        spans.push(Span::styled(
+                            format!(
+                                "{:<w$}",
+                                format!("[{}]", task.task.task_type),
+                                w = type_slot
+                            ),
+                            if is_selected {
+                                row_style
+                            } else {
+                                Style::default()
+                            },
+                        ));
                     } else {
-                        task.task.task_type.clone()
-                    };
-                    spans.push(Span::styled(
-                        format!(" {:<w$}", type_content, w = type_w),
-                        if is_selected {
-                            row_style
-                        } else {
-                            Style::default()
-                        },
-                    ));
+                        spans.push(Span::styled(
+                            format!("{:<w$}", format!(" {}", task.task.task_type), w = type_slot),
+                            if is_selected {
+                                row_style
+                            } else {
+                                Style::default()
+                            },
+                        ));
+                    }
 
-                    // Priority (field 1) — [brackets] when active
+                    // Priority (field 1)
                     let pc = priority_color(&task.task.priority);
-                    let prio_content = if active(1) {
-                        format!("[{}]", task.task.priority)
+                    if active(1) {
+                        spans.push(Span::styled(
+                            format!("{:<w$}", format!("[{}]", task.task.priority), w = prio_slot),
+                            if is_selected {
+                                Style::default().fg(pc).add_modifier(Modifier::REVERSED)
+                            } else {
+                                Style::default().fg(pc)
+                            },
+                        ));
                     } else {
-                        task.task.priority.clone()
-                    };
-                    spans.push(Span::styled(
-                        format!(" {:<w$}", prio_content, w = prio_w),
-                        if is_selected {
-                            Style::default().fg(pc).add_modifier(Modifier::REVERSED)
-                        } else {
-                            Style::default().fg(pc)
-                        },
-                    ));
+                        spans.push(Span::styled(
+                            format!("{:<w$}", format!(" {}", task.task.priority), w = prio_slot),
+                            if is_selected {
+                                Style::default().fg(pc).add_modifier(Modifier::REVERSED)
+                            } else {
+                                Style::default().fg(pc)
+                            },
+                        ));
+                    }
 
-                    // Area (field 2) — [brackets] when active
-                    let area_content = if active(2) {
-                        format!("[{}]", task.task.area)
+                    // Area (field 2)
+                    if active(2) {
+                        spans.push(Span::styled(format!("[{}]", task.task.area), row_style));
                     } else {
-                        task.task.area.clone()
-                    };
-                    spans.push(Span::styled(
-                        format!(" {}", area_content),
-                        if is_selected {
-                            row_style
-                        } else {
-                            Style::default()
-                        },
-                    ));
+                        spans.push(Span::styled(
+                            format!(" {}", task.task.area),
+                            if is_selected {
+                                row_style
+                            } else {
+                                Style::default()
+                            },
+                        ));
+                    }
                     lines.push(Line::from(spans));
                 }
             }
