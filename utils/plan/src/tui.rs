@@ -986,7 +986,19 @@ fn render_markdown(th: &MarkdownTheme, text: &str) -> Vec<Line<'static>> {
                     }
 
                     let border_w = ncols * 3 + 1;
-                    let target = 78usize.saturating_sub(border_w);
+                    // If p80 total fits within 160 (borders included), use wider target
+                    let p80_total: usize = cols.iter().map(|c| c.p80).sum::<usize>() + border_w;
+                    let base_target = 78usize;
+                    let wide_target = 160usize;
+                    let target = if p80_total <= wide_target {
+                        // Pick smallest target that fits p80
+                        base_target
+                            .max(p80_total)
+                            .min(wide_target)
+                            .saturating_sub(border_w)
+                    } else {
+                        base_target.saturating_sub(border_w)
+                    };
 
                     // Start at p60, try to promote to p80 then p100
                     let mut col_w: Vec<usize> = cols.iter().map(|c| c.p60).collect();
