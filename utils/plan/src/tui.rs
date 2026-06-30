@@ -10,55 +10,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 const FIELD_COUNT: usize = 4; // type, priority, area, slug
-use termimad::crossterm::style::Color as TmColor;
-
-struct Theme {
-    name: &'static str,
-    headers_fg: TmColor,
-    bold_fg: Option<TmColor>,
-    italic_fg: Option<TmColor>,
-    bullet_fg: Option<TmColor>,
-    inline_code_fg: TmColor,
-    inline_code_bg: TmColor,
-    code_block_fg: TmColor,
-    code_block_bg: TmColor,
-}
-
-const THEMES: &[Theme] = &[
-    Theme {
-        name: "default",
-        headers_fg: TmColor::White,
-        bold_fg: None,
-        italic_fg: None,
-        bullet_fg: None,
-        inline_code_fg: TmColor::White,
-        inline_code_bg: TmColor::DarkGrey,
-        code_block_fg: TmColor::White,
-        code_block_bg: TmColor::DarkGrey,
-    },
-    Theme {
-        name: "vibrant",
-        headers_fg: TmColor::Blue,
-        bold_fg: None,
-        italic_fg: None,
-        bullet_fg: None,
-        inline_code_fg: TmColor::Green,
-        inline_code_bg: TmColor::DarkGrey,
-        code_block_fg: TmColor::White,
-        code_block_bg: TmColor::DarkGrey,
-    },
-    Theme {
-        name: "classic",
-        headers_fg: TmColor::Blue,
-        bold_fg: Some(TmColor::Red),
-        italic_fg: Some(TmColor::Magenta),
-        bullet_fg: None,
-        inline_code_fg: TmColor::Green,
-        inline_code_bg: TmColor::DarkGrey,
-        code_block_fg: TmColor::White,
-        code_block_bg: TmColor::DarkGrey,
-    },
-];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Action {
@@ -92,7 +43,6 @@ struct App<'a> {
     mode: Mode,
     preview: Vec<Line<'static>>,
     preview_scroll: usize,
-    preview_theme: usize,
 }
 
 struct Column {
@@ -129,7 +79,6 @@ impl<'a> App<'a> {
             mode: Mode::Browse,
             preview: Vec::new(),
             preview_scroll: 0,
-            preview_theme: 0,
         };
 
         app.sort_tasks();
@@ -309,12 +258,8 @@ impl App<'_> {
     fn render_preview(&self, frame: &mut Frame) {
         let [title_area, body_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(frame.area());
-        let t = THEMES[self.preview_theme.min(THEMES.len() - 1)].name;
         let title = Line::from(Span::styled(
-            format!(
-                " Preview [{}] \u{2014} q/Esc:close  c:theme  \u{2191}\u{2193}:scroll",
-                t
-            ),
+            " Preview \u{2014} q/Esc:close  \u{2191}\u{2193}:scroll ",
             Style::default().fg(Color::DarkGray),
         ));
         frame.render_widget(title, title_area);
@@ -615,7 +560,6 @@ impl App<'_> {
                     KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => {
                         return Ok(Action::Quit);
                     }
-                    KeyCode::Char('c') => self.cycle_theme(),
                     _ => {}
                 },
                 Mode::Browse => {
@@ -714,49 +658,10 @@ impl App<'_> {
         if let Some((_slug, path)) = self.current_task_path()
             && let Ok(content) = std::fs::read_to_string(path)
         {
-            self.preview_theme = 0;
-            self.build_preview(&content);
+            self.preview = render_markdown(&content);
             self.preview_scroll = 0;
             self.mode = Mode::Preview;
         }
-    }
-
-    fn cycle_theme(&mut self) {
-        if let Some((_slug, path)) = self.current_task_path()
-            && let Ok(content) = std::fs::read_to_string(path)
-        {
-            self.preview_theme = (self.preview_theme + 1) % 3;
-            self.build_preview(&content);
-        }
-    }
-
-    fn build_preview(&mut self, content: &str) {
-        use termimad::crossterm::style::Attribute;
-        let theme = &THEMES[self.preview_theme.min(THEMES.len() - 1)];
-        let mut skin = ratskin::RatSkin::default();
-
-        skin.skin.set_headers_fg(theme.headers_fg);
-        skin.skin.headers[0]
-            .compound_style
-            .add_attr(Attribute::Bold);
-        if let Some(c) = theme.bold_fg {
-            skin.skin.bold.set_fg(c);
-        }
-        if let Some(c) = theme.italic_fg {
-            skin.skin.italic.set_fg(c);
-        }
-        if let Some(c) = theme.bullet_fg {
-            skin.skin.bullet.set_fg(c);
-        }
-        skin.skin
-            .inline_code
-            .set_fgbg(theme.inline_code_fg, theme.inline_code_bg);
-        skin.skin
-            .code_block
-            .set_fgbg(theme.code_block_fg, theme.code_block_bg);
-
-        let text = ratskin::RatSkin::parse_text(content);
-        self.preview = skin.parse(text, 80);
     }
 
     fn current_task_path(&self) -> Option<(&str, &Path)> {
@@ -766,6 +671,133 @@ impl App<'_> {
         let path = self.task_paths.get(&task.slug)?;
         Some((&task.slug, path))
     }
+}
+
+fn render_markdown(text: &str) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    let mut in_fm = false;
+    let mut fm_count = 0;
+
+    for raw in text.lines() {
+        let line = raw.trim_end_matches('\r');
+        // Strip YAML frontmatter
+        if line.trim() == "---" {
+            fm_count += 1;
+            if fm_count == 1 {
+                in_fm = true;
+                continue;
+            }
+            if fm_count == 2 {
+                in_fm = false;
+                continue;
+            }
+        }
+        if in_fm {
+            continue;
+        }
+
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            lines.push(Line::from(""));
+            continue;
+        }
+
+        // Heading ##
+        if let Some(h) = trimmed.strip_prefix("## ") {
+            lines.push(Line::from(Span::styled(
+                h.to_string(),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            continue;
+        }
+        // Heading #
+        if let Some(h) = trimmed.strip_prefix("# ") {
+            lines.push(Line::from(Span::styled(
+                h.to_string(),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            continue;
+        }
+        // List item
+        if let Some(item) = trimmed.strip_prefix("- ") {
+            lines.push(Line::from(format!("  \u{2022} {}", item)));
+            continue;
+        }
+        // Code block fence
+        if trimmed.starts_with("```") {
+            continue;
+        }
+
+        // Plain paragraph — apply inline formatting (**bold**, *italic*, `code`)
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        let mut rest = line.to_string();
+        while !rest.is_empty() {
+            // **bold**
+            if let Some(idx) = rest.find("**") {
+                let before = &rest[..idx];
+                if !before.is_empty() {
+                    spans.push(Span::raw(before.to_string()));
+                }
+                let after = &rest[idx + 2..];
+                if let Some(end) = after.find("**") {
+                    spans.push(Span::styled(
+                        after[..end].to_string(),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ));
+                    rest = after[end + 2..].to_string();
+                } else {
+                    spans.push(Span::raw(rest[idx..].to_string()));
+                    break;
+                }
+            }
+            // `code`
+            else if let Some(idx) = rest.find('`') {
+                let before = &rest[..idx];
+                if !before.is_empty() {
+                    spans.push(Span::raw(before.to_string()));
+                }
+                let after = &rest[idx + 1..];
+                if let Some(end) = after.find('`') {
+                    spans.push(Span::styled(
+                        after[..end].to_string(),
+                        Style::default().fg(Color::Green).bg(Color::DarkGray),
+                    ));
+                    rest = after[end + 1..].to_string();
+                } else {
+                    spans.push(Span::raw(rest[idx..].to_string()));
+                    break;
+                }
+            }
+            // *italic* — only if followed by text and closing *
+            else if let Some(idx) = rest.find('*') {
+                // Check it's not ** (handled above)
+                let before = &rest[..idx];
+                if !before.is_empty() {
+                    spans.push(Span::raw(before.to_string()));
+                }
+                let after = &rest[idx + 1..];
+                if let Some(end) = after.find('*') {
+                    spans.push(Span::styled(
+                        after[..end].to_string(),
+                        Style::default().add_modifier(Modifier::DIM),
+                    ));
+                    rest = after[end + 1..].to_string();
+                } else {
+                    spans.push(Span::raw(rest[idx..].to_string()));
+                    break;
+                }
+            } else {
+                spans.push(Span::raw(rest.clone()));
+                break;
+            }
+        }
+        lines.push(Line::from(spans));
+    }
+    lines
 }
 
 fn status_color(status: &str) -> Color {
