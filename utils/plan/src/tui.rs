@@ -449,8 +449,11 @@ impl App<'_> {
                         selected_line = lines.len();
                     }
 
-                    let active_style = Style::default()
-                        .add_modifier(Modifier::REVERSED | Modifier::BOLD | Modifier::UNDERLINED);
+                    // Active field gets white-on-black (inverted terminal), row gets REVERSED
+                    let cell_style = Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::White)
+                        .add_modifier(Modifier::BOLD);
                     let row_style = Style::default().add_modifier(Modifier::REVERSED);
 
                     let indicator = if is_selected { "›" } else { " " };
@@ -463,46 +466,66 @@ impl App<'_> {
                     } else {
                         task.slug.clone()
                     };
+                    let slug_hl = is_selected && self.selected_field == 3;
                     spans.push(Span::styled(
                         format!(" {}{:<width$}", indicator, slug, width = max_slug),
-                        if is_selected && self.selected_field == 3 {
-                            active_style
+                        if slug_hl {
+                            cell_style
                         } else if is_selected {
                             row_style
                         } else {
                             Style::default()
                         },
                     ));
-                    // Type (field 0)
+                    // Type (field 0) — with › marker when active
+                    let type_hl = is_selected && self.selected_field == 0;
+                    let type_val = if type_hl {
+                        format!("›{}", task.task.task_type)
+                    } else {
+                        task.task.task_type.clone()
+                    };
                     spans.push(Span::styled(
-                        format!(" {:<type_w$}", task.task.task_type, type_w = type_w),
-                        if is_selected && self.selected_field == 0 {
-                            active_style
+                        format!(" {:<width$}", type_val, width = type_w),
+                        if type_hl {
+                            cell_style
                         } else if is_selected {
                             row_style
                         } else {
                             Style::default()
                         },
                     ));
-                    // Priority (field 1)
+                    // Priority (field 1) — with › marker when active
                     let pc = priority_color(&task.task.priority);
+                    let prio_hl = is_selected && self.selected_field == 1;
+                    let prio_val = if prio_hl {
+                        format!("›{}", task.task.priority)
+                    } else {
+                        task.task.priority.clone()
+                    };
                     spans.push(Span::styled(
-                        format!(" {:<prio_w$}", task.task.priority, prio_w = prio_w),
-                        if is_selected && self.selected_field == 1 {
-                            Style::default().fg(pc).add_modifier(
-                                Modifier::REVERSED | Modifier::BOLD | Modifier::UNDERLINED,
-                            )
+                        format!(" {:<width$}", prio_val, width = prio_w),
+                        if prio_hl {
+                            Style::default()
+                                .fg(Color::Black)
+                                .bg(Color::White)
+                                .add_modifier(Modifier::BOLD)
                         } else if is_selected {
                             Style::default().fg(pc).add_modifier(Modifier::REVERSED)
                         } else {
                             Style::default().fg(pc)
                         },
                     ));
-                    // Area (field 2)
+                    // Area (field 2) — with › marker when active
+                    let area_hl = is_selected && self.selected_field == 2;
+                    let area_val = if area_hl {
+                        format!("›{}", task.task.area)
+                    } else {
+                        task.task.area.clone()
+                    };
                     spans.push(Span::styled(
-                        format!(" {}", task.task.area),
-                        if is_selected && self.selected_field == 2 {
-                            active_style
+                        format!(" {}", area_val),
+                        if area_hl {
+                            cell_style
                         } else if is_selected {
                             row_style
                         } else {
