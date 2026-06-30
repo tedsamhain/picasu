@@ -449,13 +449,7 @@ impl App<'_> {
                         selected_line = lines.len();
                     }
 
-                    // Active field gets white-on-black (inverted terminal), row gets REVERSED
-                    let cell_style = Style::default()
-                        .fg(Color::Black)
-                        .bg(Color::White)
-                        .add_modifier(Modifier::BOLD);
                     let row_style = Style::default().add_modifier(Modifier::REVERSED);
-                    let marker = |hl: bool| -> &'static str { if hl { ">" } else { " " } };
 
                     let mut spans = Vec::new();
                     // Slug (field 3) — row indicator + truncated slug
@@ -465,7 +459,6 @@ impl App<'_> {
                     } else {
                         task.slug.clone()
                     };
-                    let slug_hl = is_selected && self.selected_field == 3;
                     spans.push(Span::styled(
                         format!(
                             " {}{:<width$}",
@@ -473,60 +466,50 @@ impl App<'_> {
                             slug,
                             width = max_slug
                         ),
-                        if slug_hl {
-                            cell_style
-                        } else if is_selected {
+                        if is_selected {
                             row_style
                         } else {
                             Style::default()
                         },
                     ));
-                    // Type (field 0)
-                    let type_hl = is_selected && self.selected_field == 0;
-                    spans.push(Span::styled(
-                        format!(
-                            " {}{:<width$}",
-                            marker(type_hl),
-                            task.task.task_type,
-                            width = type_w - 1
-                        ),
-                        if type_hl {
-                            cell_style
-                        } else if is_selected {
-                            row_style
-                        } else {
-                            Style::default()
-                        },
-                    ));
-                    // Priority (field 1)
-                    let pc = priority_color(&task.task.priority);
-                    let prio_hl = is_selected && self.selected_field == 1;
-                    let prio_style = if prio_hl {
-                        Style::default()
-                            .fg(Color::Black)
-                            .bg(Color::White)
-                            .add_modifier(Modifier::BOLD)
-                    } else if is_selected {
-                        Style::default().fg(pc).add_modifier(Modifier::REVERSED)
+                    // Type (field 0) — bracket when active
+                    let type_val = if is_selected && self.selected_field == 0 {
+                        format!("[{}]", task.task.task_type)
                     } else {
-                        Style::default().fg(pc)
+                        task.task.task_type.clone()
                     };
                     spans.push(Span::styled(
-                        format!(
-                            " {}{:<width$}",
-                            marker(prio_hl),
-                            task.task.priority,
-                            width = prio_w - 1
-                        ),
-                        prio_style,
+                        format!(" {:<width$}", type_val, width = type_w),
+                        if is_selected {
+                            row_style
+                        } else {
+                            Style::default()
+                        },
                     ));
-                    // Area (field 2)
-                    let area_hl = is_selected && self.selected_field == 2;
+                    // Priority (field 1) — bracket when active
+                    let pc = priority_color(&task.task.priority);
+                    let prio_val = if is_selected && self.selected_field == 1 {
+                        format!("[{}]", task.task.priority)
+                    } else {
+                        task.task.priority.clone()
+                    };
                     spans.push(Span::styled(
-                        format!(" {}{}", marker(area_hl), task.task.area),
-                        if area_hl {
-                            cell_style
-                        } else if is_selected {
+                        format!(" {:<width$}", prio_val, width = prio_w),
+                        if is_selected {
+                            Style::default().fg(pc).add_modifier(Modifier::REVERSED)
+                        } else {
+                            Style::default().fg(pc)
+                        },
+                    ));
+                    // Area (field 2) — bracket when active
+                    let area_val = if is_selected && self.selected_field == 2 {
+                        format!("[{}]", task.task.area)
+                    } else {
+                        task.task.area.clone()
+                    };
+                    spans.push(Span::styled(
+                        format!(" {}", area_val),
+                        if is_selected {
                             row_style
                         } else {
                             Style::default()
