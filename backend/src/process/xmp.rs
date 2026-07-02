@@ -8,14 +8,17 @@ pub struct XmpData {
     pub description: Option<String>,
     /// 0–5 per XMP `xmp:Rating`; -1 ("rejected") in some tools is clamped to None.
     pub rating: Option<u8>,
+    /// `dc:title`. Used for the album display name override.
+    pub title: Option<String>,
 }
 
 /// Extract XMP metadata from raw bytes (file contents or sidecar content).
 ///
-/// Handles the three fields the app manages:
+/// Handles the fields the app manages:
 /// - `dc:subject`   → tags (`rdf:Bag` of `rdf:li`)
 /// - `dc:description` → description (`rdf:Alt` of `rdf:li`)
 /// - `xmp:Rating`   → rating (plain integer text node)
+/// - `dc:title`     → title (`rdf:Alt` of `rdf:li`)
 ///
 /// Limitations: only handles uncompressed, contiguous XMP packets.
 /// Compact XMP (namespace shorthand, RDF attribute syntax) may not be matched.
@@ -26,6 +29,7 @@ pub fn extract_xmp_data(bytes: &[u8]) -> XmpData {
         // Parse as i32 to handle negative values (e.g. -1 = "rejected"); clamp to None.
         rating: extract_simple_integer(bytes, b"<xmp:Rating>", b"</xmp:Rating>")
             .and_then(|v| u8::try_from(v).ok().filter(|&r| r <= 5)),
+        title: extract_alt_text(bytes, b"<dc:title>", b"</dc:title>"),
     }
 }
 
@@ -164,6 +168,18 @@ mod tests {
         )
     }
 
+    fn xmp_with_title(title: &str) -> String {
+        format!(
+            r#"<x:xmpmeta xmlns:x="adobe:ns:meta/">
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">{title}</rdf:li></rdf:Alt></dc:title>
+</rdf:Description>
+</rdf:RDF>
+</x:xmpmeta>"#
+        )
+    }
+
     fn xmp_packet_with_keywords(keywords: &[&str]) -> String {
         let items: String = keywords
             .iter()
@@ -239,5 +255,19 @@ mod tests {
         let xmp = xmp_packet_with_keywords(&[]);
         let data = extract_xmp_data(xmp.as_bytes());
         assert!(data.tags.is_empty());
+    }
+
+    #[test]
+    fn extracts_title() {
+        let xmp = xmp_with_title("My Album");
+        let data = extract_xmp_data(xmp.as_bytes());
+        assert_eq!(data.title.as_deref(), Some("My Album"));
+    }
+
+    #[test]
+    fn title_is_none_when_absent() {
+        let xmp = xmp_packet_with_keywords(&["family"]);
+        let data = extract_xmp_data(xmp.as_bytes());
+        assert_eq!(data.title, None);
     }
 }

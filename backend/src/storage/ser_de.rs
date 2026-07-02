@@ -30,7 +30,7 @@ use std::collections::HashMap;
 //   2. Copy the current structs to AbstractDataVN / AlbumCombinedVN / etc.
 //   3. Add a match arm for the old version in from_bytes.
 
-const SCHEMA_VERSION: u8 = 3;
+const SCHEMA_VERSION: u8 = 6;
 
 // ── v2 schema types (ImageMetadata/VideoMetadata with albums: HashSet) ────────
 
@@ -81,7 +81,7 @@ struct VideoCombinedV2 {
 enum AbstractDataV2 {
     Image(ImageCombinedV2),
     Video(VideoCombinedV2),
-    Album(AlbumCombined),
+    Album(AlbumCombinedV3),
 }
 
 impl From<AbstractDataV2> for AbstractData {
@@ -119,7 +119,225 @@ impl From<AbstractDataV2> for AbstractData {
                     alias: vid.metadata.alias,
                 },
             }),
-            AbstractDataV2::Album(alb) => AbstractData::Album(alb),
+            AbstractDataV2::Album(alb) => {
+                AbstractData::Album(AlbumCombined::from(AlbumCombinedV5::from(alb)))
+            }
+        }
+    }
+}
+
+// ── v3 schema types (AlbumMetadata without custom_date) ───────────────────────
+
+#[derive(bitcode::Decode)]
+#[cfg_attr(test, derive(bitcode::Encode))]
+struct AlbumMetadataV3 {
+    id: ArrayString<64>,
+    title: Option<String>,
+    created_time: i64,
+    start_time: Option<i64>,
+    end_time: Option<i64>,
+    last_modified_time: i64,
+    cover: Option<ArrayString<64>>,
+    item_count: usize,
+    item_size: u64,
+    share_list: HashMap<ArrayString<64>, Share>,
+    dir_path: Option<String>,
+}
+
+#[derive(bitcode::Decode)]
+#[cfg_attr(test, derive(bitcode::Encode))]
+struct AlbumCombinedV3 {
+    object: ObjectSchema,
+    metadata: AlbumMetadataV3,
+}
+
+impl From<AlbumCombinedV3> for AlbumCombinedV5 {
+    fn from(v3: AlbumCombinedV3) -> Self {
+        AlbumCombinedV5 {
+            object: v3.object,
+            metadata: AlbumMetadataV5 {
+                id: v3.metadata.id,
+                title: v3.metadata.title,
+                created_time: v3.metadata.created_time,
+                start_time: v3.metadata.start_time,
+                end_time: v3.metadata.end_time,
+                last_modified_time: v3.metadata.last_modified_time,
+                cover: v3.metadata.cover,
+                item_count: v3.metadata.item_count,
+                item_size: v3.metadata.item_size,
+                share_list: v3.metadata.share_list,
+                dir_path: v3.metadata.dir_path,
+                custom_title: None,
+            },
+        }
+    }
+}
+
+#[derive(bitcode::Decode)]
+#[cfg_attr(test, derive(bitcode::Encode))]
+enum AbstractDataV3 {
+    Image(crate::model::image::ImageCombined),
+    Video(crate::model::video::VideoCombined),
+    Album(AlbumCombinedV3),
+}
+
+impl From<AbstractDataV3> for AbstractData {
+    fn from(v3: AbstractDataV3) -> Self {
+        match v3 {
+            AbstractDataV3::Image(img) => AbstractData::Image(img),
+            AbstractDataV3::Video(vid) => AbstractData::Video(vid),
+            AbstractDataV3::Album(alb) => {
+                AbstractData::Album(AlbumCombined::from(AlbumCombinedV5::from(alb)))
+            }
+        }
+    }
+}
+
+// ── v4 schema types (AlbumMetadata with custom_date, without custom_title) ───
+
+#[derive(bitcode::Decode)]
+#[cfg_attr(test, derive(bitcode::Encode))]
+struct AlbumMetadataV4 {
+    id: ArrayString<64>,
+    title: Option<String>,
+    created_time: i64,
+    start_time: Option<i64>,
+    end_time: Option<i64>,
+    last_modified_time: i64,
+    cover: Option<ArrayString<64>>,
+    item_count: usize,
+    item_size: u64,
+    share_list: HashMap<ArrayString<64>, Share>,
+    dir_path: Option<String>,
+    custom_date: Option<String>,
+}
+
+#[derive(bitcode::Decode)]
+#[cfg_attr(test, derive(bitcode::Encode))]
+struct AlbumCombinedV4 {
+    object: ObjectSchema,
+    metadata: AlbumMetadataV4,
+}
+
+impl From<AlbumCombinedV4> for AlbumCombinedV5 {
+    fn from(v4: AlbumCombinedV4) -> Self {
+        AlbumCombinedV5 {
+            object: v4.object,
+            metadata: AlbumMetadataV5 {
+                id: v4.metadata.id,
+                // v4 couldn't tell apart an explicitly-set title from the
+                // path-derived default, so a pre-existing v4 record's title
+                // is conservatively treated as customized (preserving
+                // whatever is currently displayed) rather than risk
+                // silently reverting a real custom title to the directory
+                // name. `custom_date` had no display consumer and is
+                // dropped without replacement.
+                custom_title: v4.metadata.title.clone(),
+                title: v4.metadata.title,
+                created_time: v4.metadata.created_time,
+                start_time: v4.metadata.start_time,
+                end_time: v4.metadata.end_time,
+                last_modified_time: v4.metadata.last_modified_time,
+                cover: v4.metadata.cover,
+                item_count: v4.metadata.item_count,
+                item_size: v4.metadata.item_size,
+                share_list: v4.metadata.share_list,
+                dir_path: v4.metadata.dir_path,
+            },
+        }
+    }
+}
+
+#[derive(bitcode::Decode)]
+#[cfg_attr(test, derive(bitcode::Encode))]
+enum AbstractDataV4 {
+    Image(crate::model::image::ImageCombined),
+    Video(crate::model::video::VideoCombined),
+    Album(AlbumCombinedV4),
+}
+
+impl From<AbstractDataV4> for AbstractData {
+    fn from(v4: AbstractDataV4) -> Self {
+        match v4 {
+            AbstractDataV4::Image(img) => AbstractData::Image(img),
+            AbstractDataV4::Video(vid) => AbstractData::Video(vid),
+            AbstractDataV4::Album(alb) => {
+                AbstractData::Album(AlbumCombined::from(AlbumCombinedV5::from(alb)))
+            }
+        }
+    }
+}
+
+// ── v5 schema types (AlbumMetadata with dir_path: Option<String>, before it
+// became required — metadata-only albums were deprecated in v6) ─────────────
+
+#[derive(bitcode::Decode)]
+#[cfg_attr(test, derive(bitcode::Encode))]
+struct AlbumMetadataV5 {
+    id: ArrayString<64>,
+    title: Option<String>,
+    created_time: i64,
+    start_time: Option<i64>,
+    end_time: Option<i64>,
+    last_modified_time: i64,
+    cover: Option<ArrayString<64>>,
+    item_count: usize,
+    item_size: u64,
+    share_list: HashMap<ArrayString<64>, Share>,
+    dir_path: Option<String>,
+    custom_title: Option<String>,
+}
+
+#[derive(bitcode::Decode)]
+#[cfg_attr(test, derive(bitcode::Encode))]
+struct AlbumCombinedV5 {
+    object: ObjectSchema,
+    metadata: AlbumMetadataV5,
+}
+
+impl From<AlbumCombinedV5> for AlbumCombined {
+    fn from(v5: AlbumCombinedV5) -> Self {
+        AlbumCombined {
+            object: v5.object,
+            metadata: AlbumMetadata {
+                id: v5.metadata.id,
+                title: v5.metadata.title,
+                created_time: v5.metadata.created_time,
+                start_time: v5.metadata.start_time,
+                end_time: v5.metadata.end_time,
+                last_modified_time: v5.metadata.last_modified_time,
+                cover: v5.metadata.cover,
+                item_count: v5.metadata.item_count,
+                item_size: v5.metadata.item_size,
+                share_list: v5.metadata.share_list,
+                // Metadata-only (non-directory) albums are deprecated — every
+                // album now corresponds to a subdirectory. A legacy record
+                // with dir_path: None can't be represented in the new
+                // required-String field; sentinel to an empty path so
+                // decoding doesn't panic. Purely defensive: no such records
+                // are expected to exist (pre-release, no manual-album
+                // creation path has shipped).
+                dir_path: v5.metadata.dir_path.unwrap_or_default(),
+                custom_title: v5.metadata.custom_title,
+            },
+        }
+    }
+}
+
+#[derive(bitcode::Decode)]
+#[cfg_attr(test, derive(bitcode::Encode))]
+enum AbstractDataV5 {
+    Image(crate::model::image::ImageCombined),
+    Video(crate::model::video::VideoCombined),
+    Album(AlbumCombinedV5),
+}
+
+impl From<AbstractDataV5> for AbstractData {
+    fn from(v5: AbstractDataV5) -> Self {
+        match v5 {
+            AbstractDataV5::Image(img) => AbstractData::Image(img),
+            AbstractDataV5::Video(vid) => AbstractData::Video(vid),
+            AbstractDataV5::Album(alb) => AbstractData::Album(AlbumCombined::from(alb)),
         }
     }
 }
@@ -174,7 +392,12 @@ impl From<AbstractDataV1> for AbstractData {
                     item_count: alb.metadata.item_count,
                     item_size: alb.metadata.item_size,
                     share_list: alb.metadata.share_list,
-                    dir_path: None,
+                    // v1 predates directory-backed albums entirely, so this
+                    // was always a metadata-only album — sentinel to an
+                    // empty path so decoding doesn't panic. Purely
+                    // defensive: no v1 records are expected to exist.
+                    dir_path: String::new(),
+                    custom_title: None,
                 },
             }),
         }
@@ -211,8 +434,20 @@ impl Value for AbstractData {
                     bitcode::decode::<AbstractDataV2>(payload)
                         .expect("Failed to decode AbstractData v2"),
                 ),
-                3 => bitcode::decode::<AbstractData>(payload)
-                    .expect("Failed to decode AbstractData v3"),
+                3 => AbstractData::from(
+                    bitcode::decode::<AbstractDataV3>(payload)
+                        .expect("Failed to decode AbstractData v3"),
+                ),
+                4 => AbstractData::from(
+                    bitcode::decode::<AbstractDataV4>(payload)
+                        .expect("Failed to decode AbstractData v4"),
+                ),
+                5 => AbstractData::from(
+                    bitcode::decode::<AbstractDataV5>(payload)
+                        .expect("Failed to decode AbstractData v5"),
+                ),
+                6 => bitcode::decode::<AbstractData>(payload)
+                    .expect("Failed to decode AbstractData v6"),
                 v => panic!("Unknown AbstractData schema version {v}"),
             }
         } else {
@@ -370,10 +605,159 @@ mod tests {
     }
 
     #[test]
-    fn v3_bytes_have_correct_prefix() {
+    fn v6_bytes_have_correct_prefix() {
         let bytes = AbstractData::as_bytes(&make_image_v3());
         assert_eq!(bytes[0], 0xFF, "magic marker must be 0xFF");
-        assert_eq!(bytes[1], 3, "version byte must match SCHEMA_VERSION");
+        assert_eq!(bytes[1], 6, "version byte must match SCHEMA_VERSION");
+    }
+
+    fn make_album_v3_bytes() -> Vec<u8> {
+        let id = ArrayString::from("alb3").expect("failed to create test ArrayString");
+        let v3 = AbstractDataV3::Album(AlbumCombinedV3 {
+            object: ObjectSchema::new(id, ObjectType::Album),
+            metadata: AlbumMetadataV3 {
+                id,
+                title: Some("Reunion".to_string()),
+                created_time: 2000,
+                start_time: Some(1000),
+                end_time: Some(3000),
+                last_modified_time: 2500,
+                cover: None,
+                item_count: 5,
+                item_size: 12000,
+                share_list: HashMap::new(),
+                dir_path: Some("/photos/reunion".to_string()),
+            },
+        });
+        let mut bytes = vec![0xFF, 3u8];
+        bytes.extend(bitcode::encode(&v3));
+        bytes
+    }
+
+    #[test]
+    fn v3_album_migrates_to_no_custom_title() {
+        let bytes = make_album_v3_bytes();
+        let decoded = AbstractData::from_bytes(&bytes);
+        match decoded {
+            AbstractData::Album(alb) => {
+                assert_eq!(alb.metadata.title, Some("Reunion".to_string()));
+                assert_eq!(alb.metadata.dir_path, "/photos/reunion");
+                assert_eq!(alb.metadata.custom_title, None);
+            }
+            _ => panic!("expected Album variant after v3 migration"),
+        }
+    }
+
+    fn make_album_v4_bytes() -> Vec<u8> {
+        let id = ArrayString::from("alb4").expect("failed to create test ArrayString");
+        let v4 = AbstractDataV4::Album(AlbumCombinedV4 {
+            object: ObjectSchema::new(id, ObjectType::Album),
+            metadata: AlbumMetadataV4 {
+                id,
+                title: Some("Reunion 2".to_string()),
+                created_time: 2000,
+                start_time: Some(1000),
+                end_time: Some(3000),
+                last_modified_time: 2500,
+                cover: None,
+                item_count: 5,
+                item_size: 12000,
+                share_list: HashMap::new(),
+                dir_path: Some("/photos/reunion2".to_string()),
+                custom_date: Some("2024-06-01".to_string()),
+            },
+        });
+        let mut bytes = vec![0xFF, 4u8];
+        bytes.extend(bitcode::encode(&v4));
+        bytes
+    }
+
+    #[test]
+    fn v4_album_migrates_title_to_custom_title_and_drops_custom_date() {
+        let bytes = make_album_v4_bytes();
+        let decoded = AbstractData::from_bytes(&bytes);
+        match decoded {
+            AbstractData::Album(alb) => {
+                assert_eq!(alb.metadata.title, Some("Reunion 2".to_string()));
+                // A pre-existing v4 title is conservatively treated as
+                // customized, since v4 had no way to tell a user-set title
+                // apart from the path-derived default.
+                assert_eq!(alb.metadata.custom_title, Some("Reunion 2".to_string()));
+                assert_eq!(alb.metadata.dir_path, "/photos/reunion2");
+            }
+            _ => panic!("expected Album variant after v4 migration"),
+        }
+    }
+
+    fn make_album_v5_bytes(dir_path: Option<String>) -> Vec<u8> {
+        let id = ArrayString::from("alb5").expect("failed to create test ArrayString");
+        let v5 = AbstractDataV5::Album(AlbumCombinedV5 {
+            object: ObjectSchema::new(id, ObjectType::Album),
+            metadata: AlbumMetadataV5 {
+                id,
+                title: Some("Reunion 3".to_string()),
+                created_time: 2000,
+                start_time: Some(1000),
+                end_time: Some(3000),
+                last_modified_time: 2500,
+                cover: None,
+                item_count: 5,
+                item_size: 12000,
+                share_list: HashMap::new(),
+                dir_path,
+                custom_title: Some("Reunion 3".to_string()),
+            },
+        });
+        let mut bytes = vec![0xFF, 5u8];
+        bytes.extend(bitcode::encode(&v5));
+        bytes
+    }
+
+    #[test]
+    fn v5_dir_album_round_trips_unchanged() {
+        let bytes = make_album_v5_bytes(Some("/photos/reunion3".to_string()));
+        let decoded = AbstractData::from_bytes(&bytes);
+        match decoded {
+            AbstractData::Album(alb) => {
+                assert_eq!(alb.metadata.title, Some("Reunion 3".to_string()));
+                assert_eq!(alb.metadata.dir_path, "/photos/reunion3");
+                assert_eq!(alb.metadata.custom_title, Some("Reunion 3".to_string()));
+            }
+            _ => panic!("expected Album variant after v5 migration"),
+        }
+    }
+
+    /// Regression test: a legacy metadata-only (non-directory) album — the
+    /// kind deprecated in v6 — must decode to a sentinel empty `dir_path`
+    /// instead of panicking. Purely defensive: no such records are expected
+    /// to exist pre-release.
+    #[test]
+    fn v5_metadata_only_album_migrates_to_empty_dir_path_sentinel() {
+        let bytes = make_album_v5_bytes(None);
+        let decoded = AbstractData::from_bytes(&bytes);
+        match decoded {
+            AbstractData::Album(alb) => {
+                assert_eq!(alb.metadata.dir_path, "");
+            }
+            _ => panic!("expected Album variant after v5 migration"),
+        }
+    }
+
+    #[test]
+    fn v3_image_round_trips_unchanged() {
+        let id = ArrayString::from("img3").expect("failed to create test ArrayString");
+        let v3 = AbstractDataV3::Image(ImageCombined {
+            object: ObjectSchema::new(id, ObjectType::Image),
+            metadata: ImageMetadata::new(id, 2048, 1920, 1080, "webp".to_string()),
+        });
+        let mut bytes = vec![0xFF, 3u8];
+        bytes.extend(bitcode::encode(&v3));
+
+        let decoded = AbstractData::from_bytes(&bytes);
+        match decoded {
+            AbstractData::Image(img) => assert_eq!(img.metadata.ext, "webp"),
+            _ => panic!("expected Image variant after v3 passthrough"),
+        }
     }
 
     #[test]
@@ -390,8 +774,9 @@ mod tests {
     }
 
     #[test]
-    fn v1_album_migrates_dir_path_to_none() {
-        // Encode a v1 album record and verify it is promoted with dir_path = None.
+    fn v1_album_migrates_dir_path_to_empty_sentinel() {
+        // v1 predates directory-backed albums entirely, so this is always a
+        // metadata-only album — must decode to the empty-dir_path sentinel.
         let mut bytes = vec![0xFF, 1u8];
         bytes.extend(bitcode::encode(&make_album_v1()));
 
@@ -400,7 +785,8 @@ mod tests {
             AbstractData::Album(alb) => {
                 assert_eq!(alb.metadata.title, Some("Holiday".to_string()));
                 assert_eq!(alb.metadata.item_count, 3);
-                assert_eq!(alb.metadata.dir_path, None);
+                assert_eq!(alb.metadata.dir_path, "");
+                assert_eq!(alb.metadata.custom_title, None);
             }
             _ => panic!("expected Album variant after v1 migration"),
         }
@@ -589,7 +975,8 @@ mod integration_tests {
             AbstractData::Album(alb) => {
                 assert_eq!(alb.metadata.title, Some("Holiday".to_string()));
                 assert_eq!(alb.metadata.item_count, 3);
-                assert_eq!(alb.metadata.dir_path, None);
+                assert_eq!(alb.metadata.dir_path, "");
+                assert_eq!(alb.metadata.custom_title, None);
             }
             _ => panic!("expected Album variant after v1 migration through redb"),
         }

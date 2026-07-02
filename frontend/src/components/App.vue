@@ -1,6 +1,6 @@
 <template>
   <v-app
-    :class="{ 'no-select': scrollbarStore.isDragging || scrollbarStoreInsideAlbum.isDragging }"
+    :class="{ 'no-select': scrollbarStore.isDragging }"
     @dragstart.prevent
     @dragover.prevent
     @drop.prevent
@@ -15,6 +15,7 @@
     <AssignAlbumModal v-if="modalStore.showAssignAlbumModal" />
     <EditBatchTagsModal v-if="modalStore.showBatchEditTagsModal" />
     <UploadModal v-if="modalStore.showUploadModal" />
+    <AlbumInfoModal v-if="modalStore.showAlbumInfoModal" />
   </v-app>
 </template>
 
@@ -22,7 +23,6 @@
 import { useRoute } from 'vue-router'
 import { computed, onBeforeMount } from 'vue'
 import { useScrollbarStore } from '@/store/scrollbarStore'
-import { useRerenderStore } from '@/store/rerenderStore'
 import { useMessageStore } from '@/store/messageStore'
 import DropZoneModal from './Modal/DropZoneModal.vue'
 import { useConstStore } from '@/store/constStore'
@@ -32,18 +32,17 @@ import EditTagsModal from '@/components/Modal/EditTagsModal.vue'
 import EditBatchTagsModal from '@/components/Modal/EditBatchTagsModal.vue'
 import UploadModal from '@/components/Modal/UploadModal.vue'
 import AssignAlbumModal from '@/components/Modal/AssignAlbumModal.vue'
+import AlbumInfoModal from '@/components/Modal/AlbumInfoModal.vue'
 import { useModalStore } from '@/store/modalStore'
 
 const modalStore = useModalStore('mainId')
 const scrollbarStore = useScrollbarStore('mainId')
-const scrollbarStoreInsideAlbum = useScrollbarStore('subId')
-const rerenderStore = useRerenderStore('mainId')
 const messageStore = useMessageStore('mainId')
 const constStore = useConstStore('mainId')
 const configStore = useConfigStore('mainId')
 const route = useRoute()
 
-// The routeKey is used to ensure that the router-view reloads the Home.vue component properly.
+// The routeKey is used to ensure that the router-view reloads the Gallery.vue component properly.
 // Without it, Vue may cache the component for optimization, potentially causing bugs.
 const routeKey = computed(() => {
   const currentPage = route.meta.baseName
@@ -52,8 +51,7 @@ const routeKey = computed(() => {
   const priorityId = typeof route.query.priority_id === 'string' ? route.query.priority_id : ''
   const reverse = typeof route.query.reverse === 'string' ? route.query.reverse : ''
   const concurrencyNumber = constStore.concurrencyNumber
-  const homeKey = rerenderStore.homeKey.toString()
-  return `${currentPage}-${search}-${locate}-${priorityId}-${reverse}-${concurrencyNumber}-${homeKey}`
+  return `${currentPage}-${search}-${locate}-${priorityId}-${reverse}-${concurrencyNumber}`
 })
 
 onBeforeMount(async () => {

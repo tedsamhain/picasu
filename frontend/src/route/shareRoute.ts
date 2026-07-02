@@ -3,14 +3,14 @@
 import { RouteRecordRaw } from 'vue-router'
 import 'vue-router'
 
-import ViewPageMain from '@/components/View/ViewPageMain.vue'
+import ViewPage from '@/components/View/ViewPage.vue'
 
-import HomeShare from '@/components/Home/HomeShare.vue'
+import GalleryShare from '@/components/Gallery/GalleryShare.vue'
 import { PageReturnType } from './pageReturnType'
 
 export const shareRoute: RouteRecordRaw = {
   path: '/share/:albumId-:shareId',
-  component: HomeShare,
+  component: GalleryShare,
   name: 'share',
   meta: {
     basicString: null,
@@ -34,13 +34,12 @@ export const shareRoute: RouteRecordRaw = {
   children: [
     {
       path: 'view/:hash',
-      component: ViewPageMain,
+      component: ViewPage,
       name: `shareViewPage`,
       meta: {
         level: 2,
         baseName: 'share',
         getParentPage: (route, albumId, shareId) => {
-          console.log('123')
           return {
             name: 'share',
             params: { albumId: albumId, shareId: shareId },

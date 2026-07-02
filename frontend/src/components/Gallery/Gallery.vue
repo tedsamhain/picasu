@@ -1,48 +1,48 @@
 <template>
   <div class="w-100 h-100 d-flex flex-column">
     <!-- This router-view contains ViewPage.vue. -->
-    <!--
-      albumHomeIsolatedKey triggers a ViewPage re-render when photos are added or removed
-      via HomeTempBar while browsing an album, ensuring the latest album data is displayed.
-    -->
-    <router-view :key="albumHomeIsolatedKey"></router-view>
+    <Transition v-if="route.meta.level >= 2" name="fade">
+      <router-view></router-view>
+    </Transition>
 
-    <div class="w-100 flex-grow-0 flex-shrink-0">
-      <slot name="home-toolbar"></slot>
-    </div>
-
-    <div class="w-100 flex-grow-1 min-h-0 d-flex">
-      <div
-        id="image-container"
-        ref="imageContainerRef"
-        class="d-flex flex-wrap position-relative flex-grow-1 min-h-0 h-100 pa-1 pb-2 bg-surface-light"
-        :class="stopScroll ? 'overflow-y-hidden' : 'overflow-y-scroll'"
-        @scroll="
-          prefetchStore.locateTo === null && locationStore.pendingLocateTarget === null
-            ? throttledHandleScroll()
-            : () => {}
-        "
-      >
-        <Buffer
-          v-if="initializedStore.initialized && prefetchStore.dataLength > 0"
-          :buffer-height="bufferHeight"
-          :isolation-id="props.isolationId"
-        />
-        <HomeEmptyCard
-          v-if="initializedStore.initialized && prefetchStore.dataLength === 0"
-          :isolation-id="props.isolationId"
-        />
+    <template v-else>
+      <div class="w-100 flex-grow-0 flex-shrink-0">
+        <slot name="home-toolbar"></slot>
       </div>
 
-      <div class="flex-grow-0 flex-shrink-0 bg-surface-light" style="overflow: visible">
-        <ScrollBar :isolation-id="props.isolationId" />
+      <div class="w-100 flex-grow-1 min-h-0 d-flex">
+        <div
+          id="image-container"
+          ref="imageContainerRef"
+          class="d-flex flex-wrap position-relative flex-grow-1 min-h-0 h-100 pa-1 pb-2 bg-surface-light"
+          :class="stopScroll ? 'overflow-y-hidden' : 'overflow-y-scroll'"
+          @scroll="
+            prefetchStore.locateTo === null && locationStore.pendingLocateTarget === null
+              ? throttledHandleScroll()
+              : () => {}
+          "
+        >
+          <Buffer
+            v-if="initializedStore.initialized && prefetchStore.dataLength > 0"
+            :buffer-height="bufferHeight"
+            :isolation-id="props.isolationId"
+          />
+          <GalleryEmptyCard
+            v-if="initializedStore.initialized && prefetchStore.dataLength === 0"
+            :isolation-id="props.isolationId"
+          />
+        </div>
+
+        <div class="flex-grow-0 flex-shrink-0 bg-surface-light" style="overflow: visible">
+          <ScrollBar :isolation-id="props.isolationId" />
+        </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, provide, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, computed, provide, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useDataStore } from '@/store/dataStore'
 import { usePrefetchStore } from '@/store/prefetchStore'
 import { useCollectionStore } from '@/store/collectionStore'
@@ -57,17 +57,16 @@ import { handleScroll } from '@/script/hook/useHandleScroll'
 import { useInitializeScrollPosition } from '@/script/hook/useInitializeScrollPosition'
 import { useImgStore } from '@/store/imgStore'
 import Buffer from '@/components/Buffer/Buffer.vue'
-import ScrollBar from '@/components/Home/HomeScrollBar.vue'
+import ScrollBar from '@/components/Gallery/GalleryScrollBar.vue'
 import { layoutBatchNumber } from '@/type/constants'
 import { useOffsetStore } from '@/store/offsetStore'
 import { useRowStore } from '@/store/rowStore'
 import { useLocationStore } from '@/store/locationStore'
 import { fetchRowInWorker } from '@/api/fetchRow'
-import HomeEmptyCard from '@/components/Home/HomeEmptyCard.vue'
+import GalleryEmptyCard from '@/components/Gallery/GalleryEmptyCard.vue'
 import { useScrollTopStore } from '@/store/scrollTopStore'
 import { useOptimisticStore } from '@/store/optimisticUpateStore'
 import { IsolationId } from '@type/types'
-import { useRerenderStore } from '@/store/rerenderStore'
 import { useTagStore } from '@/store/tagStore'
 import { useAlbumStore } from '@/store/albumStore'
 import { useConstStore } from '@/store/constStore'
@@ -95,7 +94,6 @@ const optimisticUpateStore = useOptimisticStore(props.isolationId)
 const scrollbarStore = useScrollbarStore(props.isolationId)
 // albumStore should not use 'mainId'; otherwise clearAll will be called when the 'props.isolationId' component is unmounted.
 const albumStore = useAlbumStore(props.isolationId)
-const rerenderStore = useRerenderStore('mainId')
 const tagStore = useTagStore('mainId')
 const constStore = useConstStore('mainId')
 
@@ -120,6 +118,12 @@ const { throttledHandleScroll, onWheel } = handleScroll(
 )
 
 watch([windowWidth, () => constStore.subRowHeightScale], async () => {
+  // #image-container is unmounted while a nested ViewPage is shown (v-else
+  // branch removed from the DOM), which reports windowWidth as 0 via
+  // useElementSize — not a real resize. Treating that as one wipes rowStore/
+  // offsetStore/queueStore for no reason, so the grid comes back empty.
+  if (windowWidth.value === 0) return
+
   locationStore.triggerForResize()
   prefetchStore.windowWidth = Math.round(windowWidth.value)
   prefetchStore.clearForResize()
@@ -139,15 +143,25 @@ const bufferHeight = computed(() => {
   return 600000
 })
 
-const albumHomeIsolatedKey = computed(() => {
-  const hash = route.params.hash
-  if (typeof hash === 'string') {
-    const rerenderKey = rerenderStore.homeIsolatedKey.toString()
-    return rerenderKey
-  } else {
-    return 'undefineBehavior'
+// The grid (v-else branch) unmounts its #image-container while a nested
+// ViewPage is shown (route.meta.level >= 2) and remounts a *new* DOM element
+// when returning — a fresh element's native scrollTop starts at 0, but
+// lastScrollTop/scrollTopStore (plain refs/stores, unaffected by the DOM
+// swap since this component itself never unmounts) still hold the old
+// virtual-scroll baseline. Without resyncing, the row virtualization then
+// renders rows via translateY offsets computed from that stale baseline
+// while the real viewport sits at native scrollTop 0 — the grid looks empty.
+watch(
+  () => route.meta.level,
+  async (newLevel, oldLevel) => {
+    if (oldLevel >= 2 && newLevel < 2) {
+      await nextTick()
+      if (imageContainerRef.value) {
+        imageContainerRef.value.scrollTop = lastScrollTop.value
+      }
+    }
   }
-})
+)
 
 // Remove the locate query param after the two-step jump fully completes,
 // so refreshing won't re-trigger the jump.
@@ -223,5 +237,15 @@ onBeforeUnmount(() => {
 
 img {
   transition: border 0.1s linear;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

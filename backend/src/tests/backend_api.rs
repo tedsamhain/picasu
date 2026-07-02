@@ -232,6 +232,28 @@ fn check_file_and_serve_assertions(
                 Status::Ok,
                 "serve_image_ok: {photo_var}"
             );
+        } else if let Some(file_path) = item["file.contains"].as_str() {
+            let trimmed = file_path.trim_start_matches('/');
+            let text = item["text"]
+                .as_str()
+                .unwrap_or_else(|| panic!("file.contains: missing 'text' field"));
+            let content = std::fs::read_to_string(data.join(trimmed))
+                .unwrap_or_else(|e| panic!("file.contains: failed to read {trimmed}: {e}"));
+            assert!(
+                content.contains(text),
+                "file.contains: {trimmed} does not contain {text:?}.\nFile content:\n{content}"
+            );
+        } else if let Some(file_path) = item["file.not_contains"].as_str() {
+            let trimmed = file_path.trim_start_matches('/');
+            let text = item["text"]
+                .as_str()
+                .unwrap_or_else(|| panic!("file.not_contains: missing 'text' field"));
+            let content = std::fs::read_to_string(data.join(trimmed))
+                .unwrap_or_else(|e| panic!("file.not_contains: failed to read {trimmed}: {e}"));
+            assert!(
+                !content.contains(text),
+                "file.not_contains: {trimmed} unexpectedly contains {text:?}.\nFile content:\n{content}"
+            );
         }
     }
 }
@@ -420,6 +442,16 @@ fn interpret_scenario(scenario: &Value) {
                             exif_date: None,
                         });
                     }
+                } else if let Some(raw_file) = item["raw_file"].as_str() {
+                    let trimmed = raw_file.trim_start_matches('/');
+                    let content = item["content"].as_str().unwrap_or("");
+                    let path = data.join(trimmed);
+                    if let Some(parent) = path.parent() {
+                        std::fs::create_dir_all(parent)
+                            .unwrap_or_else(|e| panic!("create dir for raw_file {trimmed}: {e}"));
+                    }
+                    std::fs::write(&path, content)
+                        .unwrap_or_else(|e| panic!("write raw_file {trimmed}: {e}"));
                 } else if let Some(photo) = item["photo"].as_str() {
                     let trimmed = photo.trim_start_matches('/');
 

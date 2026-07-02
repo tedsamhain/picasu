@@ -1,0 +1,73 @@
+name: Album Info modal edits title and does not auto-reopen on reselection
+covers:
+  api:
+    - PUT /put/set_album_title
+  ui:
+    - Album Info batch-menu item is grayed out unless a single album is selected
+    - Album Info modal edits persist after reopen
+    - dialog does not auto-reopen when the same album is reselected after closing
+
+given:
+  - dir_album: albuminfotest/parent
+  - dir_album: albuminfotest/parent/child
+    id_as: $child
+
+steps:
+  - when:
+      - navigate: /albums
+      - click.text: Albuminfotest
+      - click.text: parent
+    assert:
+      - ui.visible: main/
+
+  # Select the "child" album card and open its context menu
+  - when:
+      - click.select_first: true
+      - click.icon: mdi-dots-vertical
+    assert:
+      - ui.visible: main/
+
+  - when:
+      - click: option/Album Info
+    assert:
+      - ui.modal: open
+
+  - when:
+      - fill: textbox/Title
+        value: My Custom Child
+    assert:
+      - ui.input_value: textbox/Title
+        contains: My Custom Child
+
+  - when:
+      - click: button/Save
+    assert:
+      - ui.modal: closed
+
+  - when:
+      - wait.ms: 200
+    assert:
+      - file.contains: albuminfotest/parent/child/.albuminfo.xmp
+        text: My Custom Child
+
+  # Reopen (album still selected from before) and verify the edit persisted
+  - when:
+      - click.icon: mdi-dots-vertical
+      - click: option/Album Info
+    assert:
+      - ui.input_value: textbox/Title
+        contains: My Custom Child
+
+  - when:
+      - click: button/Cancel
+    assert:
+      - ui.modal: closed
+
+  # Regression guard for the reported bug: with the album still selected
+  # (Cancel doesn't clear the grid selection) and the dialog closed, merely
+  # opening the batch menu again must not resurrect the dialog on its own —
+  # it must require a fresh explicit click on "Album Info".
+  - when:
+      - click.icon: mdi-dots-vertical
+    assert:
+      - ui.modal: closed

@@ -10,11 +10,16 @@
 
       <v-divider v-if="shouldShowSetAsCover"></v-divider>
 
+      <!-- Album Info: grayed out unless the single selected item is itself an album -->
+      <ItemAlbumInfo />
+
+      <v-divider></v-divider>
+
       <!-- Archive and Favorite Actions -->
       <ItemArchive :index-list="editModeList" />
       <ItemFavorite :index-list="editModeList" />
       <ItemBatchEditTags />
-      <ItemBatchEditAlbums v-if="!isInAlbumsPage" />
+      <ItemBatchEditAlbums />
 
       <v-divider></v-divider>
 
@@ -43,6 +48,7 @@ import { useCollectionStore } from '@/store/collectionStore'
 import { useConfigStore } from '@/store/configStore'
 
 import ItemSetAsCover from '@Menu/MenuItem/ItemSetAsCover.vue'
+import ItemAlbumInfo from '@Menu/MenuItem/ItemAlbumInfo.vue'
 import ItemArchive from '@Menu/MenuItem/ItemArchive.vue'
 import ItemFavorite from '@Menu/MenuItem/ItemFavorite.vue'
 import ItemBatchEditTags from '@Menu/MenuItem/ItemBatchEditTags.vue'
@@ -63,10 +69,11 @@ const configStore = useConfigStore('mainId')
 const editModeList = computed(() => Array.from(collectionStore.editModeCollection))
 
 const shouldShowSetAsCover = computed(
-  () => route.meta.level === 3 && collectionStore.editModeCollection.size === 1
+  () =>
+    route.meta.baseName === 'album' &&
+    route.meta.level === 1 &&
+    collectionStore.editModeCollection.size === 1
 )
 
 const isInTrashedPath = computed(() => route.meta.baseName === 'trashed')
-
-const isInAlbumsPage = computed(() => route.meta.baseName === 'albums')
 </script>
